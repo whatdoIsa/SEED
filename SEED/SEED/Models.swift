@@ -96,6 +96,11 @@ final class Season {
     var endEquity: Int?
     /// 부검에서 고른, 다음 시즌으로 가져가는 규칙 — 이월되는 것은 돈이 아니라 이것.
     var carriedRule: String?
+    /// 포트폴리오 스냅샷 (앱 재시작 시 복원) — 매매 직후 갱신
+    var savedCash: Int?
+    var savedQty: Int?
+    var savedAvgCost: Double?
+    var savedRealizedPnL: Double?
 
     init(number: Int, startedAt: Date = .now, startCash: Int) {
         self.number = number

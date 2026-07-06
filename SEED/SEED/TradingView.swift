@@ -10,6 +10,7 @@ struct TradingView: View {
     @State private var lastFill: FillResult?
     @State private var orderErrorMessage: String?
     @State private var marketTab = 0
+    @State private var miniReviewText: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,9 +37,24 @@ struct TradingView: View {
                     OrderBookLockedView()
                 }
             }
+            if let text = miniReviewText {
+                HStack(spacing: 7) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 12))
+                    Text(text)
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                }
+                .foregroundStyle(SeedTheme.violetDeep)
+                .padding(.horizontal, 13).padding(.vertical, 9)
+                .background(SeedTheme.violetTint, in: RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 16).padding(.bottom, 6)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             portfolioStrip
             orderButtons
         }
+        .animation(.snappy(duration: 0.3), value: miniReviewText)
         .background(Color.white)
         .task { session.start() }
         .sheet(item: $orderSide) { side in
@@ -46,7 +62,9 @@ struct TradingView: View {
                 switch result {
                 case .success(let fill):
                     store.record(fill: fill, tag: tag, avgCostBeforeOrder: avgCostBefore)
+                    store.persistPortfolio(session.engine.portfolio)
                     lastFill = fill
+                    showMiniReview(store.miniReview(for: tag))
                 case .failure(let error):
                     orderErrorMessage = message(for: error)
                 }
@@ -255,6 +273,14 @@ struct TradingView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .background(color, in: RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    private func showMiniReview(_ text: String) {
+        miniReviewText = text
+        Task {
+            try? await Task.sleep(for: .seconds(4))
+            miniReviewText = nil
         }
     }
 

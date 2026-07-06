@@ -17,6 +17,7 @@ struct ConceptPage: Identifiable {
 
 enum MissionKind {
     case tapBullish
+    case slippageTutorial
 }
 
 struct LessonDef: Identifiable {
@@ -54,9 +55,30 @@ enum LessonCatalog {
         mission: .tapBullish
     )
 
-    /// 레슨 2·3은 각 미션 구현과 함께 추가된다 (슬리피지 튜토리얼 / 급등 시나리오).
+    static let orderbook = LessonDef(
+        id: "lesson.orderbook",
+        order: 2,
+        title: "호가창, 가격 뒤의 진짜 시장",
+        subtitle: "표시가는 왜 내 체결가가 아닐까",
+        duration: "약 2분",
+        unlocksLevel: UnlockLevel.orderBook,
+        unlockLabel: "호가창 · 체결 해금",
+        concept: [
+            ConceptPage(
+                text: "화면의 52,300원은 사실 **'지금 살 수 있는 가장 싼 한 주'**의 값이에요.\n\n그 뒤엔 줄이 서 있어요 — \"이 값에 팔게요\"(매도호가)와 \"이 값에 살게요\"(매수호가).",
+                visual: .orderBookIntro
+            ),
+            ConceptPage(
+                text: "각 값에 걸린 주식 수를 **잔량**이라고 해요.\n\n최우선 매도호가의 잔량이 적으면, 한 번에 크게 사는 순간 그 위 값까지 먹으면서 **내가 산 평균값이 밀려요.**\n\n이걸 지금 직접 겪어볼 거예요.",
+                visual: .none
+            )
+        ],
+        mission: .slippageTutorial
+    )
+
+    /// 레슨 3은 급등 시나리오 미션과 함께 추가된다.
     static var all: [LessonDef] { registered }
-    static var registered: [LessonDef] = [candle]
+    static var registered: [LessonDef] = [candle, orderbook]
 }
 
 // MARK: - 미션 1용 손수 만든 캔들 (교육 목적으로 모양을 통제)

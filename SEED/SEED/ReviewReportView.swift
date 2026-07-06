@@ -1,9 +1,11 @@
 import SwiftUI
+import JurinKit
 
 /// 복기 리포트 (M4-2, 부록 A-4) — 시그니처 화면. L1 룰베이스: 오프라인·무료.
 /// 숫자보다 문장 먼저, 코치는 관찰 어조, 개선 과제는 딱 하나.
 struct ReviewReportView: View {
     let store: SeedStore
+    @Bindable var session: MarketSession
 
     var body: some View {
         if store.isLessonDone(LessonCatalog.chase.id) {
@@ -62,6 +64,8 @@ struct ReviewReportView: View {
                                color: avgRealizedColor(stats))
                 }
 
+                tradeMapSection
+
                 if !stats.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("습관 분석")
@@ -102,6 +106,41 @@ struct ReviewReportView: View {
         }
         .background(SeedTheme.background)
         .onAppear { Analytics.log(.reviewReportOpened) }
+    }
+
+    // MARK: 매매 지도 (부록 A-4의 aha 모먼트 — 어디서 사고 팔았는지 한눈에)
+
+    @ViewBuilder
+    private var tradeMapSection: some View {
+        let marks = store.tradeMarks()
+        if !marks.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("내 매매 지도")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Text("가격 위에 내가 사고 판 자리가 찍혀 있어요.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+                TradeMapCanvas(candles: session.engine.candles, marks: marks)
+                    .frame(height: 170)
+                    .padding(12)
+                    .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+                HStack(spacing: 14) {
+                    legendDot(color: SeedTheme.up, label: "매수")
+                    legendDot(color: SeedTheme.down, label: "매도")
+                    Spacer()
+                }
+                .font(.system(size: 11))
+                .foregroundStyle(SeedTheme.textSecondary)
+            }
+        }
+    }
+
+    private func legendDot(color: Color, label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text(label)
+        }
     }
 
     // MARK: 룰베이스 문장 생성 (L1 — API 비용 0원)

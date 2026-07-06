@@ -4,6 +4,7 @@ import SwiftUI
 struct RootView: View {
     @Bindable var session: MarketSession
     let store: SeedStore
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         Group {
@@ -18,6 +19,10 @@ struct RootView: View {
             Analytics.log(.sessionStart)
             Analytics.logDayOpenIfNeeded()
         }
+        .onChange(of: scenePhase) { _, phase in
+            // 백그라운드 저장 + 복귀 시 경과분 따라잡기 (§9.2 catch-up)
+            session.handleScenePhase(active: phase == .active)
+        }
     }
 
     private var mainTabs: some View {
@@ -26,7 +31,7 @@ struct RootView: View {
                 .tabItem { Label("시장", systemImage: "chart.bar.fill") }
             LessonListView(store: store)
                 .tabItem { Label("배우기", systemImage: "book.fill") }
-            ReviewReportView(store: store)
+            ReviewReportView(store: store, session: session)
                 .tabItem { Label("복기", systemImage: "text.magnifyingglass") }
             PortfolioView(session: session, store: store)
                 .tabItem { Label("내 주식", systemImage: "briefcase.fill") }

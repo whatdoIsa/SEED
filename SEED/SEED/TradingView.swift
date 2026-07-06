@@ -70,8 +70,11 @@ struct TradingView: View {
             OrderSheet(session: session, side: side) { result, tag, avgCostBefore in
                 switch result {
                 case .success(let fill):
-                    store.record(fill: fill, tag: tag, avgCostBeforeOrder: avgCostBefore)
+                    store.record(fill: fill, tag: tag, avgCostBeforeOrder: avgCostBefore,
+                                 atTick: session.engine.tick,
+                                 atCandleIndex: session.engine.candles.count)
                     store.persistPortfolio(session.engine.portfolio)
+                    session.persistState()
                     lastFill = fill
                     hasTraded = true
                     showMiniReview(store.miniReview(for: tag))

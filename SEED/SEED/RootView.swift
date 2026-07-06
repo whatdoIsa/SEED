@@ -9,6 +9,8 @@ struct RootView: View {
         TabView {
             TradingView(session: session, store: store)
                 .tabItem { Label("시장", systemImage: "chart.bar.fill") }
+            LessonListView(store: store)
+                .tabItem { Label("배우기", systemImage: "book.fill") }
             PortfolioView(session: session, store: store)
                 .tabItem { Label("내 주식", systemImage: "briefcase.fill") }
         }

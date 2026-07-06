@@ -22,6 +22,8 @@ enum SeedTheme {
     static let band = Color(hex: 0xF2F4F6)
     static let card = Color(hex: 0xF9FAFB)
     static let ink = Color(hex: 0x17171C)
+    /// 잉크(다크 카드) 위 본문 텍스트
+    static let inkText = Color(hex: 0xF2F3F5)
 
     /// 손익 부호에 따른 기능색.
     static func pnl(_ value: Double) -> Color {

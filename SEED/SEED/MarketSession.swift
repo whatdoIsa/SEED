@@ -14,11 +14,11 @@ final class MarketSession {
         var label: String { "\(rawValue)x" }
     }
 
-    let engine: MarketEngine
+    private(set) var engine: MarketEngine
     var speed: Speed = .x1
     private(set) var isRunning = false
     /// 세션 시작 기준가 — 등락 표시의 기준.
-    let startPrice: Int
+    private(set) var startPrice: Int
 
     private var loop: Task<Void, Never>?
     /// 1x에서 1틱 ≈ 1초. 배속은 간격을 줄인다.
@@ -59,6 +59,17 @@ final class MarketSession {
         isRunning = false
         loop?.cancel()
         loop = nil
+    }
+
+    /// 계좌 부검 통과 후: 새 시드머니로 새 시장을 연다 (M4-3).
+    func resetForNewSeason() {
+        stop()
+        let fresh = MarketEngine(seed: .random(in: 0...UInt64.max))
+        fresh.advance(ticks: fresh.config.ticksPerCandle * 30)
+        engine = fresh
+        startPrice = fresh.candles.last?.close ?? fresh.lastPrice
+        speed = .x1
+        start()
     }
 
     /// 주문 시트가 열리면 1x로 낮춰 정밀 매매를 방해하지 않는다 (스펙 1).

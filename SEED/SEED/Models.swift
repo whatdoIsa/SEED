@@ -56,6 +56,8 @@ final class TradeLog {
     var atTick: Int?
     /// 체결 시점의 캔들 인덱스 — 매매 지도의 x 좌표
     var atCandleIndex: Int?
+    /// 지정가 체결 여부 — 리플레이 시 포트폴리오 복원 경로로 분기
+    var isLimitFill: Bool?
 
     var side: Side { Side(rawValue: sideRaw) ?? .buy }
     var reasonTag: TradeReasonTag { TradeReasonTag(rawValue: reasonTagRaw) ?? .gutBuy }

@@ -23,7 +23,7 @@ struct SEEDApp: App {
 
     var body: some Scene {
         WindowGroup {
-            TradingView(session: session, store: store)
+            RootView(session: session, store: store)
         }
         .modelContainer(container)
     }

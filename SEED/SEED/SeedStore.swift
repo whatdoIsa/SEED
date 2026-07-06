@@ -190,6 +190,13 @@ final class SeedStore {
 
     // MARK: 레슨·해금 (M2-5 / M3-1이 호출)
 
+    /// 온보딩 완료 — 경험 분기에 따라 시작 해금 레벨이 다르다 (M5-1).
+    func completeOnboarding(startLevel: Int) {
+        progress.unlockLevel = max(progress.unlockLevel, startLevel)
+        progress.onboardingDone = true
+        try? context.save()
+    }
+
     func isLessonDone(_ lessonId: String) -> Bool {
         let done = (try? context.fetch(FetchDescriptor<LessonProgress>(
             predicate: #Predicate { $0.lessonId == lessonId }

@@ -6,6 +6,14 @@ struct RootView: View {
     let store: SeedStore
 
     var body: some View {
+        if store.progress.onboardingDone {
+            mainTabs
+        } else {
+            OnboardingView(store: store)
+        }
+    }
+
+    private var mainTabs: some View {
         TabView {
             TradingView(session: session, store: store)
                 .tabItem { Label("시장", systemImage: "chart.bar.fill") }

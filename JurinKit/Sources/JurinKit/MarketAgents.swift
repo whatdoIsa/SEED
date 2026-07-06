@@ -48,6 +48,8 @@ public protocol MarketAgent: AnyObject {
     var id: String { get }
     /// true면 매 행동 전에 자신의 기존 호가를 걷는다 (마켓메이커의 호가 갱신).
     var refreshesQuotes: Bool { get }
+    /// 시나리오(ScenarioPreset)가 단계별로 오버라이드하는 공통 파라미터.
+    var params: AgentParams { get set }
     func act(_ ctx: MarketContext, rng: inout SeededRNG) -> [OrderIntent]
 }
 

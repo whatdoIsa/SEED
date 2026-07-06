@@ -95,6 +95,15 @@ public final class MarketEngine {
     private let tapeLimit = 60
     public static let userAgentId = "USER"
 
+    // MARK: 시나리오 상태 (M1-3)
+
+    public private(set) var scenario: ScenarioPreset?
+    /// 시나리오가 던진, 아직 응답되지 않은 결정 지점. UI가 관찰한다.
+    public private(set) var pendingDecision: ScenarioPreset.DecisionPrompt?
+    /// 시나리오 시작 시점의 에이전트 기본 파라미터 (구간이 끝나면 복원).
+    private var baselineParams: [String: AgentParams] = [:]
+    private var deliveredDecisionTicks: Set<Int> = []
+
     public init(seed: UInt64,
                 initialPrice: Int = 52_300,
                 config: EngineConfig = EngineConfig(),
@@ -115,6 +124,19 @@ public final class MarketEngine {
         seedInitialBook()
     }
 
+    /// 시나리오 엔진: 프리셋의 시드·시작가로 만들어져 항상 같은 시장을 재현한다.
+    public convenience init(scenario: ScenarioPreset,
+                            config: EngineConfig = EngineConfig(),
+                            agents: [MarketAgent]? = nil) {
+        self.init(seed: scenario.seed, initialPrice: scenario.initialPrice,
+                  config: config, agents: agents)
+        self.scenario = scenario
+        self.fairAnchor = scenario.anchorValue(at: 0)
+        self.baselineParams = Dictionary(
+            uniqueKeysWithValues: self.agents.map { ($0.id, $0.params) }
+        )
+    }
+
     /// 시작 시 빈 호가창을 마켓메이커 스타일로 채워 첫 주문부터 체결이 가능하게 한다.
     private func seedInitialBook() {
         for level in 1...5 {
@@ -128,9 +150,10 @@ public final class MarketEngine {
 
     // MARK: 틱 루프
 
-    /// 1틱: fairValue 진화 → 에이전트 행동 → 체결 반영 → 분봉 마감 판정.
+    /// 1틱: (시나리오 훅) → fairValue 진화 → 에이전트 행동 → 체결 반영 → 분봉 마감 판정.
     public func step() {
         tick += 1
+        applyScenarioIfActive()
         evolveFairValue()
 
         let ctx = MarketContext(tick: tick, lastPrice: lastPrice, fairValue: fairValue,
@@ -162,14 +185,53 @@ public final class MarketEngine {
     }
 
     private func evolveFairValue() {
-        // Box-Muller 가우시안 랜덤워크 + 앵커로의 평균회귀
+        // Box-Muller 가우시안 랜덤워크 + 앵커로의 평균회귀.
+        // 시나리오 중에는 앵커 추종력을 프리셋 값으로 높여 경로를 따라가게 한다.
         let u1 = max(rng.double(in: 0...1), 1e-9)
         let u2 = rng.double(in: 0...1)
         let gaussian = (-2 * log(u1)).squareRoot() * cos(2 * .pi * u2)
         let shock = gaussian * config.fairVolatility
-        let pull = (fairAnchor - fairValue) / fairValue * config.meanReversion
+        let pullStrength = scenario?.anchorPull ?? config.meanReversion
+        let pull = (fairAnchor - fairValue) / fairValue * pullStrength
         fairValue *= exp(shock + pull)
         fairValue = max(fairValue, Double(config.tickSize))
+    }
+
+    // MARK: 시나리오 훅 (M1-3)
+
+    /// 시나리오 종료 여부 (durationTicks 도달).
+    public var isScenarioFinished: Bool {
+        guard let scenario else { return false }
+        return tick >= scenario.durationTicks
+    }
+
+    /// UI가 결정 지점에 응답했음을 알린다.
+    public func resolveDecision() {
+        pendingDecision = nil
+    }
+
+    private func applyScenarioIfActive() {
+        guard let scenario, tick <= scenario.durationTicks else { return }
+
+        // 1. fairValue 앵커가 키프레임 경로를 따라간다
+        fairAnchor = scenario.anchorValue(at: tick)
+
+        // 2. 에이전트 파라미터: 기본값에서 시작해 현재 틱에 걸린 오버라이드를 적용
+        for agent in agents {
+            var effective = baselineParams[agent.id] ?? agent.params
+            for override in scenario.overrides
+            where override.agentId == agent.id && override.contains(tick) {
+                effective = override.params
+            }
+            agent.params = effective
+        }
+
+        // 3. 결정 지점 도달 → UI에 노출 (한 번만)
+        for decision in scenario.decisions
+        where tick >= decision.tick && !deliveredDecisionTicks.contains(decision.tick) {
+            deliveredDecisionTicks.insert(decision.tick)
+            pendingDecision = decision
+        }
     }
 
     private func apply(_ intent: OrderIntent, from agentId: String) {

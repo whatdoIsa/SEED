@@ -9,19 +9,33 @@ struct TradingView: View {
     @State private var orderSide: Side?
     @State private var lastFill: FillResult?
     @State private var orderErrorMessage: String?
+    @State private var marketTab = 0
 
     var body: some View {
         VStack(spacing: 0) {
             header
-            speedBar
-            ChartCanvas(
-                candles: session.engine.candles,
-                current: session.engine.currentCandle,
-                unlockLevel: store.progress.unlockLevel
-            )
-            .frame(maxHeight: .infinity)
-            .padding(.horizontal, 12)
-            lockedToolCards
+            marketTabPicker
+            if marketTab == 0 {
+                speedBar
+                ChartCanvas(
+                    candles: session.engine.candles,
+                    current: session.engine.currentCandle,
+                    unlockLevel: store.progress.unlockLevel
+                )
+                .frame(maxHeight: .infinity)
+                .padding(.horizontal, 12)
+                lockedToolCards
+            } else {
+                if store.progress.unlockLevel >= UnlockLevel.orderBook {
+                    ScrollView {
+                        OrderBookView(engine: session.engine)
+                            .padding(.top, 8)
+                    }
+                    .frame(maxHeight: .infinity)
+                } else {
+                    OrderBookLockedView()
+                }
+            }
             portfolioStrip
             orderButtons
         }
@@ -89,6 +103,31 @@ struct TradingView: View {
             Text(changeText)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(SeedTheme.pnl(Double(session.change)))
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+    }
+
+    // MARK: 차트 | 호가 전환
+
+    private var marketTabPicker: some View {
+        HStack(spacing: 16) {
+            ForEach(Array(["차트", "호가"].enumerated()), id: \.offset) { index, title in
+                Button {
+                    marketTab = index
+                } label: {
+                    VStack(spacing: 5) {
+                        Text(title)
+                            .font(.system(size: 14, weight: marketTab == index ? .semibold : .regular))
+                            .foregroundStyle(marketTab == index ? SeedTheme.textPrimary : SeedTheme.textSecondary)
+                        Rectangle()
+                            .fill(marketTab == index ? SeedTheme.textPrimary : .clear)
+                            .frame(height: 2)
+                    }
+                    .fixedSize()
+                }
+            }
+            Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)

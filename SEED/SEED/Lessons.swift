@@ -19,6 +19,8 @@ enum MissionKind {
     case tapBullish
     case slippageTutorial
     case chaseScenario
+    case tapVolumeSpike
+    case crashScenario
 }
 
 struct LessonDef: Identifiable {
@@ -98,8 +100,50 @@ enum LessonCatalog {
         mission: .chaseScenario
     )
 
+    static let volume = LessonDef(
+        id: "lesson.volume",
+        order: 4,
+        title: "거래량, 움직임의 진심",
+        subtitle: "가격은 속여도 거래량은 못 속인다",
+        duration: "약 90초",
+        unlocksLevel: nil,
+        unlockLabel: "거래량 읽는 눈 완성",
+        concept: [
+            ConceptPage(
+                text: "가격이 오르는 건 누구나 봐요. 중요한 건 **얼마나 많은 사람이 그 값에 동의했는가** — 그게 거래량이에요.\n\n**거래량이 함께 터진 상승**은 진심이에요. 거래량 없이 슬금슬금 오른 가격은 몇 명이 밀어올린 것일 수 있어요 — 쉽게 무너져요.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "차트 아래 막대가 거래량이에요. 캔들과 같은 색으로, 그 시간에 얼마나 활발히 거래됐는지 보여줘요.\n\n**막대가 유난히 큰 캔들**을 눈여겨봐요 — 거기서 뭔가가 시작되거나 끝나요.",
+                visual: .none
+            )
+        ],
+        mission: .tapVolumeSpike
+    )
+
+    static let crash = LessonDef(
+        id: "lesson.crash",
+        order: 5,
+        title: "급락, 공포를 파는 날",
+        subtitle: "안전하게 한 번 더 데여보기",
+        duration: "약 3분",
+        unlocksLevel: nil,
+        unlockLabel: "급락 생존 훈련 완료",
+        concept: [
+            ConceptPage(
+                text: "급락이 오면 머릿속에 한 문장만 남아요 — **\"더 떨어지기 전에 팔아야 해.\"**\n\n그런데 모두가 그 생각을 하는 순간이 바닥 근처인 경우가 많아요. 공포에 판 사람이 바닥을 만들어주고, 그 값에 누군가는 줍죠.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "팔지 말라는 얘기가 아니에요. **원칙으로 파는 것(손절)과 공포로 파는 것(패닉)은 완전히 달라요.**\n\n이번엔 주식을 들고 있는 채로 급락을 맞아봐요. 진짜 돈이 아니니까, 공포를 연습할 수 있어요.",
+                visual: .none
+            )
+        ],
+        mission: .crashScenario
+    )
+
     static var all: [LessonDef] { registered }
-    static var registered: [LessonDef] = [candle, orderbook, chase]
+    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash]
 }
 
 // MARK: - 미션 1용 손수 만든 캔들 (교육 목적으로 모양을 통제)
@@ -131,4 +175,20 @@ enum TapBullishMissionData {
     ]
     static let priceMin = 94
     static let priceMax = 123
+}
+
+enum TapVolumeMissionData {
+    /// 인덱스 3에서 가격·거래량이 함께 터진다 — 진짜 움직임의 표본.
+    static let candles: [MiniCandle] = [
+        MiniCandle(open: 100, high: 103, low: 98, close: 101),
+        MiniCandle(open: 101, high: 104, low: 99, close: 100),
+        MiniCandle(open: 100, high: 103, low: 98, close: 102),
+        MiniCandle(open: 102, high: 115, low: 101, close: 113), // 거래량 폭증 + 장대양봉
+        MiniCandle(open: 113, high: 117, low: 110, close: 114),
+        MiniCandle(open: 114, high: 116, low: 111, close: 112)
+    ]
+    static let volumes = [42, 35, 39, 180, 66, 48]
+    static let spikeIndex = 3
+    static let priceMin = 96
+    static let priceMax = 119
 }

@@ -101,6 +101,40 @@ final class ScenarioTests: XCTestCase {
         XCTAssertNil(engine.pendingDecision)
     }
 
+    // MARK: 급락 시나리오 (⑥) — 패닉 매도는 버티기보다 나쁘다
+
+    func testPanicCrashShape() {
+        let engine = MarketEngine(scenario: .panicCrash())
+        engine.advance(ticks: 600)
+        let closes = engine.candles.map(\.close)
+        // 캔들 = 20틱. 급락 바닥 구간(틱 200~300) ≈ 캔들 10~15
+        let bottom = closes[10...15].min() ?? 0
+        let end = closes.suffix(3).max() ?? 0
+        XCTAssertLessThan(bottom, 45_000, "급락이 충분히 깊어야 공포가 진짜가 된다")
+        XCTAssertGreaterThan(end, bottom + 2_000, "종반에는 부분 회복이 있어야 한다")
+    }
+
+    func testPanicSellIsWorseThanHolding() throws {
+        // A: 보유 시작 → 공포 구간에서 전량 매도
+        let panic = MarketEngine(scenario: .panicCrash())
+        panic.advance(ticks: 80)
+        _ = try panic.placeMarketOrder(side: .buy, qty: 100)
+        panic.advance(ticks: 200 - panic.tick)
+        _ = try panic.placeMarketOrder(side: .sell, qty: 100)
+        panic.advance(ticks: 600 - panic.tick)
+
+        // B: 같은 시점 매수 → 끝까지 버티기
+        let hold = MarketEngine(scenario: .panicCrash())
+        hold.advance(ticks: 80)
+        _ = try hold.placeMarketOrder(side: .buy, qty: 100)
+        hold.advance(ticks: 600 - hold.tick)
+
+        let panicEquity = panic.portfolio.equity(at: panic.lastPrice)
+        let holdEquity = hold.portfolio.equity(at: hold.lastPrice)
+        XCTAssertGreaterThan(holdEquity, panicEquity,
+                             "부분 회복 시나리오에서 버티기가 패닉 매도보다 나아야 한다")
+    }
+
     // MARK: 오버라이드 복원 — 구간이 끝나면 기본 파라미터로 돌아간다
 
     func testAgentOverrideRestoredAfterPhase() {

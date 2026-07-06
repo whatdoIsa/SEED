@@ -122,7 +122,7 @@ struct PortfolioView: View {
             }
             .padding(16)
         }
-        .background(Color.white)
+        .background(SeedTheme.background)
         .fullScreenCover(isPresented: $showsAutopsy) {
             AutopsyView(store: store, session: session)
         }

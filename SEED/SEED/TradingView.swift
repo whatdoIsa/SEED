@@ -64,7 +64,7 @@ struct TradingView: View {
         }
         .animation(.snappy(duration: 0.3), value: miniReviewText)
         .onAppear { hasTraded = store.tradeCount() > 0 }
-        .background(Color.white)
+        .background(SeedTheme.background)
         .task { session.start() }
         .sheet(item: $orderSide) { side in
             OrderSheet(session: session, side: side) { result, tag, avgCostBefore in
@@ -211,7 +211,7 @@ struct TradingView: View {
                 } label: {
                     Text(speed.label)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(session.speed == speed ? .white : SeedTheme.textSecondary)
+                        .foregroundStyle(session.speed == speed ? SeedTheme.inverse : SeedTheme.textSecondary)
                         .padding(.horizontal, 12).padding(.vertical, 5)
                         .background(
                             session.speed == speed ? SeedTheme.textPrimary : SeedTheme.card,
@@ -448,7 +448,7 @@ struct OrderSheet: View {
                     } label: {
                         Text("\(preset)주")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(qty == preset ? .white : SeedTheme.textPrimary)
+                            .foregroundStyle(qty == preset ? SeedTheme.inverse : SeedTheme.textPrimary)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
                             .background(
@@ -475,7 +475,7 @@ struct OrderSheet: View {
                         } label: {
                             Text(tag.label)
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(selectedTag == tag ? .white : SeedTheme.textPrimary)
+                                .foregroundStyle(selectedTag == tag ? SeedTheme.inverse : SeedTheme.textPrimary)
                                 .padding(.horizontal, 10).padding(.vertical, 7)
                                 .background(
                                     selectedTag == tag ? SeedTheme.textPrimary : SeedTheme.card,
@@ -559,7 +559,7 @@ struct FillResultSheet: View {
             } label: {
                 Text("확인")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(SeedTheme.inverse)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .background(SeedTheme.textPrimary, in: RoundedRectangle(cornerRadius: 12))

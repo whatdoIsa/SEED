@@ -121,6 +121,21 @@ final class SeedStore {
 
     // MARK: 레슨·해금 (M2-5 / M3-1이 호출)
 
+    func isLessonDone(_ lessonId: String) -> Bool {
+        let done = (try? context.fetch(FetchDescriptor<LessonProgress>(
+            predicate: #Predicate { $0.lessonId == lessonId }
+        )))?.first?.completedAt
+        return done != nil
+    }
+
+    #if DEBUG
+    /// 개발용: 레슨 없이 해금 레벨을 강제 조정 (배포 빌드에는 포함되지 않음).
+    func debugSetUnlockLevel(_ level: Int) {
+        progress.unlockLevel = level
+        try? context.save()
+    }
+    #endif
+
     func completeLesson(_ lessonId: String, unlocksLevel level: Int?) {
         let existing = (try? context.fetch(FetchDescriptor<LessonProgress>(
             predicate: #Predicate { $0.lessonId == lessonId }

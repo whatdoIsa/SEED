@@ -16,10 +16,12 @@ struct TradingView: View {
             speedBar
             ChartCanvas(
                 candles: session.engine.candles,
-                current: session.engine.currentCandle
+                current: session.engine.currentCandle,
+                unlockLevel: store.progress.unlockLevel
             )
             .frame(maxHeight: .infinity)
             .padding(.horizontal, 12)
+            lockedToolCards
             portfolioStrip
             orderButtons
         }
@@ -65,6 +67,19 @@ struct TradingView: View {
                     .padding(.horizontal, 8).padding(.vertical, 2)
                     .overlay(Capsule().stroke(SeedTheme.violet, lineWidth: 1))
                 Spacer()
+                #if DEBUG
+                Menu {
+                    ForEach([0, 1, 2, 3, 9], id: \.self) { level in
+                        Button("Lv\(level)") { store.debugSetUnlockLevel(level) }
+                    }
+                } label: {
+                    Text("Lv\(store.progress.unlockLevel)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                        .padding(.horizontal, 8).padding(.vertical, 2)
+                        .background(SeedTheme.card, in: Capsule())
+                }
+                #endif
             }
             Text("\(session.engine.lastPrice.formatted())원")
                 .font(.system(size: 30, weight: .semibold))
@@ -77,6 +92,41 @@ struct TradingView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
+    }
+
+    // MARK: 잠긴 도구 카드 (§10.1) — 존재를 보여줘 다음 레슨의 동기가 되게 한다
+
+    private var lockedToolCards: some View {
+        let level = store.progress.unlockLevel
+        return VStack(spacing: 6) {
+            if level < UnlockLevel.candles {
+                lockedCard("캔들 차트", hint: "레슨 1에서 해금")
+            }
+            if level < UnlockLevel.orderBook {
+                lockedCard("호가창 · 체결", hint: "레슨 2에서 해금")
+            }
+            if level < UnlockLevel.volumeAndMA {
+                lockedCard("거래량 · 이동평균선", hint: "레슨 3에서 해금")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
+    }
+
+    private func lockedCard(_ title: String, hint: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 12))
+            Text(title)
+                .font(.system(size: 13))
+            Spacer()
+            Text(hint)
+                .font(.system(size: 12))
+                .foregroundStyle(SeedTheme.textSecondary.opacity(0.7))
+        }
+        .foregroundStyle(SeedTheme.textSecondary)
+        .padding(.horizontal, 13).padding(.vertical, 10)
+        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private var changeText: String {
@@ -188,7 +238,11 @@ struct TradingView: View {
 struct ChartCanvas: View {
     let candles: [Candle]
     let current: Candle
+    var unlockLevel: Int = UnlockLevel.all
     private let visibleCount = 40
+
+    private var showsCandles: Bool { unlockLevel >= UnlockLevel.candles }
+    private var showsVolumeAndMA: Bool { unlockLevel >= UnlockLevel.volumeAndMA }
 
     var body: some View {
         Canvas { context, size in
@@ -198,9 +252,9 @@ struct ChartCanvas: View {
             let priceHigh = all.map(\.high).max() ?? 0
             let priceLow = all.map(\.low).min() ?? 0
             let range = max(priceHigh - priceLow, 1)
-            let maxVolume = max(all.map(\.volume).max() ?? 1, 1)
 
-            let chartHeight = size.height * 0.78
+            // 거래량 영역은 해금 후에만 자리를 차지한다
+            let chartHeight = showsVolumeAndMA ? size.height * 0.78 : size.height
             let volumeTop = size.height * 0.82
             let volumeHeight = size.height * 0.18
             let slot = size.width / CGFloat(visibleCount)
@@ -209,18 +263,40 @@ struct ChartCanvas: View {
             func y(_ price: Int) -> CGFloat {
                 chartHeight * (1 - CGFloat(price - priceLow) / CGFloat(range))
             }
+            func yDouble(_ price: Double) -> CGFloat {
+                chartHeight * (1 - CGFloat(price - Double(priceLow)) / CGFloat(range))
+            }
+
+            guard showsCandles else {
+                // Lv0: 종가 라인 하나 — 처음 온 사람은 이것만으로 충분하다
+                var line = Path()
+                for (i, candle) in all.enumerated() {
+                    let point = CGPoint(x: slot * (CGFloat(i) + 0.5), y: y(candle.close))
+                    if i == 0 { line.move(to: point) } else { line.addLine(to: point) }
+                }
+                let rising = (all.last?.close ?? 0) >= (all.first?.close ?? 0)
+                let color = rising ? SeedTheme.up : SeedTheme.down
+                context.stroke(line, with: .color(color),
+                               style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                if let last = all.last {
+                    let dot = CGRect(x: slot * (CGFloat(all.count - 1) + 0.5) - 4,
+                                     y: y(last.close) - 4, width: 8, height: 8)
+                    context.fill(Path(ellipseIn: dot), with: .color(color))
+                }
+                return
+            }
+
+            let maxVolume = max(all.map(\.volume).max() ?? 1, 1)
 
             for (i, candle) in all.enumerated() {
                 let x = slot * (CGFloat(i) + 0.5)
                 let color = candle.isBullish ? SeedTheme.up : SeedTheme.down
 
-                // 꼬리
                 var wick = Path()
                 wick.move(to: CGPoint(x: x, y: y(candle.high)))
                 wick.addLine(to: CGPoint(x: x, y: y(candle.low)))
                 context.stroke(wick, with: .color(color), lineWidth: 1)
 
-                // 몸통 (시가=종가여도 최소 두께)
                 let top = y(max(candle.open, candle.close))
                 let bottom = y(min(candle.open, candle.close))
                 let bodyRect = CGRect(
@@ -229,15 +305,35 @@ struct ChartCanvas: View {
                 )
                 context.fill(Path(roundedRect: bodyRect, cornerRadius: 1), with: .color(color))
 
-                // 거래량
-                let volumeBarHeight = volumeHeight * CGFloat(candle.volume) / CGFloat(maxVolume)
-                let volumeRect = CGRect(
-                    x: x - bodyWidth / 2, y: volumeTop + (volumeHeight - volumeBarHeight),
-                    width: bodyWidth, height: volumeBarHeight
-                )
-                context.fill(Path(volumeRect), with: .color(color.opacity(0.35)))
+                if showsVolumeAndMA {
+                    let volumeBarHeight = volumeHeight * CGFloat(candle.volume) / CGFloat(maxVolume)
+                    let volumeRect = CGRect(
+                        x: x - bodyWidth / 2, y: volumeTop + (volumeHeight - volumeBarHeight),
+                        width: bodyWidth, height: volumeBarHeight
+                    )
+                    context.fill(Path(volumeRect), with: .color(color.opacity(0.35)))
+                }
+            }
+
+            if showsVolumeAndMA {
+                drawMA(all.movingAverage(period: 5), color: Color(hex: 0x22C55E),
+                       context: context, slot: slot, y: yDouble)
+                drawMA(all.movingAverage(period: 20), color: SeedTheme.up,
+                       context: context, slot: slot, y: yDouble)
             }
         }
+    }
+
+    private func drawMA(_ values: [Double?], color: Color,
+                        context: GraphicsContext, slot: CGFloat, y: (Double) -> CGFloat) {
+        var path = Path()
+        var started = false
+        for (i, value) in values.enumerated() {
+            guard let value else { continue }
+            let point = CGPoint(x: slot * (CGFloat(i) + 0.5), y: y(value))
+            if started { path.addLine(to: point) } else { path.move(to: point); started = true }
+        }
+        context.stroke(path, with: .color(color), lineWidth: 1.2)
     }
 }
 

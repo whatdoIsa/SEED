@@ -123,7 +123,8 @@ final class LessonProgress {
 
 @Model
 final class AppProgress {
-    /// 도구 해금 레벨 (§10.1): 0 라인차트 → 1 캔들 → 2 거래량·이평 → 3 호가 → …
+    /// 도구 해금 레벨 — P0 레슨 사슬 순서를 따른다:
+    /// 0 라인차트 → 1 캔들(레슨1) → 2 호가창·체결(레슨2) → 3 거래량·이평선(레슨3)
     var unlockLevel: Int
     var onboardingDone: Bool
 
@@ -131,4 +132,13 @@ final class AppProgress {
         self.unlockLevel = unlockLevel
         self.onboardingDone = onboardingDone
     }
+}
+
+/// 해금 레벨 상수 — 매직 넘버 방지.
+enum UnlockLevel {
+    static let lineOnly = 0
+    static let candles = 1
+    static let orderBook = 2
+    static let volumeAndMA = 3
+    static let all = 9
 }

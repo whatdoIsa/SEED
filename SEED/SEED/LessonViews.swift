@@ -6,6 +6,7 @@ struct LessonListView: View {
     let store: SeedStore
     @State private var activeLesson: LessonDef?
     @State private var showsDailyMarket = false
+    @State private var showsBotCompare = false
 
     var body: some View {
         ScrollView {
@@ -23,6 +24,10 @@ struct LessonListView: View {
                     lessonRow(lesson)
                 }
 
+                if store.isLessonDone(LessonCatalog.chase.id) {
+                    botCompareCard
+                }
+
                 Text("교육용 모의투자 · 실제 투자 권유가 아닙니다")
                     .font(.system(size: 10))
                     .foregroundStyle(SeedTheme.textSecondary.opacity(0.6))
@@ -38,6 +43,43 @@ struct LessonListView: View {
         .fullScreenCover(isPresented: $showsDailyMarket) {
             DailyMarketView(store: store)
         }
+        .fullScreenCover(isPresented: $showsBotCompare) {
+            BotCompareView(store: store)
+        }
+    }
+
+    // MARK: 나 vs 봇 (⑫ — 레슨 3 완료 후 열린다)
+
+    private var botCompareCard: some View {
+        Button {
+            showsBotCompare = true
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(SeedTheme.ink)
+                        .frame(width: 38, height: 38)
+                    Image(systemName: "tortoise.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(SeedTheme.violetOnDark)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("나 vs 터틀 봇")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                    Text("같은 급등장, 감정 없는 규칙은 어떻게 매매했을까")
+                        .font(.system(size: 12))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+            .padding(14)
+            .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: 오늘의 장 (⑦ — 매일 다른 장이 열린다)

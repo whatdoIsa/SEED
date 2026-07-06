@@ -11,6 +11,8 @@ struct RootView: View {
                 .tabItem { Label("시장", systemImage: "chart.bar.fill") }
             LessonListView(store: store)
                 .tabItem { Label("배우기", systemImage: "book.fill") }
+            ReviewReportView(store: store)
+                .tabItem { Label("복기", systemImage: "text.magnifyingglass") }
             PortfolioView(session: session, store: store)
                 .tabItem { Label("내 주식", systemImage: "briefcase.fill") }
         }

@@ -13,6 +13,14 @@ public struct Portfolio {
         self.cash = cash
     }
 
+    /// 영속 저장에서 복원할 때 사용.
+    public init(cash: Int, qty: Int, avgCost: Double, realizedPnL: Double) {
+        self.cash = cash
+        self.qty = qty
+        self.avgCost = avgCost
+        self.realizedPnL = realizedPnL
+    }
+
     public func marketValue(at price: Int) -> Int { qty * price }
     public func equity(at price: Int) -> Int { cash + marketValue(at: price) }
 
@@ -107,12 +115,13 @@ public final class MarketEngine {
     public init(seed: UInt64,
                 initialPrice: Int = 52_300,
                 config: EngineConfig = EngineConfig(),
-                agents: [MarketAgent]? = nil) {
+                agents: [MarketAgent]? = nil,
+                portfolio: Portfolio? = nil) {
         self.config = config
         self.lastPrice = initialPrice
         self.fairValue = Double(initialPrice)
         self.fairAnchor = Double(initialPrice)
-        self.portfolio = Portfolio(cash: config.initialCash)
+        self.portfolio = portfolio ?? Portfolio(cash: config.initialCash)
         self.rng = SeededRNG(seed: seed)
         self.currentCandle = Candle(open: initialPrice, index: 0)
         self.agents = agents ?? [

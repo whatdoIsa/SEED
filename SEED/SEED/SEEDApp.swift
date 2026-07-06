@@ -14,8 +14,9 @@ struct SEEDApp: App {
                 configurations: [ModelConfiguration(schema: SeedStore.schema)]
             )
             self.container = container
-            _store = State(initialValue: SeedStore(context: container.mainContext))
-            _session = State(initialValue: MarketSession())
+            let store = SeedStore(context: container.mainContext)
+            _store = State(initialValue: store)
+            _session = State(initialValue: MarketSession(portfolio: store.restorePortfolio()))
         } catch {
             fatalError("SwiftData 컨테이너 생성 실패: \(error)")
         }

@@ -24,8 +24,8 @@ final class MarketSession {
     /// 1x에서 1틱 ≈ 1초. 배속은 간격을 줄인다.
     private let baseTickInterval: Duration = .seconds(1)
 
-    init(seed: UInt64 = .random(in: 0...UInt64.max)) {
-        let engine = MarketEngine(seed: seed)
+    init(seed: UInt64 = .random(in: 0...UInt64.max), portfolio: Portfolio? = nil) {
+        let engine = MarketEngine(seed: seed, portfolio: portfolio)
         // 첫 화면이 비어 보이지 않게 과거 캔들을 미리 만들어 둔다.
         engine.advance(ticks: engine.config.ticksPerCandle * 30)
         self.engine = engine

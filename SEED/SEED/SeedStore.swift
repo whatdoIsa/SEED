@@ -72,11 +72,31 @@ final class SeedStore {
         try? context.save()
     }
 
-    // MARK: L1 룰베이스 복기 집계 (M4-1의 토대)
+    // MARK: 포트폴리오 영속 (앱 재시작 복원)
+
+    func persistPortfolio(_ portfolio: Portfolio) {
+        currentSeason.savedCash = portfolio.cash
+        currentSeason.savedQty = portfolio.qty
+        currentSeason.savedAvgCost = portfolio.avgCost
+        currentSeason.savedRealizedPnL = portfolio.realizedPnL
+        try? context.save()
+    }
+
+    func restorePortfolio() -> Portfolio? {
+        guard let cash = currentSeason.savedCash,
+              let qty = currentSeason.savedQty,
+              let avgCost = currentSeason.savedAvgCost else { return nil }
+        return Portfolio(cash: cash, qty: qty, avgCost: avgCost,
+                         realizedPnL: currentSeason.savedRealizedPnL ?? 0)
+    }
+
+    // MARK: L1 룰베이스 복기 집계 (M4-1)
 
     struct TagStat: Identifiable {
         let tag: TradeReasonTag
         let count: Int
+        let winCount: Int
+        let lossCount: Int
         let avgRealizedReturnPct: Double?
         var id: String { tag.rawValue }
     }
@@ -92,9 +112,34 @@ final class SeedStore {
             guard let tag = TradeReasonTag(rawValue: raw) else { return nil }
             let returns = items.compactMap(\.realizedReturnPct)
             let avg = returns.isEmpty ? nil : returns.reduce(0, +) / Double(returns.count)
-            return TagStat(tag: tag, count: items.count, avgRealizedReturnPct: avg)
+            return TagStat(tag: tag,
+                           count: items.count,
+                           winCount: returns.filter { $0 > 0 }.count,
+                           lossCount: returns.filter { $0 < 0 }.count,
+                           avgRealizedReturnPct: avg)
         }
         .sorted { $0.count > $1.count }
+    }
+
+    /// 승률: 확정(매도) 매매 중 수익 비율. 확정이 없으면 nil.
+    func winRate() -> Double? {
+        let stats = tagStats()
+        let wins = stats.reduce(0) { $0 + $1.winCount }
+        let losses = stats.reduce(0) { $0 + $1.lossCount }
+        guard wins + losses > 0 else { return nil }
+        return Double(wins) / Double(wins + losses) * 100
+    }
+
+    /// 매매 직후 미니 복기 한 줄 (M4-4). 데이터가 쌓이기 전엔 안내 문구.
+    func miniReview(for tag: TradeReasonTag) -> String {
+        guard let stat = tagStats().first(where: { $0.tag == tag }) else {
+            return "기록했어요. 결과가 쌓이면 패턴을 알려드릴게요."
+        }
+        if let avg = stat.avgRealizedReturnPct, stat.winCount + stat.lossCount >= 2 {
+            let sign = avg >= 0 ? "+" : ""
+            return "'\(tag.label)' 매매 \(stat.count)번째 · 지금까지 확정 평균 \(sign)\(avg.formatted(.number.precision(.fractionLength(1))))%"
+        }
+        return "'\(tag.label)' 매매 \(stat.count)번째로 기록했어요."
     }
 
     func tradeCount() -> Int {

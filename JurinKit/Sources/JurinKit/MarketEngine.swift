@@ -101,18 +101,39 @@ public struct EngineConfig {
     /// fairValue가 앵커로 되돌아가는 힘 0...1 (0이면 순수 랜덤워크)
     public var meanReversion: Double
     public var initialCash: Int
+    /// 변동성 군집 강도 (③): 최근 변동이 클수록 다음 변동도 커진다. 0이면 비활성.
+    public var volClusterGain: Double
+    /// 틱당 뉴스 이벤트 확률 (③). 시나리오 중에는 자동 비활성.
+    public var newsTickProbability: Double
+    /// 뉴스 한 방이 fairAnchor를 움직이는 크기 (비율)
+    public var newsMagnitudeRange: ClosedRange<Double>
 
     public init(tickSize: Int = 50,
                 ticksPerCandle: Int = 20,
                 fairVolatility: Double = 0.0009,
                 meanReversion: Double = 0.002,
-                initialCash: Int = 10_000_000) {
+                initialCash: Int = 10_000_000,
+                volClusterGain: Double = 40,
+                newsTickProbability: Double = 1.0 / 900,
+                newsMagnitudeRange: ClosedRange<Double> = 0.02...0.07) {
         self.tickSize = tickSize
         self.ticksPerCandle = ticksPerCandle
         self.fairVolatility = fairVolatility
         self.meanReversion = meanReversion
         self.initialCash = initialCash
+        self.volClusterGain = volClusterGain
+        self.newsTickProbability = newsTickProbability
+        self.newsMagnitudeRange = newsMagnitudeRange
     }
+}
+
+/// 뉴스 이벤트 (③) — fairAnchor를 점프시켜 갭·급변을 만든다.
+/// 헤드라인 문구는 앱이 headlineIndex로 매핑한다 (코어는 카피를 모른다).
+public struct NewsEvent: Equatable {
+    public let tick: Int
+    public let isPositive: Bool
+    public let magnitudePct: Double
+    public let headlineIndex: Int
 }
 
 // MARK: - 시장 엔진
@@ -142,6 +163,14 @@ public final class MarketEngine {
 
     public private(set) var openOrders: [UserOrder] = []
     private var userFillEvents: [UserFillEvent] = []
+
+    // MARK: 리얼리즘 상태 (③)
+
+    /// 최근 캔들 변동의 EMA — 변동성 군집의 기억.
+    public private(set) var volatilityMomentum: Double = 0
+    public private(set) var newsFeed: [NewsEvent] = []
+    public var latestNews: NewsEvent? { newsFeed.last }
+    private let newsFeedLimit = 20
 
     // MARK: 시나리오 상태 (M1-3)
 
@@ -203,6 +232,7 @@ public final class MarketEngine {
     public func step() {
         tick += 1
         applyScenarioIfActive()
+        maybeFireNews()
         evolveFairValue()
 
         let ctx = MarketContext(tick: tick, lastPrice: lastPrice, fairValue: fairValue,
@@ -241,11 +271,29 @@ public final class MarketEngine {
         let u1 = max(rng.double(in: 0...1), 1e-9)
         let u2 = rng.double(in: 0...1)
         let gaussian = (-2 * log(u1)).squareRoot() * cos(2 * .pi * u2)
-        let shock = gaussian * config.fairVolatility
+        // 변동성 군집 (③): 방금까지 거칠던 시장은 계속 거칠다
+        let clusteredVol = config.fairVolatility * (1 + volatilityMomentum * config.volClusterGain)
+        let shock = gaussian * clusteredVol
         let pullStrength = scenario?.anchorPull ?? config.meanReversion
         let pull = (fairAnchor - fairValue) / fairValue * pullStrength
         fairValue *= exp(shock + pull)
         fairValue = max(fairValue, Double(config.tickSize))
+    }
+
+    /// 뉴스 이벤트 (③): 낮은 확률로 fairAnchor가 점프한다 — 갭과 급변의 근원.
+    /// 시나리오 중에는 발동하지 않는다 (프리셋 경로 보호 + 결정론 유지).
+    private func maybeFireNews() {
+        guard scenario == nil, config.newsTickProbability > 0 else { return }
+        guard rng.chance(config.newsTickProbability) else { return }
+        let isPositive = rng.chance(0.5)
+        let magnitude = rng.double(in: config.newsMagnitudeRange)
+        fairAnchor *= isPositive ? (1 + magnitude) : (1 - magnitude)
+        newsFeed.append(NewsEvent(tick: tick, isPositive: isPositive,
+                                  magnitudePct: magnitude * 100,
+                                  headlineIndex: rng.int(in: 0...9)))
+        if newsFeed.count > newsFeedLimit {
+            newsFeed.removeFirst(newsFeed.count - newsFeedLimit)
+        }
     }
 
     // MARK: 시나리오 훅 (M1-3)
@@ -312,6 +360,11 @@ public final class MarketEngine {
     }
 
     private func closeCandle() {
+        // 변동성 군집: 이 캔들의 변동폭을 기억에 반영 (EMA)
+        if currentCandle.open > 0 {
+            let candleReturn = abs(log(Double(currentCandle.close) / Double(currentCandle.open)))
+            volatilityMomentum = volatilityMomentum * 0.85 + candleReturn * 0.15
+        }
         candles.append(currentCandle)
         currentCandle = Candle(open: lastPrice, index: candles.count)
     }

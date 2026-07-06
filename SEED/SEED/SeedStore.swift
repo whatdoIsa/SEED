@@ -112,6 +112,14 @@ final class SeedStore {
             .sorted { ($0.atTick ?? 0) < ($1.atTick ?? 0) }
     }
 
+    /// 특정 시나리오에서의 내 매매 — "나 vs 봇" 비교의 원료.
+    func scenarioLogs(scenarioId: String) -> [TradeLog] {
+        ((try? context.fetch(FetchDescriptor<TradeLog>(
+            predicate: #Predicate { $0.scenarioId == scenarioId },
+            sortBy: [SortDescriptor(\.timestamp)]
+        ))) ?? [])
+    }
+
     /// 매매 지도 마커 (M4 — 부록 A-4의 aha 모먼트).
     func tradeMarks() -> [(candleIndex: Int, price: Double, side: Side)] {
         replayableLogs().compactMap { log in

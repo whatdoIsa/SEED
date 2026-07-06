@@ -274,7 +274,11 @@ struct SlippageMissionView: View {
 
             Spacer()
 
-            Button(action: onSuccess) {
+            Button {
+                Analytics.log(.slippageTutorialCompleted,
+                              ["avgSlippage": "\(Int(result.slippage))"])
+                onSuccess()
+            } label: {
                 Text("다음")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)

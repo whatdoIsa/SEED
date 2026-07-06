@@ -6,10 +6,17 @@ struct RootView: View {
     let store: SeedStore
 
     var body: some View {
-        if store.progress.onboardingDone {
-            mainTabs
-        } else {
-            OnboardingView(store: store)
+        Group {
+            if store.progress.onboardingDone {
+                mainTabs
+            } else {
+                OnboardingView(store: store)
+                    .onAppear { Analytics.log(.onboardingStart) }
+            }
+        }
+        .onAppear {
+            Analytics.log(.sessionStart)
+            Analytics.logDayOpenIfNeeded()
         }
     }
 

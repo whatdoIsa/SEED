@@ -55,6 +55,7 @@ final class SeedStore {
         if fill.side == .sell, avgCostBeforeOrder > 0 {
             realized = (fill.avgFillPrice - avgCostBeforeOrder) / avgCostBeforeOrder * 100
         }
+        let isFirstTrade = tradeCount() == 0
         let log = TradeLog(
             side: fill.side,
             symbol: symbol,
@@ -70,6 +71,15 @@ final class SeedStore {
         )
         context.insert(log)
         try? context.save()
+
+        Analytics.log(.tradePlaced, [
+            "side": fill.side.rawValue,
+            "tag": tag.rawValue,
+            "scenario": scenarioId ?? "free"
+        ])
+        if isFirstTrade {
+            Analytics.log(.firstTradeFilled, ["tag": tag.rawValue])
+        }
     }
 
     // MARK: 포트폴리오 영속 (앱 재시작 복원)
@@ -180,6 +190,11 @@ final class SeedStore {
     func startNextSeason(endEquity: Int, carriedRule: String?) -> Season {
         currentSeason.endedAt = .now
         currentSeason.endEquity = endEquity
+        Analytics.log(.accountReset, [
+            "season": "\(currentSeason.number)",
+            "endEquity": "\(endEquity)",
+            "carriedRule": carriedRule ?? "none"
+        ])
         let next = Season(number: currentSeason.number + 1, startCash: 10_000_000)
         next.carriedRule = carriedRule
         context.insert(next)
@@ -195,6 +210,8 @@ final class SeedStore {
         progress.unlockLevel = max(progress.unlockLevel, startLevel)
         progress.onboardingDone = true
         try? context.save()
+        Analytics.log(.onboardingLevelChoice,
+                      ["choice": startLevel == 0 ? "beginner" : "experienced"])
     }
 
     func isLessonDone(_ lessonId: String) -> Bool {
@@ -224,7 +241,9 @@ final class SeedStore {
         lesson.completedAt = .now
         if let level, level > progress.unlockLevel {
             progress.unlockLevel = level
+            Analytics.log(.toolUnlocked, ["level": "\(level)"])
         }
         try? context.save()
+        Analytics.log(.lessonComplete, ["lessonId": lessonId])
     }
 }

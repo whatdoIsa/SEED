@@ -19,6 +19,12 @@ struct LessonListView: View {
                 ForEach(LessonCatalog.all) { lesson in
                     lessonRow(lesson)
                 }
+
+                Text("교육용 모의투자 · 실제 투자 권유가 아닙니다")
+                    .font(.system(size: 10))
+                    .foregroundStyle(SeedTheme.textSecondary.opacity(0.6))
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 10)
             }
             .padding(16)
         }
@@ -140,6 +146,7 @@ struct LessonFlowView: View {
         }
         .background(Color.white)
         .interactiveDismissDisabled(stage == .mission)
+        .onAppear { Analytics.log(.lessonStart, ["lessonId": lesson.id]) }
     }
 
     @ViewBuilder

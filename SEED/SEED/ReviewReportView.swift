@@ -101,6 +101,7 @@ struct ReviewReportView: View {
             .padding(16)
         }
         .background(Color.white)
+        .onAppear { Analytics.log(.reviewReportOpened) }
     }
 
     // MARK: 룰베이스 문장 생성 (L1 — API 비용 0원)

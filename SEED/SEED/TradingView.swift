@@ -471,6 +471,7 @@ struct OrderSheet: View {
                     ForEach(TradeReasonTag.tags(for: side), id: \.rawValue) { tag in
                         Button {
                             selectedTag = tag
+                            Analytics.log(.tagSelected, ["tag": tag.rawValue])
                         } label: {
                             Text(tag.label)
                                 .font(.system(size: 12, weight: .medium))

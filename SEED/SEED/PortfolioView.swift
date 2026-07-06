@@ -94,6 +94,31 @@ struct PortfolioView: View {
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(SeedTheme.band, lineWidth: 1))
                 }
                 .padding(.top, 8)
+
+                #if DEBUG
+                DisclosureGroup {
+                    ForEach(Analytics.eventCounts(), id: \.event) { entry in
+                        HStack {
+                            Text(entry.event).font(.system(size: 11, design: .monospaced))
+                            Spacer()
+                            Text("\(entry.count)").font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(SeedTheme.textSecondary)
+                        .padding(.vertical, 1)
+                    }
+                } label: {
+                    Text("KPI 이벤트 (DEBUG)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                }
+                .padding(.top, 6)
+                #endif
+
+                Text("교육용 모의투자 · 실제 투자 권유가 아닙니다")
+                    .font(.system(size: 10))
+                    .foregroundStyle(SeedTheme.textSecondary.opacity(0.6))
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 8)
             }
             .padding(16)
         }

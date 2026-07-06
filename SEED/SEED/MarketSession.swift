@@ -41,7 +41,12 @@ final class MarketSession {
             for log in store?.replayableLogs() ?? [] {
                 guard let atTick = log.atTick, atTick <= state.tick else { continue }
                 engine.advance(ticks: max(atTick - engine.tick, 0))
-                _ = try? engine.placeMarketOrder(side: log.side, qty: log.qty)
+                if log.isLimitFill == true {
+                    // 지정가 체결은 정산 틱이 기록되지 않으므로 포트폴리오만 복원
+                    engine.restoreFill(side: log.side, price: Int(log.avgFillPrice), qty: log.qty)
+                } else {
+                    _ = try? engine.placeMarketOrder(side: log.side, qty: log.qty)
+                }
             }
             engine.advance(ticks: max(state.tick - engine.tick, 0))
         } else {
@@ -84,6 +89,7 @@ final class MarketSession {
         let elapsed = Int(Date.now.timeIntervalSince(lastActive))
         guard elapsed > 2 else { return }
         engine.advance(ticks: min(elapsed, catchUpCap))
+        processUserFills()
         persistState()
     }
 
@@ -104,6 +110,7 @@ final class MarketSession {
             while !Task.isCancelled {
                 guard let self, self.isRunning else { return }
                 self.engine.step()
+                self.processUserFills()
                 let interval = self.baseTickInterval / self.speed.rawValue
                 try? await Task.sleep(for: interval)
             }
@@ -155,5 +162,68 @@ final class MarketSession {
         } catch {
             return .failure(.noLiquidity)
         }
+    }
+
+    // MARK: 지정가 (①)
+
+    /// 대기 주문 ID → 주문 시 고른 태그 (사후 체결 기록용)
+    private var limitTags: [UInt64: TradeReasonTag] = [:]
+    /// 방금 체결된 대기 주문 알림 (UI 배너)
+    private(set) var limitFillNotice: String?
+
+    func placeLimitOrder(side: Side, price: Int, qty: Int, tag: TradeReasonTag)
+    -> Result<MarketEngine.LimitOrderResult, OrderError> {
+        do {
+            let result = try engine.placeLimitOrder(side: side, price: price, qty: qty)
+            if let resting = result.restingOrder {
+                limitTags[resting.id] = tag
+            }
+            return .success(result)
+        } catch let error as OrderError {
+            return .failure(error)
+        } catch {
+            return .failure(.noLiquidity)
+        }
+    }
+
+    func cancelOrder(id: UInt64) {
+        engine.cancelOrder(id: id)
+        limitTags[id] = nil
+        persistState()
+        store?.persistPortfolio(engine.portfolio)
+    }
+
+    /// 대기 체결 이벤트를 기록·영속·알림으로 처리. 루프와 스킵·복귀 후에 호출된다.
+    func processUserFills() {
+        let events = engine.drainUserFillEvents()
+        guard !events.isEmpty else { return }
+        for event in events {
+            let fallback: TradeReasonTag = event.side == .buy ? .gutBuy : .gutSell
+            let tag = limitTags[event.orderId] ?? fallback
+            let fill = FillResult(side: event.side, requestedQty: event.qty,
+                                  fills: [Fill(price: event.price, qty: event.qty)],
+                                  displayedPrice: event.price)
+            store?.record(fill: fill, tag: tag,
+                          avgCostBeforeOrder: event.avgCostBefore,
+                          atTick: engine.tick,
+                          atCandleIndex: engine.candles.count,
+                          wasLimit: true)
+            if !engine.openOrders.contains(where: { $0.id == event.orderId }) {
+                limitTags[event.orderId] = nil
+            }
+            limitFillNotice = "지정가 체결 · \(event.side == .buy ? "매수" : "매도") \(event.qty)주 @ \(event.price.formatted())원"
+        }
+        store?.persistPortfolio(engine.portfolio)
+        persistState()
+        Task {
+            try? await Task.sleep(for: .seconds(4))
+            limitFillNotice = nil
+        }
+    }
+
+    /// 다음 캔들로 스킵 — 스킵 중 발생한 대기 체결도 처리한다.
+    func skipToNextCandle() {
+        engine.advanceToNextCandle()
+        processUserFills()
     }
 }

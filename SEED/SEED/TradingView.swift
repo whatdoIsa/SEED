@@ -27,6 +27,7 @@ struct TradingView: View {
                 .frame(maxHeight: .infinity)
                 .padding(.horizontal, 12)
                 lockedToolCards
+                openOrdersSection
             } else {
                 if store.progress.unlockLevel >= UnlockLevel.orderBook {
                     ScrollView {
@@ -52,6 +53,19 @@ struct TradingView: View {
                 .padding(.horizontal, 16).padding(.bottom, 6)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            if let notice = session.limitFillNotice {
+                HStack(spacing: 7) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                    Text(notice)
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                }
+                .foregroundStyle(SeedTheme.violetDeep)
+                .padding(.horizontal, 13).padding(.vertical, 9)
+                .background(SeedTheme.violetTint, in: RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 16).padding(.bottom, 6)
+            }
             if !hasTraded {
                 Text("가격이 계속 움직여요. 누가 움직이는 걸까요? 일단 사보세요.")
                     .font(.system(size: 12))
@@ -67,9 +81,10 @@ struct TradingView: View {
         .background(SeedTheme.background)
         .task { session.start() }
         .sheet(item: $orderSide) { side in
-            OrderSheet(session: session, side: side) { result, tag, avgCostBefore in
+            OrderSheet(session: session, side: side,
+                       allowsLimit: store.progress.unlockLevel >= UnlockLevel.orderBook) { result, tag, avgCostBefore in
                 switch result {
-                case .success(let fill):
+                case .success(.market(let fill)):
                     store.record(fill: fill, tag: tag, avgCostBeforeOrder: avgCostBefore,
                                  atTick: session.engine.tick,
                                  atCandleIndex: session.engine.candles.count)
@@ -78,11 +93,25 @@ struct TradingView: View {
                     lastFill = fill
                     hasTraded = true
                     showMiniReview(store.miniReview(for: tag))
+                case .success(.limit(let limitResult)):
+                    if let immediate = limitResult.immediateFill {
+                        store.record(fill: immediate, tag: tag, avgCostBeforeOrder: avgCostBefore,
+                                     atTick: session.engine.tick,
+                                     atCandleIndex: session.engine.candles.count,
+                                     wasLimit: true)
+                        lastFill = immediate
+                        hasTraded = true
+                    }
+                    if let resting = limitResult.restingOrder {
+                        showMiniReview("지정가 접수 · \(resting.remainingQty)주 대기 중 — 체결되면 알려드릴게요")
+                    }
+                    store.persistPortfolio(session.engine.portfolio)
+                    session.persistState()
                 case .failure(let error):
                     orderErrorMessage = message(for: error)
                 }
             }
-            .presentationDetents([.height(400)])
+            .presentationDetents([.height(470)])
         }
         .sheet(item: $lastFill) { fill in
             FillResultSheet(fill: fill)
@@ -137,6 +166,42 @@ struct TradingView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
+    }
+
+    // MARK: 미체결 주문 (① — 내 주문이 호가창에 앉아 기다린다)
+
+    @ViewBuilder
+    private var openOrdersSection: some View {
+        let orders = session.engine.openOrders
+        if !orders.isEmpty {
+            VStack(spacing: 6) {
+                ForEach(orders) { order in
+                    HStack(spacing: 10) {
+                        Text(order.side == .buy ? "매수 대기" : "매도 대기")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(order.side == .buy ? SeedTheme.up : SeedTheme.down)
+                            .padding(.horizontal, 7).padding(.vertical, 3)
+                            .background(order.side == .buy ? SeedTheme.upTint : SeedTheme.downTint,
+                                        in: RoundedRectangle(cornerRadius: 6))
+                        Text("\(order.price.formatted())원 · \(order.remainingQty)주")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(SeedTheme.textPrimary)
+                        Spacer()
+                        Button {
+                            session.cancelOrder(id: order.id)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 17))
+                                .foregroundStyle(SeedTheme.textSecondary.opacity(0.6))
+                        }
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 11))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 6)
+        }
     }
 
     // MARK: 차트 | 호가 전환
@@ -223,7 +288,7 @@ struct TradingView: View {
                 }
             }
             Button {
-                session.engine.advanceToNextCandle()
+                session.skipToNextCandle()
             } label: {
                 Label("다음 캔들", systemImage: "chevron.right.2")
                     .font(.system(size: 12, weight: .medium))
@@ -417,23 +482,32 @@ struct ChartCanvas: View {
 
 // MARK: - 주문 시트
 
+enum OrderOutcome {
+    case market(FillResult)
+    case limit(MarketEngine.LimitOrderResult)
+}
+
 struct OrderSheet: View {
     let session: MarketSession
     let side: Side
-    let onComplete: (Result<FillResult, OrderError>, TradeReasonTag, Double) -> Void
+    var allowsLimit: Bool = false
+    let onComplete: (Result<OrderOutcome, OrderError>, TradeReasonTag, Double) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var qty = 10
     @State private var selectedTag: TradeReasonTag?
+    @State private var orderType = 0
+    @State private var limitPrice = 0
 
     private var accent: Color { side == .buy ? SeedTheme.up : SeedTheme.down }
     private var title: String { side == .buy ? "사기" : "팔기" }
+    private var isLimit: Bool { orderType == 1 }
 
     var body: some View {
         VStack(spacing: 14) {
             Capsule().fill(SeedTheme.band).frame(width: 36, height: 4).padding(.top, 10)
 
             HStack {
-                Text("시장가로 \(title)")
+                Text("\(isLimit ? "지정가" : "시장가")로 \(title)")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(SeedTheme.textPrimary)
                 Spacer()
@@ -442,6 +516,35 @@ struct OrderSheet: View {
                         .font(.system(size: 13))
                         .foregroundStyle(SeedTheme.textSecondary)
                 }
+            }
+
+            if allowsLimit {
+                Picker("주문 방식", selection: $orderType) {
+                    Text("시장가").tag(0)
+                    Text("지정가").tag(1)
+                }
+                .pickerStyle(.segmented)
+            }
+
+            if isLimit {
+                HStack {
+                    Text("주문 가격")
+                        .font(.system(size: 14))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                    Spacer()
+                    Stepper("\(limitPrice.formatted())원",
+                            value: $limitPrice,
+                            in: 1_000...1_000_000,
+                            step: session.engine.config.tickSize)
+                        .font(.system(size: 15, weight: .semibold))
+                        .fixedSize()
+                }
+                Text(side == .buy
+                     ? "이 값 이하로만 사요. 그때까지 주문이 호가창에서 기다려요 — 슬리피지가 없어요."
+                     : "이 값 이상으로만 팔아요. 그때까지 주문이 호가창에서 기다려요.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.violetDeep)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             HStack(spacing: 8) {
@@ -493,12 +596,19 @@ struct OrderSheet: View {
             Button {
                 guard let tag = selectedTag else { return }
                 let avgCostBefore = session.engine.portfolio.avgCost
-                let result = session.placeOrder(side: side, qty: qty)
+                let result: Result<OrderOutcome, OrderError>
+                if isLimit {
+                    result = session.placeLimitOrder(side: side, price: limitPrice, qty: qty, tag: tag)
+                        .map { .limit($0) }
+                } else {
+                    result = session.placeOrder(side: side, qty: qty)
+                        .map { .market($0) }
+                }
                 session.orderSheetClosed()
                 dismiss()
                 onComplete(result, tag, avgCostBefore)
             } label: {
-                Text(selectedTag == nil ? "이유를 하나 골라주세요" : "\(qty)주 \(title)")
+                Text(selectedTag == nil ? "이유를 하나 골라주세요" : "\(qty)주 \(isLimit ? "지정가 " : "")\(title)")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -511,6 +621,9 @@ struct OrderSheet: View {
             .disabled(selectedTag == nil)
         }
         .padding(.horizontal, 20)
+        .onAppear {
+            limitPrice = session.engine.displayedPrice(for: side) ?? session.engine.lastPrice
+        }
         .onDisappear { session.orderSheetClosed() }
     }
 }

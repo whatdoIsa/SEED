@@ -52,7 +52,8 @@ final class SeedStore {
                 note: String? = nil,
                 scenarioId: String? = nil,
                 atTick: Int? = nil,
-                atCandleIndex: Int? = nil) {
+                atCandleIndex: Int? = nil,
+                wasLimit: Bool = false) {
         var realized: Double?
         if fill.side == .sell, avgCostBeforeOrder > 0 {
             realized = (fill.avgFillPrice - avgCostBeforeOrder) / avgCostBeforeOrder * 100
@@ -73,6 +74,7 @@ final class SeedStore {
         )
         log.atTick = atTick
         log.atCandleIndex = atCandleIndex
+        log.isLimitFill = wasLimit
         context.insert(log)
         try? context.save()
 

@@ -8,6 +8,13 @@ public struct Portfolio {
     public private(set) var qty: Int = 0
     public private(set) var avgCost: Double = 0
     public private(set) var realizedPnL: Double = 0
+    /// 미체결 지정가 매수에 묶인 돈 (증거금 개념 — 이중 지출 방지)
+    public private(set) var reservedCash: Int = 0
+    /// 미체결 지정가 매도에 묶인 주식
+    public private(set) var reservedShares: Int = 0
+
+    public var availableCash: Int { cash - reservedCash }
+    public var availableShares: Int { qty - reservedShares }
 
     public init(cash: Int) {
         self.cash = cash
@@ -44,6 +51,34 @@ public struct Portfolio {
         qty -= result.filledQty
         if qty == 0 { avgCost = 0 }
         cash += proceeds
+    }
+
+    // MARK: 지정가 예약·정산
+
+    mutating func reserveCash(_ amount: Int) { reservedCash += amount }
+    mutating func releaseCash(_ amount: Int) { reservedCash = max(reservedCash - amount, 0) }
+    mutating func reserveShares(_ amount: Int) { reservedShares += amount }
+    mutating func releaseShares(_ amount: Int) { reservedShares = max(reservedShares - amount, 0) }
+
+    /// 대기 중이던 지정가 매수가 체결됨 — 예약금으로 정산.
+    mutating func settleRestingBuy(price: Int, qty fillQty: Int) {
+        let cost = price * fillQty
+        releaseCash(cost)
+        let newQty = qty + fillQty
+        if newQty > 0 {
+            avgCost = (avgCost * Double(qty) + Double(cost)) / Double(newQty)
+        }
+        qty = newQty
+        cash -= cost
+    }
+
+    /// 대기 중이던 지정가 매도가 체결됨 — 예약 주식으로 정산.
+    mutating func settleRestingSell(price: Int, qty fillQty: Int) {
+        releaseShares(fillQty)
+        realizedPnL += (Double(price) - avgCost) * Double(fillQty)
+        qty -= fillQty
+        if qty == 0 { avgCost = 0 }
+        cash += price * fillQty
     }
 }
 
@@ -102,6 +137,11 @@ public final class MarketEngine {
     private var rng: SeededRNG
     private let tapeLimit = 60
     public static let userAgentId = "USER"
+
+    // MARK: 사용자 지정가 상태 (①)
+
+    public private(set) var openOrders: [UserOrder] = []
+    private var userFillEvents: [UserFillEvent] = []
 
     // MARK: 시나리오 상태 (M1-3)
 
@@ -175,6 +215,8 @@ public final class MarketEngine {
                 apply(intent, from: agent.id)
             }
         }
+
+        settleUserFills()
 
         if tick % config.ticksPerCandle == 0 {
             closeCandle()
@@ -294,12 +336,12 @@ public final class MarketEngine {
         switch side {
         case .buy:
             let cost = preview.reduce(0) { $0 + $1.price * $1.qty }
-            guard cost <= portfolio.cash else {
-                throw OrderError.insufficientCash(needed: cost, available: portfolio.cash)
+            guard cost <= portfolio.availableCash else {
+                throw OrderError.insufficientCash(needed: cost, available: portfolio.availableCash)
             }
         case .sell:
-            guard qty <= portfolio.qty else {
-                throw OrderError.insufficientHoldings(requested: qty, held: portfolio.qty)
+            guard qty <= portfolio.availableShares else {
+                throw OrderError.insufficientHoldings(requested: qty, held: portfolio.availableShares)
             }
         }
 
@@ -312,6 +354,141 @@ public final class MarketEngine {
         case .sell: portfolio.applySell(result)
         }
         return result
+    }
+
+    // MARK: 사용자 주문 (지정가 — ① 미체결 관리)
+
+    public struct UserOrder: Identifiable, Equatable {
+        public let id: UInt64
+        public let side: Side
+        public let price: Int
+        public let restingQty: Int
+        public var filledQty: Int = 0
+        public var remainingQty: Int { restingQty - filledQty }
+    }
+
+    /// 대기 주문이 나중에 체결됐을 때 UI로 흘러가는 이벤트.
+    public struct UserFillEvent: Equatable {
+        public let orderId: UInt64
+        public let side: Side
+        public let price: Int
+        public let qty: Int
+        /// 정산 직전의 평단 — 매도 확정 수익률 계산용.
+        public let avgCostBefore: Double
+    }
+
+    public struct LimitOrderResult {
+        /// 접수 즉시 교차 체결된 부분 (시장가처럼)
+        public let immediateFill: FillResult?
+        /// 호가창에 앉은 대기 주문 (전량 즉시 체결이면 nil)
+        public let restingOrder: UserOrder?
+    }
+
+    /// 지정가 주문. 교차분은 즉시 체결, 잔여는 호가창에 앉아 기다린다.
+    /// 매수는 잔여 × 지정가만큼 현금을, 매도는 잔여 주식을 예약한다.
+    public func placeLimitOrder(side: Side, price: Int, qty: Int) throws -> LimitOrderResult {
+        guard qty > 0, price > 0 else { throw OrderError.invalidQuantity }
+        let displayed = displayedPrice(for: side) ?? price
+
+        // 즉시 교차분 비용 미리 계산 (지정가 이하/이상만 먹는다)
+        let crossable = book.previewMarket(side: side, qty: qty)
+            .filter { side == .buy ? $0.price <= price : $0.price >= price }
+        let immediateQty = crossable.reduce(0) { $0 + $1.qty }
+        let immediateCost = crossable.reduce(0) { $0 + $1.price * $1.qty }
+        let restingQty = qty - immediateQty
+
+        switch side {
+        case .buy:
+            let needed = immediateCost + restingQty * price
+            guard needed <= portfolio.availableCash else {
+                throw OrderError.insufficientCash(needed: needed, available: portfolio.availableCash)
+            }
+        case .sell:
+            guard qty <= portfolio.availableShares else {
+                throw OrderError.insufficientHoldings(requested: qty, held: portfolio.availableShares)
+            }
+        }
+
+        let (trades, restingId, actualResting) = book.submitLimitTracked(
+            agentId: Self.userAgentId, side: side, price: price, qty: qty, tick: tick)
+        record(trades)
+
+        var immediate: FillResult?
+        if !trades.isEmpty {
+            let fills = trades.map { Fill(price: $0.price, qty: $0.qty) }
+            let result = FillResult(side: side, requestedQty: qty - actualResting,
+                                    fills: fills, displayedPrice: displayed)
+            switch side {
+            case .buy: portfolio.applyBuy(result)
+            case .sell: portfolio.applySell(result)
+            }
+            immediate = result
+        }
+
+        var resting: UserOrder?
+        if let restingId, actualResting > 0 {
+            switch side {
+            case .buy: portfolio.reserveCash(actualResting * price)
+            case .sell: portfolio.reserveShares(actualResting)
+            }
+            let order = UserOrder(id: restingId, side: side, price: price, restingQty: actualResting)
+            openOrders.append(order)
+            resting = order
+        }
+        return LimitOrderResult(immediateFill: immediate, restingOrder: resting)
+    }
+
+    /// 대기 주문 취소 — 예약 자금·주식을 돌려준다.
+    public func cancelOrder(id: UInt64) {
+        guard let index = openOrders.firstIndex(where: { $0.id == id }) else { return }
+        let order = openOrders[index]
+        let released = book.cancel(orderId: id, side: order.side, price: order.price)
+        switch order.side {
+        case .buy: portfolio.releaseCash(released * order.price)
+        case .sell: portfolio.releaseShares(released)
+        }
+        openOrders.remove(at: index)
+    }
+
+    /// UI가 대기 체결 이벤트를 소비한다 (기록·알림용).
+    public func drainUserFillEvents() -> [UserFillEvent] {
+        let events = userFillEvents
+        userFillEvents.removeAll()
+        return events
+    }
+
+    /// 매 틱 끝에 호출: 대기 주문의 잔량 변화를 감지해 포트폴리오를 정산한다.
+    private func settleUserFills() {
+        guard !openOrders.isEmpty else { return }
+        var stillOpen: [UserOrder] = []
+        for var order in openOrders {
+            let remaining = book.remainingQty(orderId: order.id, side: order.side, price: order.price)
+            let newlyFilled = order.remainingQty - remaining
+            if newlyFilled > 0 {
+                let avgCostBefore = portfolio.avgCost
+                switch order.side {
+                case .buy: portfolio.settleRestingBuy(price: order.price, qty: newlyFilled)
+                case .sell: portfolio.settleRestingSell(price: order.price, qty: newlyFilled)
+                }
+                order.filledQty += newlyFilled
+                userFillEvents.append(UserFillEvent(
+                    orderId: order.id, side: order.side, price: order.price,
+                    qty: newlyFilled, avgCostBefore: avgCostBefore))
+            }
+            if remaining > 0 { stillOpen.append(order) }
+        }
+        openOrders = stillOpen
+    }
+
+    /// 리플레이 폴백: 과거 지정가 체결을 호가창 개입 없이 포트폴리오에만 반영한다.
+    /// (대기 체결은 정산 틱이 기록되지 않으므로 완전 재현 대신 근사 복원을 택한다.)
+    public func restoreFill(side: Side, price: Int, qty: Int) {
+        let result = FillResult(side: side, requestedQty: qty,
+                                fills: [Fill(price: price, qty: qty)], displayedPrice: price)
+        switch side {
+        case .buy: portfolio.applyBuy(result)
+        case .sell: portfolio.applySell(result)
+        }
     }
 }
 

@@ -5,6 +5,7 @@ import SwiftUI
 struct LessonListView: View {
     let store: SeedStore
     @State private var activeLesson: LessonDef?
+    @State private var showsDailyMarket = false
 
     var body: some View {
         ScrollView {
@@ -15,6 +16,8 @@ struct LessonListView: View {
                 Text("레슨을 마칠 때마다 시장 화면에 도구가 하나씩 열려요.")
                     .font(.system(size: 13))
                     .foregroundStyle(SeedTheme.textSecondary)
+
+                dailyMarketCard
 
                 ForEach(LessonCatalog.all) { lesson in
                     lessonRow(lesson)
@@ -32,6 +35,47 @@ struct LessonListView: View {
         .fullScreenCover(item: $activeLesson) { lesson in
             LessonFlowView(lesson: lesson, store: store)
         }
+        .fullScreenCover(isPresented: $showsDailyMarket) {
+            DailyMarketView(store: store)
+        }
+    }
+
+    // MARK: 오늘의 장 (⑦ — 매일 다른 장이 열린다)
+
+    private var dailyMarketCard: some View {
+        let doneToday = store.isLessonDone(DailyMarket.id())
+        return Button {
+            if !doneToday { showsDailyMarket = true }
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(doneToday ? SeedTheme.card : SeedTheme.violet)
+                        .frame(width: 38, height: 38)
+                    Image(systemName: doneToday ? "checkmark" : "sunrise.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(doneToday ? SeedTheme.textSecondary : .white)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("오늘의 장")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                    Text(doneToday ? "오늘 완료 · 내일 새로운 장이 열려요" : "오늘은 어떤 장일까요? 자유롭게 매매해보세요")
+                        .font(.system(size: 12))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                }
+                Spacer()
+                if !doneToday {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13))
+                        .foregroundStyle(SeedTheme.violet)
+                }
+            }
+            .padding(14)
+            .background(SeedTheme.violetTint.opacity(doneToday ? 0.4 : 1),
+                        in: RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
     }
 
     private func lessonRow(_ lesson: LessonDef) -> some View {

@@ -11,6 +11,7 @@ struct TradingView: View {
     @State private var orderErrorMessage: String?
     @State private var marketTab = 0
     @State private var miniReviewText: String?
+    @State private var hasTraded = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -51,10 +52,18 @@ struct TradingView: View {
                 .padding(.horizontal, 16).padding(.bottom, 6)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            if !hasTraded {
+                Text("가격이 계속 움직여요. 누가 움직이는 걸까요? 일단 사보세요.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 4)
+            }
             portfolioStrip
             orderButtons
         }
         .animation(.snappy(duration: 0.3), value: miniReviewText)
+        .onAppear { hasTraded = store.tradeCount() > 0 }
         .background(Color.white)
         .task { session.start() }
         .sheet(item: $orderSide) { side in
@@ -64,6 +73,7 @@ struct TradingView: View {
                     store.record(fill: fill, tag: tag, avgCostBeforeOrder: avgCostBefore)
                     store.persistPortfolio(session.engine.portfolio)
                     lastFill = fill
+                    hasTraded = true
                     showMiniReview(store.miniReview(for: tag))
                 case .failure(let error):
                     orderErrorMessage = message(for: error)

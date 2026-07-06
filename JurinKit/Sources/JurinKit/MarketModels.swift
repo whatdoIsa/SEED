@@ -89,6 +89,13 @@ public struct FillResult {
     /// 주문 제출 시점의 최우선 호가 (사용자 화면에 보이던 값)
     public let displayedPrice: Int
 
+    public init(side: Side, requestedQty: Int, fills: [Fill], displayedPrice: Int) {
+        self.side = side
+        self.requestedQty = requestedQty
+        self.fills = fills
+        self.displayedPrice = displayedPrice
+    }
+
     public var filledQty: Int { fills.reduce(0) { $0 + $1.qty } }
     public var notional: Int { fills.reduce(0) { $0 + $1.price * $1.qty } }
 

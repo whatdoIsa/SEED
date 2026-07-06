@@ -147,6 +147,8 @@ struct LessonFlowView: View {
         switch lesson.mission {
         case .tapBullish:
             TapBullishMissionView { stage = .done }
+        case .slippageTutorial:
+            SlippageMissionView { stage = .done }
         }
     }
 
@@ -211,7 +213,8 @@ struct ConceptPageView: View {
     private var conceptVisual: some View {
         switch page.visual {
         case .candleAnatomy: CandleAnatomyView()
-        case .none, .orderBookIntro, .fomoIntro: EmptyView()
+        case .orderBookIntro: OrderBookIntroVisual()
+        case .none, .fomoIntro: EmptyView()
         }
     }
 

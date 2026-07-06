@@ -12,6 +12,7 @@ struct TradingView: View {
     @State private var marketTab = 0
     @State private var miniReviewText: String?
     @State private var hasTraded = true
+    @State private var newsBanner: (text: String, positive: Bool)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,6 +54,21 @@ struct TradingView: View {
                 .padding(.horizontal, 16).padding(.bottom, 6)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            if let news = newsBanner {
+                HStack(spacing: 7) {
+                    Image(systemName: news.positive ? "arrow.up.right.circle.fill" : "arrow.down.right.circle.fill")
+                        .font(.system(size: 12))
+                    Text("속보 · \(news.text)")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                }
+                .foregroundStyle(news.positive ? SeedTheme.up : SeedTheme.down)
+                .padding(.horizontal, 13).padding(.vertical, 9)
+                .background(news.positive ? SeedTheme.upTint : SeedTheme.downTint,
+                            in: RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 16).padding(.bottom, 6)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
             if let notice = session.limitFillNotice {
                 HStack(spacing: 7) {
                     Image(systemName: "checkmark.circle.fill")
@@ -78,6 +94,16 @@ struct TradingView: View {
         }
         .animation(.snappy(duration: 0.3), value: miniReviewText)
         .onAppear { hasTraded = store.tradeCount() > 0 }
+        .onChange(of: session.engine.newsFeed.count) { _, _ in
+            guard let event = session.engine.latestNews else { return }
+            withAnimation(.snappy(duration: 0.3)) {
+                newsBanner = (NewsHeadlines.text(for: event), event.isPositive)
+            }
+            Task {
+                try? await Task.sleep(for: .seconds(5))
+                withAnimation(.easeOut(duration: 0.3)) { newsBanner = nil }
+            }
+        }
         .background(SeedTheme.background)
         .task { session.start() }
         .sheet(item: $orderSide) { side in

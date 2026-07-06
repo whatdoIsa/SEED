@@ -149,6 +149,8 @@ struct LessonFlowView: View {
             TapBullishMissionView { stage = .done }
         case .slippageTutorial:
             SlippageMissionView { stage = .done }
+        case .chaseScenario:
+            ChaseScenarioMissionView(store: store) { stage = .done }
         }
     }
 

@@ -18,6 +18,7 @@ struct ConceptPage: Identifiable {
 enum MissionKind {
     case tapBullish
     case slippageTutorial
+    case chaseScenario
 }
 
 struct LessonDef: Identifiable {
@@ -76,9 +77,29 @@ enum LessonCatalog {
         mission: .slippageTutorial
     )
 
-    /// 레슨 3은 급등 시나리오 미션과 함께 추가된다.
+    static let chase = LessonDef(
+        id: "lesson.chase",
+        order: 3,
+        title: "급등주를 쫓으면 생기는 일",
+        subtitle: "안전하게 한 번 데여보기",
+        duration: "약 3분",
+        unlocksLevel: UnlockLevel.volumeAndMA,
+        unlockLabel: "거래량·이평선 + 복기 리포트 해금",
+        concept: [
+            ConceptPage(
+                text: "빨간 급등을 보면 사고 싶어져요. 남들 다 버는데 나만 놓치는 것 같거든요. 이 조급함엔 이름이 있어요 — **FOMO**(놓칠까 봐 두려운 마음).",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "그런데 갑자기 뛴 가격은 종종 **원래 자리로 되돌아와요(평균회귀).** 늦게 올라탄 사람이 꼭지를 뒤집어쓰는 이유예요.\n\n백문이 불여일견. 이번엔 **안전하게 한 번 데여봐요.** 진짜 돈이 아니니까요.",
+                visual: .fomoIntro
+            )
+        ],
+        mission: .chaseScenario
+    )
+
     static var all: [LessonDef] { registered }
-    static var registered: [LessonDef] = [candle, orderbook]
+    static var registered: [LessonDef] = [candle, orderbook, chase]
 }
 
 // MARK: - 미션 1용 손수 만든 캔들 (교육 목적으로 모양을 통제)

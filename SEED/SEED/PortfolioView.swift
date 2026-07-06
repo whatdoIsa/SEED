@@ -7,6 +7,7 @@ struct PortfolioView: View {
     @Bindable var session: MarketSession
     let store: SeedStore
     @Query(sort: \TradeLog.timestamp, order: .reverse) private var logs: [TradeLog]
+    @State private var showsAutopsy = false
 
     var body: some View {
         let portfolio = session.engine.portfolio
@@ -52,6 +53,19 @@ struct PortfolioView: View {
                 .padding(16)
                 .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
 
+                if let rule = store.currentSeason.carriedRule {
+                    HStack(spacing: 7) {
+                        Image(systemName: "flag.fill")
+                            .font(.system(size: 11))
+                        Text("이번 시즌 규칙: \(rule)")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                    }
+                    .foregroundStyle(SeedTheme.violetDeep)
+                    .padding(.horizontal, 13).padding(.vertical, 9)
+                    .background(SeedTheme.violetTint, in: RoundedRectangle(cornerRadius: 10))
+                }
+
                 Text("매매 기록")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(SeedTheme.textPrimary)
@@ -69,10 +83,24 @@ struct PortfolioView: View {
                         }
                     }
                 }
+                Button {
+                    showsAutopsy = true
+                } label: {
+                    Text("계좌 리셋 (부검 후 시즌 \(store.currentSeason.number + 1) 시작)")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(SeedTheme.band, lineWidth: 1))
+                }
+                .padding(.top, 8)
             }
             .padding(16)
         }
         .background(Color.white)
+        .fullScreenCover(isPresented: $showsAutopsy) {
+            AutopsyView(store: store, session: session)
+        }
     }
 
     private var seasonLogs: [TradeLog] {

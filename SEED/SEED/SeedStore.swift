@@ -150,6 +150,30 @@ final class SeedStore {
         return (try? context.fetchCount(descriptor)) ?? 0
     }
 
+    // MARK: 부검용 통계 (M4-3)
+
+    private func seasonLogs() -> [TradeLog] {
+        let seasonNumber = currentSeason.number
+        return (try? context.fetch(FetchDescriptor<TradeLog>(
+            predicate: #Predicate { $0.seasonNumber == seasonNumber }
+        ))) ?? []
+    }
+
+    /// 시작 자금 대비 가장 큰 단일 매수 비중(%) — "몰빵" 판정의 원료.
+    func maxBuyWeightPct() -> Double? {
+        let buys = seasonLogs().filter { $0.side == .buy }
+        guard let biggest = buys.map({ $0.avgFillPrice * Double($0.qty) }).max(),
+              currentSeason.startCash > 0 else { return nil }
+        return biggest / Double(currentSeason.startCash) * 100
+    }
+
+    /// 매수 주문의 평균 슬리피지(원).
+    func avgBuySlippage() -> Double? {
+        let slippages = seasonLogs().filter { $0.side == .buy }.map(\.slippage)
+        guard !slippages.isEmpty else { return nil }
+        return slippages.reduce(0, +) / Double(slippages.count)
+    }
+
     // MARK: 시즌 전환 (M4-3 계좌 부검이 호출)
 
     /// 계좌 부검 통과 후 호출: 현 시즌 마감, 이월 규칙을 새기고 다음 시즌 시작.

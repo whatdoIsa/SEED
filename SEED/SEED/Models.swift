@@ -52,6 +52,10 @@ final class TradeLog {
     var seasonNumber: Int
     /// 매도 시에만: 평단 대비 확정 수익률(%). L1 복기의 핵심 집계 대상.
     var realizedReturnPct: Double?
+    /// 체결 시점의 엔진 틱 — 세션 리플레이의 좌표 (시나리오 매매는 nil)
+    var atTick: Int?
+    /// 체결 시점의 캔들 인덱스 — 매매 지도의 x 좌표
+    var atCandleIndex: Int?
 
     var side: Side { Side(rawValue: sideRaw) ?? .buy }
     var reasonTag: TradeReasonTag { TradeReasonTag(rawValue: reasonTagRaw) ?? .gutBuy }
@@ -96,11 +100,15 @@ final class Season {
     var endEquity: Int?
     /// 부검에서 고른, 다음 시즌으로 가져가는 규칙 — 이월되는 것은 돈이 아니라 이것.
     var carriedRule: String?
-    /// 포트폴리오 스냅샷 (앱 재시작 시 복원) — 매매 직후 갱신
+    /// 포트폴리오 스냅샷 (리플레이 불가능한 구버전 데이터의 폴백)
     var savedCash: Int?
     var savedQty: Int?
     var savedAvgCost: Double?
     var savedRealizedPnL: Double?
+    /// 시장 연속성: 시드 + 진행 틱만 있으면 같은 시장을 그대로 재현한다
+    var engineSeedBits: Int64?
+    var lastTick: Int?
+    var lastActiveAt: Date?
 
     init(number: Int, startedAt: Date = .now, startCash: Int) {
         self.number = number

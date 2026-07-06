@@ -50,7 +50,9 @@ final class SeedStore {
                 symbol: String = "한빛전자",
                 avgCostBeforeOrder: Double,
                 note: String? = nil,
-                scenarioId: String? = nil) {
+                scenarioId: String? = nil,
+                atTick: Int? = nil,
+                atCandleIndex: Int? = nil) {
         var realized: Double?
         if fill.side == .sell, avgCostBeforeOrder > 0 {
             realized = (fill.avgFillPrice - avgCostBeforeOrder) / avgCostBeforeOrder * 100
@@ -69,6 +71,8 @@ final class SeedStore {
             seasonNumber: currentSeason.number,
             realizedReturnPct: realized
         )
+        log.atTick = atTick
+        log.atCandleIndex = atCandleIndex
         context.insert(log)
         try? context.save()
 
@@ -79,6 +83,38 @@ final class SeedStore {
         ])
         if isFirstTrade {
             Analytics.log(.firstTradeFilled, ["tag": tag.rawValue])
+        }
+    }
+
+    // MARK: 시장 연속성 (시드 + 틱 + 주문 리플레이)
+
+    func persistMarketState(seed: UInt64, tick: Int) {
+        currentSeason.engineSeedBits = Int64(bitPattern: seed)
+        currentSeason.lastTick = tick
+        currentSeason.lastActiveAt = .now
+        try? context.save()
+    }
+
+    func marketState() -> (seed: UInt64, tick: Int)? {
+        guard let bits = currentSeason.engineSeedBits,
+              let tick = currentSeason.lastTick else { return nil }
+        return (UInt64(bitPattern: bits), tick)
+    }
+
+    var lastActiveAt: Date? { currentSeason.lastActiveAt }
+
+    /// 리플레이 대상: 현재 시즌의 본 세션 매매 (시나리오 제외), 틱 순.
+    func replayableLogs() -> [TradeLog] {
+        seasonLogs()
+            .filter { $0.scenarioId == nil && $0.atTick != nil }
+            .sorted { ($0.atTick ?? 0) < ($1.atTick ?? 0) }
+    }
+
+    /// 매매 지도 마커 (M4 — 부록 A-4의 aha 모먼트).
+    func tradeMarks() -> [(candleIndex: Int, price: Double, side: Side)] {
+        replayableLogs().compactMap { log in
+            guard let index = log.atCandleIndex else { return nil }
+            return (index, log.avgFillPrice, log.side)
         }
     }
 

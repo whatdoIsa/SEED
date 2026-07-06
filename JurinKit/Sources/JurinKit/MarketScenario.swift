@@ -145,4 +145,45 @@ public extension ScenarioPreset {
             timeScaleLabel: "1캔들 = 1일"
         )
     }
+
+    /// 급락 패닉셀 시나리오 (⑥, 레슨 5): 보유 중 갑작스런 급락 → 공포 최고점의 결정
+    /// → 바닥 다지기 → 부분 회복. 패닉에 팔면 바닥 근처 손실 확정, 버티면 회복분을 되찾는다.
+    static func panicCrash(seed: UInt64 = 20_260_708) -> ScenarioPreset {
+        ScenarioPreset(
+            id: "scenario.panic-crash",
+            seed: seed,
+            initialPrice: 50_000,
+            durationTicks: 600,
+            anchorPull: 0.12,
+            keyframes: [
+                Keyframe(tick: 0, value: 50_000),      // 평온한 보유 구간
+                Keyframe(tick: 120, value: 50_200),
+                Keyframe(tick: 165, value: 42_500),    // 악재 급락 (-15%)
+                Keyframe(tick: 260, value: 41_000),    // 바닥 다지기 (결정의 공포 구간)
+                Keyframe(tick: 430, value: 45_500),    // 부분 회복
+                Keyframe(tick: 600, value: 46_500)
+            ],
+            overrides: [
+                // 급락 구간: 패닉 매물 + 추세 추종의 투매
+                AgentOverride(agentId: "NOISE", startTick: 120, endTick: 280,
+                              params: AgentParams(activity: 0.95, minQty: 30, maxQty: 160)),
+                AgentOverride(agentId: "TREND", startTick: 120, endTick: 290,
+                              params: AgentParams(activity: 0.85, minQty: 50, maxQty: 200)),
+                // 바닥·회복 구간: 가치투자자의 저가 매수
+                AgentOverride(agentId: "VALUE", startTick: 240, endTick: 520,
+                              params: AgentParams(activity: 0.8, minQty: 70, maxQty: 240))
+            ],
+            decisions: [
+                DecisionPrompt(
+                    tick: 195,
+                    prompt: "끝없이 떨어질 것 같아요. 어떻게 할까요?",
+                    options: [
+                        DecisionPrompt.Option(label: "지금 다 팔기", tagRaw: "fear"),
+                        DecisionPrompt.Option(label: "버티기", tagRaw: "hold")
+                    ]
+                )
+            ],
+            timeScaleLabel: "1캔들 = 1일"
+        )
+    }
 }

@@ -202,6 +202,10 @@ struct LessonFlowView: View {
             SlippageMissionView { stage = .done }
         case .chaseScenario:
             ChaseScenarioMissionView(store: store) { stage = .done }
+        case .tapVolumeSpike:
+            TapVolumeSpikeMissionView { stage = .done }
+        case .crashScenario:
+            CrashScenarioMissionView(store: store) { stage = .done }
         }
     }
 
@@ -416,9 +420,9 @@ struct TapBullishMissionView: View {
 /// 미니 캔들 1개 (미션·해부도 공용 스케일)
 struct MiniCandleView: View {
     let candle: MiniCandle
-    private let priceMin = TapBullishMissionData.priceMin
-    private let priceMax = TapBullishMissionData.priceMax
-    private let height: CGFloat = 180
+    var priceMin = TapBullishMissionData.priceMin
+    var priceMax = TapBullishMissionData.priceMax
+    var height: CGFloat = 180
 
     var body: some View {
         let color = candle.isBullish ? SeedTheme.up : SeedTheme.down

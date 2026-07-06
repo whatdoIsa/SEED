@@ -116,7 +116,7 @@ struct SlippageMissionView: View {
                 } label: {
                     Text("체결 결과 보기")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(SeedTheme.inverse)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 15)
                         .background(SeedTheme.textPrimary, in: RoundedRectangle(cornerRadius: 14))

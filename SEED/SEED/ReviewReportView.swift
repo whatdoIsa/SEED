@@ -28,7 +28,7 @@ struct ReviewReportView: View {
                 .foregroundStyle(SeedTheme.textSecondary.opacity(0.7))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.white)
+        .background(SeedTheme.background)
     }
 
     // MARK: 리포트 본문
@@ -88,7 +88,7 @@ struct ReviewReportView: View {
                         .lineSpacing(4)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(14)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 13))
+                        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 13))
                         .overlay(RoundedRectangle(cornerRadius: 13).stroke(SeedTheme.violet.opacity(0.5), lineWidth: 1))
                 }
 
@@ -100,7 +100,7 @@ struct ReviewReportView: View {
             }
             .padding(16)
         }
-        .background(Color.white)
+        .background(SeedTheme.background)
         .onAppear { Analytics.log(.reviewReportOpened) }
     }
 

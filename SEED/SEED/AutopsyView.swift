@@ -37,7 +37,7 @@ struct AutopsyView: View {
                     .padding(.vertical, 12)
             }
         }
-        .background(Color.white)
+        .background(SeedTheme.background)
     }
 
     // MARK: 헤더 — 사망 원인
@@ -205,7 +205,7 @@ struct AutopsyView: View {
                         Spacer()
                     }
                     .padding(13)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 12))
+                    .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12)
                         .stroke(selectedRule == rule ? SeedTheme.violet : SeedTheme.band, lineWidth: 1))
                 }

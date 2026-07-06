@@ -28,7 +28,7 @@ struct LessonListView: View {
             }
             .padding(16)
         }
-        .background(Color.white)
+        .background(SeedTheme.background)
         .fullScreenCover(item: $activeLesson) { lesson in
             LessonFlowView(lesson: lesson, store: store)
         }
@@ -144,7 +144,7 @@ struct LessonFlowView: View {
                 }
             }
         }
-        .background(Color.white)
+        .background(SeedTheme.background)
         .interactiveDismissDisabled(stage == .mission)
         .onAppear { Analytics.log(.lessonStart, ["lessonId": lesson.id]) }
     }

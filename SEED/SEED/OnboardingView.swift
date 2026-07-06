@@ -63,7 +63,7 @@ struct OnboardingView: View {
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 30)
-        .background(Color.white)
+        .background(SeedTheme.background)
     }
 
     private func choiceButton(title: String, subtitle: String, primary: Bool,

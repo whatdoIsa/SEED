@@ -9,7 +9,7 @@ import JurinKit
 @MainActor
 final class SeedStore {
     static let schema = Schema([
-        TradeLog.self, Season.self, LessonProgress.self, AppProgress.self
+        TradeLog.self, Season.self, LessonProgress.self, AppProgress.self, SymbolState.self
     ])
 
     private let context: ModelContext
@@ -88,19 +88,30 @@ final class SeedStore {
         }
     }
 
-    // MARK: 시장 연속성 (시드 + 틱 + 주문 리플레이)
+    // MARK: 시장 연속성 (종목별 시드 + 틱 + 주문 리플레이)
 
-    func persistMarketState(seed: UInt64, tick: Int) {
-        currentSeason.engineSeedBits = Int64(bitPattern: seed)
-        currentSeason.lastTick = tick
+    func persistSymbolState(code: String, seed: UInt64, tick: Int) {
+        let seasonNumber = currentSeason.number
+        let existing = (try? context.fetch(FetchDescriptor<SymbolState>(
+            predicate: #Predicate { $0.code == code && $0.seasonNumber == seasonNumber }
+        )))?.first
+        if let existing {
+            existing.lastTick = tick
+            existing.seedBits = Int64(bitPattern: seed)
+        } else {
+            context.insert(SymbolState(seasonNumber: seasonNumber, code: code,
+                                       seedBits: Int64(bitPattern: seed), lastTick: tick))
+        }
         currentSeason.lastActiveAt = .now
         try? context.save()
     }
 
-    func marketState() -> (seed: UInt64, tick: Int)? {
-        guard let bits = currentSeason.engineSeedBits,
-              let tick = currentSeason.lastTick else { return nil }
-        return (UInt64(bitPattern: bits), tick)
+    func symbolState(code: String) -> (seed: UInt64, tick: Int)? {
+        let seasonNumber = currentSeason.number
+        guard let state = (try? context.fetch(FetchDescriptor<SymbolState>(
+            predicate: #Predicate { $0.code == code && $0.seasonNumber == seasonNumber }
+        )))?.first else { return nil }
+        return (UInt64(bitPattern: state.seedBits), state.lastTick)
     }
 
     var lastActiveAt: Date? { currentSeason.lastActiveAt }
@@ -120,30 +131,12 @@ final class SeedStore {
         ))) ?? [])
     }
 
-    /// 매매 지도 마커 (M4 — 부록 A-4의 aha 모먼트).
-    func tradeMarks() -> [(candleIndex: Int, price: Double, side: Side)] {
+    /// 매매 지도 마커 (M4 — 부록 A-4의 aha 모먼트). 종목별.
+    func tradeMarks(symbolName: String) -> [(candleIndex: Int, price: Double, side: Side)] {
         replayableLogs().compactMap { log in
-            guard let index = log.atCandleIndex else { return nil }
+            guard log.symbol == symbolName, let index = log.atCandleIndex else { return nil }
             return (index, log.avgFillPrice, log.side)
         }
-    }
-
-    // MARK: 포트폴리오 영속 (앱 재시작 복원)
-
-    func persistPortfolio(_ portfolio: Portfolio) {
-        currentSeason.savedCash = portfolio.cash
-        currentSeason.savedQty = portfolio.qty
-        currentSeason.savedAvgCost = portfolio.avgCost
-        currentSeason.savedRealizedPnL = portfolio.realizedPnL
-        try? context.save()
-    }
-
-    func restorePortfolio() -> Portfolio? {
-        guard let cash = currentSeason.savedCash,
-              let qty = currentSeason.savedQty,
-              let avgCost = currentSeason.savedAvgCost else { return nil }
-        return Portfolio(cash: cash, qty: qty, avgCost: avgCost,
-                         realizedPnL: currentSeason.savedRealizedPnL ?? 0)
     }
 
     // MARK: L1 룰베이스 복기 집계 (M4-1)

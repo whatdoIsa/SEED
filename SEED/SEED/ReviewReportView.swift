@@ -112,7 +112,7 @@ struct ReviewReportView: View {
 
     @ViewBuilder
     private var tradeMapSection: some View {
-        let marks = store.tradeMarks()
+        let marks = store.tradeMarks(symbolName: session.activeSpec.name)
         if !marks.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Text("내 매매 지도")

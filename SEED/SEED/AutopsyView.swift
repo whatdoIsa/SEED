@@ -16,7 +16,7 @@ struct AutopsyView: View {
     ]
 
     var body: some View {
-        let equity = session.engine.portfolio.equity(at: session.engine.lastPrice)
+        let equity = session.totalEquity
         let startCash = store.currentSeason.startCash
         let returnPct = Double(equity - startCash) / Double(startCash) * 100
 
@@ -223,7 +223,6 @@ struct AutopsyView: View {
             Button {
                 _ = store.startNextSeason(endEquity: equity, carriedRule: selectedRule)
                 session.resetForNewSeason()
-                store.persistPortfolio(session.engine.portfolio)
                 dismiss()
             } label: {
                 Text("부검 확인 · 시즌 \(store.currentSeason.number + 1) 시작하기")

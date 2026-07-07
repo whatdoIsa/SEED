@@ -1,93 +1,6 @@
 import Foundation
 import Observation
 
-// MARK: - 포트폴리오
-
-public struct Portfolio {
-    public private(set) var cash: Int
-    public private(set) var qty: Int = 0
-    public private(set) var avgCost: Double = 0
-    public private(set) var realizedPnL: Double = 0
-    /// 미체결 지정가 매수에 묶인 돈 (증거금 개념 — 이중 지출 방지)
-    public private(set) var reservedCash: Int = 0
-    /// 미체결 지정가 매도에 묶인 주식
-    public private(set) var reservedShares: Int = 0
-    /// 누적 수수료·세금 — 잦은 매매의 비용을 가르치는 숫자
-    public private(set) var feesPaid: Int = 0
-
-    public var availableCash: Int { cash - reservedCash }
-    public var availableShares: Int { qty - reservedShares }
-
-    public init(cash: Int) {
-        self.cash = cash
-    }
-
-    /// 영속 저장에서 복원할 때 사용.
-    public init(cash: Int, qty: Int, avgCost: Double, realizedPnL: Double) {
-        self.cash = cash
-        self.qty = qty
-        self.avgCost = avgCost
-        self.realizedPnL = realizedPnL
-    }
-
-    public func marketValue(at price: Int) -> Int { qty * price }
-    public func equity(at price: Int) -> Int { cash + marketValue(at: price) }
-
-    public func unrealizedPnL(at price: Int) -> Double {
-        Double(qty) * (Double(price) - avgCost)
-    }
-
-    mutating func applyBuy(_ result: FillResult, fee: Int = 0) {
-        let cost = result.notional
-        let newQty = qty + result.filledQty
-        if newQty > 0 {
-            avgCost = (avgCost * Double(qty) + Double(cost)) / Double(newQty)
-        }
-        qty = newQty
-        cash -= cost + fee
-        feesPaid += fee
-    }
-
-    mutating func applySell(_ result: FillResult, fee: Int = 0) {
-        let proceeds = result.notional
-        realizedPnL += Double(proceeds - fee) - avgCost * Double(result.filledQty)
-        qty -= result.filledQty
-        if qty == 0 { avgCost = 0 }
-        cash += proceeds - fee
-        feesPaid += fee
-    }
-
-    // MARK: 지정가 예약·정산
-
-    mutating func reserveCash(_ amount: Int) { reservedCash += amount }
-    mutating func releaseCash(_ amount: Int) { reservedCash = max(reservedCash - amount, 0) }
-    mutating func reserveShares(_ amount: Int) { reservedShares += amount }
-    mutating func releaseShares(_ amount: Int) { reservedShares = max(reservedShares - amount, 0) }
-
-    /// 대기 중이던 지정가 매수가 체결됨 — 예약금으로 정산.
-    mutating func settleRestingBuy(price: Int, qty fillQty: Int, fee: Int = 0) {
-        let cost = price * fillQty
-        releaseCash(cost + fee)
-        let newQty = qty + fillQty
-        if newQty > 0 {
-            avgCost = (avgCost * Double(qty) + Double(cost)) / Double(newQty)
-        }
-        qty = newQty
-        cash -= cost + fee
-        feesPaid += fee
-    }
-
-    /// 대기 중이던 지정가 매도가 체결됨 — 예약 주식으로 정산.
-    mutating func settleRestingSell(price: Int, qty fillQty: Int, fee: Int = 0) {
-        releaseShares(fillQty)
-        realizedPnL += Double(price * fillQty - fee) - avgCost * Double(fillQty)
-        qty -= fillQty
-        if qty == 0 { avgCost = 0 }
-        cash += price * fillQty - fee
-        feesPaid += fee
-    }
-}
-
 // MARK: - 주문 오류
 
 public enum OrderError: Error, Equatable {
@@ -214,7 +127,12 @@ public final class MarketEngine {
     public var fairAnchor: Double
     public private(set) var tick: Int = 0
     public private(set) var tape: [Trade] = []
-    public private(set) var portfolio: Portfolio
+    /// 이 시장의 종목 코드 (다종목: 공유 원장의 보유 키)
+    public let symbol: String
+    /// 계좌 원장 — 여러 엔진이 공유할 수 있다 (현금은 하나)
+    public let ledger: AccountLedger
+    /// 이 종목 관점의 계좌 스냅샷 (기존 API 호환)
+    public var portfolio: PortfolioSnapshot { ledger.snapshot(for: symbol) }
 
     private var agents: [MarketAgent]
     private var rng: SeededRNG
@@ -274,13 +192,15 @@ public final class MarketEngine {
                 initialPrice: Int = 52_300,
                 config: EngineConfig = EngineConfig(),
                 agents: [MarketAgent]? = nil,
-                portfolio: Portfolio? = nil) {
+                symbol: String = "MAIN",
+                ledger: AccountLedger? = nil) {
         self.config = config
         self.lastPrice = initialPrice
         self.referencePrice = initialPrice
         self.fairValue = Double(initialPrice)
         self.fairAnchor = Double(initialPrice)
-        self.portfolio = portfolio ?? Portfolio(cash: config.initialCash)
+        self.symbol = symbol
+        self.ledger = ledger ?? AccountLedger(cash: config.initialCash)
         self.rng = SeededRNG(seed: seed)
         self.currentCandle = Candle(open: initialPrice, index: 0)
         self.agents = agents ?? [
@@ -498,12 +418,12 @@ public final class MarketEngine {
         case .buy:
             let cost = preview.reduce(0) { $0 + $1.price * $1.qty }
             let needed = cost + config.buyFee(on: cost)
-            guard needed <= portfolio.availableCash else {
-                throw OrderError.insufficientCash(needed: needed, available: portfolio.availableCash)
+            guard needed <= ledger.availableCash else {
+                throw OrderError.insufficientCash(needed: needed, available: ledger.availableCash)
             }
         case .sell:
-            guard qty <= portfolio.availableShares else {
-                throw OrderError.insufficientHoldings(requested: qty, held: portfolio.availableShares)
+            guard qty <= ledger.availableShares(of: symbol) else {
+                throw OrderError.insufficientHoldings(requested: qty, held: ledger.availableShares(of: symbol))
             }
         }
 
@@ -512,8 +432,8 @@ public final class MarketEngine {
 
         let result = FillResult(side: side, requestedQty: qty, fills: fills, displayedPrice: displayed)
         switch side {
-        case .buy: portfolio.applyBuy(result, fee: config.buyFee(on: result.notional))
-        case .sell: portfolio.applySell(result, fee: config.sellFee(on: result.notional))
+        case .buy: ledger.applyBuy(symbol: symbol, result, fee: config.buyFee(on: result.notional))
+        case .sell: ledger.applySell(symbol: symbol, result, fee: config.sellFee(on: result.notional))
         }
         return result
     }
@@ -568,12 +488,12 @@ public final class MarketEngine {
         switch side {
         case .buy:
             let needed = immediateCost + config.buyFee(on: immediateCost) + restingReserve
-            guard needed <= portfolio.availableCash else {
-                throw OrderError.insufficientCash(needed: needed, available: portfolio.availableCash)
+            guard needed <= ledger.availableCash else {
+                throw OrderError.insufficientCash(needed: needed, available: ledger.availableCash)
             }
         case .sell:
-            guard qty <= portfolio.availableShares else {
-                throw OrderError.insufficientHoldings(requested: qty, held: portfolio.availableShares)
+            guard qty <= ledger.availableShares(of: symbol) else {
+                throw OrderError.insufficientHoldings(requested: qty, held: ledger.availableShares(of: symbol))
             }
         }
 
@@ -587,8 +507,8 @@ public final class MarketEngine {
             let result = FillResult(side: side, requestedQty: qty - actualResting,
                                     fills: fills, displayedPrice: displayed)
             switch side {
-            case .buy: portfolio.applyBuy(result, fee: config.buyFee(on: result.notional))
-            case .sell: portfolio.applySell(result, fee: config.sellFee(on: result.notional))
+            case .buy: ledger.applyBuy(symbol: symbol, result, fee: config.buyFee(on: result.notional))
+            case .sell: ledger.applySell(symbol: symbol, result, fee: config.sellFee(on: result.notional))
             }
             immediate = result
         }
@@ -599,10 +519,10 @@ public final class MarketEngine {
             switch side {
             case .buy:
                 let reserve = actualResting * price + config.buyFee(on: actualResting * price)
-                portfolio.reserveCash(reserve)
+                ledger.reserveCash(reserve)
                 order.reservedCashLeft = reserve
             case .sell:
-                portfolio.reserveShares(actualResting)
+                ledger.reserveShares(symbol: symbol, actualResting)
             }
             openOrders.append(order)
             resting = order
@@ -616,8 +536,8 @@ public final class MarketEngine {
         let order = openOrders[index]
         let released = book.cancel(orderId: id, side: order.side, price: order.price)
         switch order.side {
-        case .buy: portfolio.releaseCash(order.reservedCashLeft)
-        case .sell: portfolio.releaseShares(released)
+        case .buy: ledger.releaseCash(order.reservedCashLeft)
+        case .sell: ledger.releaseShares(symbol: symbol, released)
         }
         openOrders.remove(at: index)
     }
@@ -637,16 +557,16 @@ public final class MarketEngine {
             let remaining = book.remainingQty(orderId: order.id, side: order.side, price: order.price)
             let newlyFilled = order.remainingQty - remaining
             if newlyFilled > 0 {
-                let avgCostBefore = portfolio.avgCost
+                let avgCostBefore = ledger.avgCost(of: symbol)
                 switch order.side {
                 case .buy:
                     let cost = order.price * newlyFilled
                     let fee = config.buyFee(on: cost)
-                    portfolio.settleRestingBuy(price: order.price, qty: newlyFilled, fee: fee)
+                    ledger.settleRestingBuy(symbol: symbol, price: order.price, qty: newlyFilled, fee: fee)
                     order.reservedCashLeft = max(order.reservedCashLeft - cost - fee, 0)
                 case .sell:
                     let fee = config.sellFee(on: order.price * newlyFilled)
-                    portfolio.settleRestingSell(price: order.price, qty: newlyFilled, fee: fee)
+                    ledger.settleRestingSell(symbol: symbol, price: order.price, qty: newlyFilled, fee: fee)
                 }
                 order.filledQty += newlyFilled
                 userFillEvents.append(UserFillEvent(
@@ -657,7 +577,7 @@ public final class MarketEngine {
                 stillOpen.append(order)
             } else if order.side == .buy && order.reservedCashLeft > 0 {
                 // 부분 체결 수수료 반올림 잔액 — 전량 체결 시 정확히 해제
-                portfolio.releaseCash(order.reservedCashLeft)
+                ledger.releaseCash(order.reservedCashLeft)
             }
         }
         openOrders = stillOpen
@@ -669,8 +589,8 @@ public final class MarketEngine {
         let result = FillResult(side: side, requestedQty: qty,
                                 fills: [Fill(price: price, qty: qty)], displayedPrice: price)
         switch side {
-        case .buy: portfolio.applyBuy(result, fee: config.buyFee(on: result.notional))
-        case .sell: portfolio.applySell(result, fee: config.sellFee(on: result.notional))
+        case .buy: ledger.applyBuy(symbol: symbol, result, fee: config.buyFee(on: result.notional))
+        case .sell: ledger.applySell(symbol: symbol, result, fee: config.sellFee(on: result.notional))
         }
     }
 }

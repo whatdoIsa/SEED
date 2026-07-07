@@ -119,6 +119,23 @@ final class Season {
     }
 }
 
+// MARK: - 종목별 시장 상태 (다종목 연속성)
+
+@Model
+final class SymbolState {
+    var seasonNumber: Int
+    var code: String
+    var seedBits: Int64
+    var lastTick: Int
+
+    init(seasonNumber: Int, code: String, seedBits: Int64, lastTick: Int) {
+        self.seasonNumber = seasonNumber
+        self.code = code
+        self.seedBits = seedBits
+        self.lastTick = lastTick
+    }
+}
+
 // MARK: - 레슨 진도
 
 @Model

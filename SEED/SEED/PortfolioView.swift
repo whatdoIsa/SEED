@@ -10,9 +10,8 @@ struct PortfolioView: View {
     @State private var showsAutopsy = false
 
     var body: some View {
-        let portfolio = session.engine.portfolio
-        let last = session.engine.lastPrice
-        let unrealized = portfolio.unrealizedPnL(at: last)
+        let ledger = session.ledger
+        let prices = session.currentPrices
 
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -34,27 +33,33 @@ struct PortfolioView: View {
                             .font(.system(size: 13))
                             .foregroundStyle(SeedTheme.textSecondary)
                         Spacer()
-                        Text("\(portfolio.equity(at: last).formatted())원")
+                        Text("\(session.totalEquity.formatted())원")
                             .font(.system(size: 22, weight: .semibold))
                             .foregroundStyle(SeedTheme.textPrimary)
                     }
                     Divider()
-                    detailRow("현금", "\(portfolio.cash.formatted())원")
-                    detailRow("보유", portfolio.qty > 0
-                              ? "\(portfolio.qty)주 · 평단 \(Int(portfolio.avgCost).formatted())원"
-                              : "없음")
-                    if portfolio.qty > 0 {
-                        detailRow("평가손익", "\(Int(unrealized).formatted())원",
-                                  color: SeedTheme.pnl(unrealized))
+                    detailRow("현금", "\(ledger.cash.formatted())원")
+                    if ledger.reservedCash > 0 {
+                        detailRow("주문 예약금", "\(ledger.reservedCash.formatted())원")
                     }
-                    detailRow("실현손익", "\(Int(portfolio.realizedPnL).formatted())원",
-                              color: SeedTheme.pnl(portfolio.realizedPnL))
-                    if portfolio.feesPaid > 0 {
-                        detailRow("누적 수수료·세금", "\(portfolio.feesPaid.formatted())원")
+                    detailRow("실현손익", "\(Int(ledger.realizedPnL).formatted())원",
+                              color: SeedTheme.pnl(ledger.realizedPnL))
+                    if ledger.feesPaid > 0 {
+                        detailRow("누적 수수료·세금", "\(ledger.feesPaid.formatted())원")
                     }
                 }
                 .padding(16)
                 .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+
+                // 종목별 보유 — 분산의 첫 화면
+                let held = SymbolCatalog.all.filter { ledger.qty(of: $0.code) > 0 }
+                if !held.isEmpty {
+                    VStack(spacing: 8) {
+                        ForEach(held) { spec in
+                            holdingRow(spec: spec, ledger: ledger, price: prices[spec.code] ?? 0)
+                        }
+                    }
+                }
 
                 if let rule = store.currentSeason.carriedRule {
                     HStack(spacing: 7) {
@@ -133,6 +138,33 @@ struct PortfolioView: View {
 
     private var seasonLogs: [TradeLog] {
         logs.filter { $0.seasonNumber == store.currentSeason.number }
+    }
+
+    private func holdingRow(spec: SymbolSpec, ledger: AccountLedger, price: Int) -> some View {
+        let qty = ledger.qty(of: spec.code)
+        let avgCost = ledger.avgCost(of: spec.code)
+        let unrealized = Double(qty) * (Double(price) - avgCost)
+        return HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(spec.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Text("\(qty)주 · 평단 \(Int(avgCost).formatted())원")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\((qty * price).formatted())원")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Text("\(unrealized >= 0 ? "+" : "")\(Int(unrealized).formatted())원")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(SeedTheme.pnl(unrealized))
+            }
+        }
+        .padding(12)
+        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func detailRow(_ label: String, _ value: String, color: Color = SeedTheme.textPrimary) -> some View {

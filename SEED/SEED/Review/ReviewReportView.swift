@@ -80,6 +80,8 @@ struct ReviewReportView: View {
                     }
                 }
 
+                holdingHabitSection
+
                 coachCard(worst: worst, tradeCount: tradeCount)
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -141,6 +143,52 @@ struct ReviewReportView: View {
             Circle().fill(color).frame(width: 8, height: 8)
             Text(label)
         }
+    }
+
+    // MARK: 보유 습관 (A — 매수·매도 페어링)
+
+    @ViewBuilder
+    private var holdingHabitSection: some View {
+        if let stats = store.holdingStats() {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("보유 습관")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Text("산 것과 판 것을 짝지어 본 왕복 \(stats.tripCount)건의 기록이에요.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+
+                HStack(spacing: 10) {
+                    holdingMetric("평균 보유", TradePairing.holdText(ticks: stats.avgHoldTicks))
+                    holdingMetric("왕복 승률", "\(Int(stats.winRate))%")
+                    holdingMetric("왕복 평균",
+                                  "\(stats.avgReturnPct >= 0 ? "+" : "")\(stats.avgReturnPct.formatted(.number.precision(.fractionLength(1))))%",
+                                  color: SeedTheme.pnl(stats.avgReturnPct))
+                }
+
+                if let quick = stats.quickTripAvgPct, let patient = stats.patientTripAvgPct {
+                    Text(quick < patient
+                         ? "3캔들 안에 판 매매는 평균 \(quick.formatted(.number.precision(.fractionLength(1))))%, 길게 든 매매는 \(patient.formatted(.number.precision(.fractionLength(1))))% — 급하게 팔수록 성적이 나빴어요."
+                         : "짧게 든 매매(\(quick.formatted(.number.precision(.fractionLength(1))))%)가 길게 든 매매(\(patient.formatted(.number.precision(.fractionLength(1))))%)보다 나았어요 — 지금 스타일이 단타에 맞는 걸 수도 있어요. 다만 표본이 쌓여야 믿을 수 있는 숫자예요.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(SeedTheme.violetDeep)
+                        .lineSpacing(4)
+                        .padding(11)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(SeedTheme.violetTint, in: RoundedRectangle(cornerRadius: 10))
+                }
+            }
+        }
+    }
+
+    private func holdingMetric(_ label: String, _ value: String, color: Color = SeedTheme.textPrimary) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label).font(.system(size: 11)).foregroundStyle(SeedTheme.textSecondary)
+            Text(value).font(.system(size: 15, weight: .semibold)).foregroundStyle(color)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: 룰베이스 문장 생성 (L1 — API 비용 0원)

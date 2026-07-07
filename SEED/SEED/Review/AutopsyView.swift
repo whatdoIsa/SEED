@@ -140,6 +140,11 @@ struct AutopsyView: View {
             if let slippage = store.avgBuySlippage(), slippage >= 1 {
                 habitRow("평균 슬리피지", "+\(Int(slippage))원")
             }
+            if let stats = store.holdingStats() {
+                habitRow("평균 보유 시간",
+                         TradePairing.holdText(ticks: stats.avgHoldTicks),
+                         warning: stats.avgHoldTicks <= 60)
+            }
         }
         .padding(16)
         .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))

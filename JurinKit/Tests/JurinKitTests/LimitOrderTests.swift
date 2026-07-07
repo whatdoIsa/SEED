@@ -11,12 +11,13 @@ final class LimitOrderTests: XCTestCase {
         // 최우선 매수호가에 합류 — 교차하지 않고 호가창에 앉는다
         let price = engine.book.bestBid!
         let result = try engine.placeLimitOrder(side: .buy, price: price, qty: 100)
+        let expectedReserve = price * 100 + engine.config.buyFee(on: price * 100)
 
         XCTAssertNil(result.immediateFill)
         XCTAssertNotNil(result.restingOrder)
         XCTAssertEqual(engine.openOrders.count, 1)
-        XCTAssertEqual(engine.portfolio.reservedCash, price * 100)
-        XCTAssertEqual(engine.portfolio.availableCash, cashBefore - price * 100)
+        XCTAssertEqual(engine.portfolio.reservedCash, expectedReserve)
+        XCTAssertEqual(engine.portfolio.availableCash, cashBefore - expectedReserve)
         XCTAssertEqual(engine.portfolio.cash, cashBefore, "예약은 지출이 아니다")
 
         // 시장이 흐르면 노이즈·추세 봇의 시장가 매도가 결국 이 주문을 채운다
@@ -33,7 +34,8 @@ final class LimitOrderTests: XCTestCase {
         XCTAssertEqual(engine.portfolio.reservedCash, 0, "체결 후 예약금은 전부 정산")
         XCTAssertEqual(engine.portfolio.avgCost, Double(price), accuracy: 0.001,
                        "지정가 대기 체결은 정확히 지정한 값에 산다 — 슬리피지 0")
-        XCTAssertEqual(engine.portfolio.cash, cashBefore - price * 100)
+        XCTAssertEqual(engine.portfolio.cash,
+                       cashBefore - price * 100 - engine.portfolio.feesPaid)
     }
 
     func testImmediateCrossingLimitBuy() throws {

@@ -11,6 +11,7 @@ enum DailyMarket {
         case crashAndRecover = 1
         case sideways = 2
         case steadyTrend = 3
+        case deadCat = 4
 
         /// 이름은 장이 끝난 뒤에만 공개한다 — 미리 알면 연습이 아니다.
         var revealName: String {
@@ -19,6 +20,7 @@ enum DailyMarket {
             case .crashAndRecover: return "급락 후 회복 시도"
             case .sideways: return "지루한 횡보"
             case .steadyTrend: return "꾸준한 추세"
+            case .deadCat: return "데드캣 바운스"
             }
         }
 
@@ -28,6 +30,7 @@ enum DailyMarket {
             case .crashAndRecover: return "급락에서 판 사람과 주운 사람의 하루가 갈렸어요."
             case .sideways: return "아무 일도 없는 날, 지루함에 매매하지 않았나요?"
             case .steadyTrend: return "추세를 타면 조용히 벌어요. 자주 내리면 수수료와 실수만 늘어요."
+            case .deadCat: return "떨어진 게 반등한다고 바닥은 아니에요. 반짝 반등에 속지 않았나요?"
             }
         }
     }
@@ -105,6 +108,20 @@ enum DailyMarket {
             overrides = [
                 .init(agentId: "TREND", startTick: 100, endTick: 550,
                       params: AgentParams(activity: 0.6, minQty: 40, maxQty: 150))
+            ]
+        case .deadCat:
+            keyframes += [
+                .init(tick: 130, value: base * jitter(0.99...1.01)),
+                .init(tick: 190, value: base * jitter(0.84...0.90)),   // 1차 급락
+                .init(tick: 260, value: base * jitter(0.92...0.97)),   // 반짝 반등
+                .init(tick: 400, value: base * jitter(0.76...0.83)),   // 재하락 (진짜)
+                .init(tick: duration, value: base * jitter(0.80...0.86))
+            ]
+            overrides = [
+                .init(agentId: "TREND", startTick: 130, endTick: 460,
+                      params: AgentParams(activity: 0.85, minQty: 50, maxQty: 200)),
+                .init(agentId: "NOISE", startTick: 130, endTick: 460,
+                      params: AgentParams(activity: 0.92, minQty: 25, maxQty: 150))
             ]
         }
 

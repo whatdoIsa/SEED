@@ -150,4 +150,65 @@ final class ScenarioTests: XCTestCase {
         engine.advance(ticks: 150) // tick 400: 구간 종료 후 복원
         XCTAssertEqual(trend.params.activity, baselineActivity, accuracy: 0.0001)
     }
+
+
+    // MARK: 데드캣 바운스
+
+    func testDeadCatBounceShape() {
+        let engine = MarketEngine(scenario: .deadCatBounce())
+        engine.advance(ticks: 640)
+        let closes = engine.candles.map(\.close)
+        // 캔들=20틱. 반등 고점(틱 240 ≈ 캔들 12)이 진짜 바닥(틱 520 ≈ 캔들 26)보다 확실히 높다
+        let bouncePeak = closes[10...14].max() ?? 0
+        let realBottom = closes[24...28].min() ?? 0
+        XCTAssertGreaterThan(bouncePeak, realBottom + 4_000,
+                             "반짝 반등 뒤 진짜 하락이 더 깊어야 함정이 성립한다")
+    }
+
+    func testDeadCatBounceChaseLosesVsWaiting() throws {
+        // 반등에 속아 산 사람 vs 기다린 사람
+        let chase = MarketEngine(scenario: .deadCatBounce())
+        chase.advance(ticks: 290) // 반등 결정 지점 직후
+        _ = try chase.placeMarketOrder(side: .buy, qty: 100)
+        chase.advance(ticks: 640 - chase.tick)
+
+        let wait = MarketEngine(scenario: .deadCatBounce())
+        wait.advance(ticks: 520) // 진짜 바닥
+        _ = try wait.placeMarketOrder(side: .buy, qty: 100)
+        wait.advance(ticks: 640 - wait.tick)
+
+        XCTAssertGreaterThan(wait.portfolio.avgCost - chase.portfolio.avgCost, 0 - 100_000) // sanity
+        XCTAssertLessThan(wait.portfolio.avgCost, chase.portfolio.avgCost,
+                          "진짜 바닥 매수 평단이 반등 추격 평단보다 낮아야 한다")
+    }
+
+    // MARK: 횡보
+
+    func testSidewaysStaysInBox() {
+        let engine = MarketEngine(scenario: .sideways())
+        engine.advance(ticks: 600)
+        let closes = engine.candles.map { Double($0.close) }
+        let high = closes.max() ?? 0
+        let low = closes.min() ?? 1
+        // 박스권: 고점/저점 폭이 시작가의 8% 이내
+        XCTAssertLessThan((high - low) / 50_000, 0.08,
+                          "횡보는 좁은 박스권을 유지해야 한다 (폭 \((high-low)/50_000))")
+    }
+
+    func testSidewaysFrequentTradingBleedsToFees() throws {
+        // 지루함에 자주 사고팔면 수수료로 손실이 쌓인다
+        let engine = MarketEngine(scenario: .sideways())
+        engine.advance(ticks: 40)
+        let startEquity = engine.portfolio.equity(at: engine.lastPrice)
+        for _ in 0..<8 {
+            _ = try? engine.placeMarketOrder(side: .buy, qty: 50)
+            engine.advance(ticks: 30)
+            _ = try? engine.placeMarketOrder(side: .sell, qty: 50)
+            engine.advance(ticks: 30)
+        }
+        let endEquity = engine.portfolio.equity(at: engine.lastPrice)
+        XCTAssertGreaterThan(engine.portfolio.feesPaid, 0)
+        XCTAssertLessThan(endEquity, startEquity,
+                          "방향 없는 장에서 잦은 매매는 수수료로 계좌를 갉는다")
+    }
 }

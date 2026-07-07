@@ -15,6 +15,9 @@ final class SeedStore {
     private let context: ModelContext
     private(set) var currentSeason: Season
     private(set) var progress: AppProgress
+    /// 완료된 레슨 id — 관찰 대상 stored property. 이걸 통해 잠금 화면들이 즉시 갱신된다.
+    /// (DB 직접 조회는 Observation이 추적하지 못해 화면이 안 바뀌던 문제 해결)
+    private(set) var completedLessonIds: Set<String> = []
 
     init(context: ModelContext) {
         self.context = context
@@ -40,6 +43,10 @@ final class SeedStore {
             progress = fresh
         }
         try? context.save()
+
+        // 완료 레슨 집합을 메모리로 로드 (이후 판정은 이 관찰 property로)
+        let doneLessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
+        completedLessonIds = Set(doneLessons.filter { $0.completedAt != nil }.map(\.lessonId))
     }
 
     // MARK: 매매 기록 (M2-3 태그 시트가 호출)
@@ -283,10 +290,8 @@ final class SeedStore {
     }
 
     func isLessonDone(_ lessonId: String) -> Bool {
-        let done = (try? context.fetch(FetchDescriptor<LessonProgress>(
-            predicate: #Predicate { $0.lessonId == lessonId }
-        )))?.first?.completedAt
-        return done != nil
+        // 관찰 property를 읽어 잠금 화면들이 즉시 반응하게 한다.
+        completedLessonIds.contains(lessonId)
     }
 
     #if DEBUG
@@ -299,11 +304,12 @@ final class SeedStore {
     /// 개발용: 모든 레슨 완료 처리 + 전체 해금 — 오늘의 장·복기·봇·퀀트·후속 레슨이
     /// 전부 열린다. 미션을 하나하나 하지 않고 화면을 점검할 때.
     func debugUnlockEverything() {
-        for lesson in LessonCatalog.registered where !isLessonDone(lesson.id) {
+        for lesson in LessonCatalog.registered where !completedLessonIds.contains(lesson.id) {
             let progressRecord = LessonProgress(lessonId: lesson.id)
             progressRecord.completedAt = .now
             context.insert(progressRecord)
         }
+        completedLessonIds = Set(LessonCatalog.registered.map(\.id))
         progress.unlockLevel = UnlockLevel.all
         progress.onboardingDone = true
         try? context.save()
@@ -313,6 +319,7 @@ final class SeedStore {
     func debugResetProgress() {
         let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
         for lesson in lessons { context.delete(lesson) }
+        completedLessonIds = []
         progress.unlockLevel = UnlockLevel.lineOnly
         try? context.save()
     }
@@ -328,6 +335,7 @@ final class SeedStore {
             return fresh
         }()
         lesson.completedAt = .now
+        completedLessonIds.insert(lessonId)
         if let level, level > progress.unlockLevel {
             progress.unlockLevel = level
             Analytics.log(.toolUnlocked, ["level": "\(level)"])

@@ -23,6 +23,7 @@ enum MissionKind {
     case crashScenario
     case diversification
     case valueTrap
+    case supportBounce
 }
 
 struct LessonDef: Identifiable {
@@ -186,8 +187,29 @@ enum LessonCatalog {
         mission: .valueTrap
     )
 
+    static let supportBounce = LessonDef(
+        id: "lesson.support",
+        order: 8,
+        title: "선이 받쳐주는 자리",
+        subtitle: "이동평균선과 지지·저항",
+        duration: "약 2분",
+        unlocksLevel: nil,
+        unlockLabel: "추세를 읽는 눈",
+        concept: [
+            ConceptPage(
+                text: "**이동평균선**은 최근 며칠 종가의 평균을 이은 선이에요. 20일선은 최근 20일 평균이죠. 개별 캔들의 출렁임을 걷어내고 **큰 흐름**만 보여줘요.\n\n가격이 이평선 위에 있으면 상승 흐름, 아래면 하락 흐름 — 방향을 한눈에 읽는 도구예요.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "신기하게도, 오르던 가격이 잠깐 내려도 **이평선 근처에서 다시 튀어오르는** 일이 자주 있어요. 많은 사람이 '이 선에서는 사자'고 생각하니까요 — 이걸 **지지**라고 해요. 반대로 위에서 막히면 **저항**이고요.\n\n이런 흐름은 캔들 몇 개론 안 보여요. 수십 캔들이 지나야 드러나죠. 배속을 올려서 시간을 빠르게 감아봅시다.",
+                visual: .none
+            )
+        ],
+        mission: .supportBounce
+    )
+
     static var all: [LessonDef] { registered }
-    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify, valueTrap]
+    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify, valueTrap, supportBounce]
 }
 
 // MARK: - 미션 1용 손수 만든 캔들 (교육 목적으로 모양을 통제)

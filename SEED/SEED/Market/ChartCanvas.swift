@@ -128,18 +128,36 @@ struct ChartCanvas: View {
     }
 
     private func drawLine(_ context: GraphicsContext, _ m: Metrics) {
-        var line = Path()
-        for (i, candle) in m.all.enumerated() {
-            let point = CGPoint(x: m.x(i), y: m.y(candle.close))
-            if i == 0 { line.move(to: point) } else { line.addLine(to: point) }
+        // 구간(세그먼트) 단위 색상: 오르는 구간은 빨강, 내리는 구간은 파랑 —
+        // 방향이 꺾이는 즉시 색이 바뀐다. 마지막 구간은 형성 중인 캔들이라
+        // 틱마다 방향·색이 실시간으로 반응한다.
+        let style = StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round)
+        var upPath = Path()
+        var downPath = Path()
+
+        if m.all.count > 1 {
+            for i in 1..<m.all.count {
+                let from = CGPoint(x: m.x(i - 1), y: m.y(m.all[i - 1].close))
+                let to = CGPoint(x: m.x(i), y: m.y(m.all[i].close))
+                if m.all[i].close >= m.all[i - 1].close {
+                    upPath.move(to: from)
+                    upPath.addLine(to: to)
+                } else {
+                    downPath.move(to: from)
+                    downPath.addLine(to: to)
+                }
+            }
+            context.stroke(downPath, with: .color(SeedTheme.down), style: style)
+            context.stroke(upPath, with: .color(SeedTheme.up), style: style)
         }
-        let rising = (m.all.last?.close ?? 0) >= (m.all.first?.close ?? 0)
-        let color = rising ? SeedTheme.up : SeedTheme.down
-        context.stroke(line, with: .color(color),
-                       style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+
+        // 끝점 도트는 마지막 구간의 방향색
         if let last = m.all.last {
+            let lastRising = m.all.count < 2
+                || last.close >= m.all[m.all.count - 2].close
             let dot = CGRect(x: m.x(m.all.count - 1) - 4, y: m.y(last.close) - 4, width: 8, height: 8)
-            context.fill(Path(ellipseIn: dot), with: .color(color))
+            context.fill(Path(ellipseIn: dot),
+                         with: .color(lastRising ? SeedTheme.up : SeedTheme.down))
         }
     }
 

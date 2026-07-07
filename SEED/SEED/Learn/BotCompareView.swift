@@ -1,17 +1,60 @@
 import SwiftUI
 import JurinKit
 
-/// 나 vs 터틀 봇 (⑫, §15) — 같은 급등 시나리오를 감정 없는 규칙이 매매하면 어떻게 되는가.
+/// 나 vs 거장 봇 (⑫, §15) — 같은 급등 시나리오를 서로 다른 철학의 봇이 매매하면 어떻게 되는가.
+/// 추세추종(터틀)과 가치투자(반대 철학)를 골라 비교한다.
 struct BotCompareView: View {
     let store: SeedStore
     @Environment(\.dismiss) private var dismiss
+    @State private var archetype: BotArchetype = .turtle
     @State private var run: BotRun?
+
+    /// 봇 아키타입 — 철학·시간지평·규칙·아이콘을 한 곳에.
+    enum BotArchetype: String, CaseIterable, Identifiable {
+        case turtle, value
+        var id: String { rawValue }
+
+        var pickerLabel: String { self == .turtle ? "추세추종" : "가치투자" }
+        var name: String { self == .turtle ? "터틀 봇 · 추세추종형" : "그레이엄 봇 · 가치투자형" }
+        var icon: String { self == .turtle ? "tortoise.fill" : "building.columns.fill" }
+        var philosophy: String {
+            self == .turtle ? "\"예측하지 않는다. 추세를 따라간다.\""
+                            : "\"남들이 던질 때 줍고, 열광할 때 판다.\""
+        }
+        var horizon: String { self == .turtle ? "단기" : "장기" }
+        var rules: [(String, String)] {
+            self == .turtle
+                ? [("진입", "최근 5캔들 최고가 돌파 시 매수"),
+                   ("추가", "0.5×변동폭(ATR) 유리해질 때마다 +1유닛, 최대 4"),
+                   ("청산", "3캔들 최저가 이탈 또는 평단 −2×ATR 손절")]
+                : [("진입", "내재가치 추정보다 3.5% 이상 쌀 때 매수"),
+                   ("보유", "가치가 회복될 때까지 버틴다"),
+                   ("청산", "내재가치보다 4% 이상 비싸지면 전량 매도")]
+        }
+        var ruleShort: String { self == .turtle ? "돌파 규칙" : "저평가 진입" }
+        var compareInsight: (_ botCheaper: Bool) -> String {
+            switch self {
+            case .turtle:
+                return { $0
+                    ? "봇이 먼저(싸게) 탔어요. 봇은 급등의 '초입 돌파'에 반응했고, 사람은 급등이 눈에 보인 뒤에 탔기 때문이에요."
+                    : "이번엔 당신의 진입이 봇보다 낫거나 비슷했어요. 다만 봇은 백 번 반복해도 똑같이 해냅니다 — 그게 규칙의 힘이에요." }
+            case .value:
+                return { _ in
+                    "가치투자 봇은 급등을 아예 쫓지 않아요. 가격이 내재가치 밑으로 빠지는 순간만 기다렸다 줍죠. 추세추종과 정반대 시점에 움직이는 걸 보세요." }
+            }
+        }
+        func run() -> BotRun {
+            self == .turtle
+                ? BotComparison.runTurtle(scenario: .chaseRally())
+                : BotComparison.runValue(scenario: .chaseRally())
+        }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text("나 vs 터틀 봇")
+                    Text("나 vs 거장 봇")
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(SeedTheme.textPrimary)
                     Spacer()
@@ -23,6 +66,11 @@ struct BotCompareView: View {
                             .foregroundStyle(SeedTheme.textSecondary)
                     }
                 }
+
+                Picker("봇", selection: $archetype) {
+                    ForEach(BotArchetype.allCases) { Text($0.pickerLabel).tag($0) }
+                }
+                .pickerStyle(.segmented)
 
                 identityCard
 
@@ -68,9 +116,9 @@ struct BotCompareView: View {
             .padding(16)
         }
         .background(SeedTheme.background)
-        .task {
+        .task(id: archetype) {
             // 결정론 덕분에 언제 돌려도 같은 결과 — 캐시가 필요 없다
-            run = BotComparison.runTurtle(scenario: .chaseRally())
+            run = archetype.run()
         }
     }
 
@@ -81,29 +129,29 @@ struct BotCompareView: View {
             HStack(spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 9).fill(SeedTheme.violet).frame(width: 36, height: 36)
-                    Image(systemName: "tortoise.fill")
+                    Image(systemName: archetype.icon)
                         .font(.system(size: 15))
                         .foregroundStyle(.white)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("터틀 봇 · 추세추종형")
+                    Text(archetype.name)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(SeedTheme.inkText)
-                    Text("\"예측하지 않는다. 추세를 따라간다.\"")
+                    Text(archetype.philosophy)
                         .font(.system(size: 12))
                         .foregroundStyle(SeedTheme.inkText.opacity(0.7))
                 }
                 Spacer()
-                Text("단기")
+                Text(archetype.horizon)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(SeedTheme.violetOnDark)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .overlay(Capsule().stroke(SeedTheme.violetOnDark.opacity(0.6), lineWidth: 1))
             }
             VStack(alignment: .leading, spacing: 4) {
-                ruleRow("진입", "최근 5캔들 최고가 돌파 시 매수")
-                ruleRow("추가", "0.5×변동폭(ATR) 유리해질 때마다 +1유닛, 최대 4")
-                ruleRow("청산", "3캔들 최저가 이탈 또는 평단 −2×ATR 손절")
+                ForEach(Array(archetype.rules.enumerated()), id: \.offset) { _, rule in
+                    ruleRow(rule.0, rule.1)
+                }
             }
         }
         .padding(15)
@@ -143,15 +191,16 @@ struct BotCompareView: View {
                     .foregroundStyle(SeedTheme.textSecondary)
             }
             if let bot = botFirstBuy {
-                compareRow(name: "터틀 봇",
-                           detail: "\(Int(bot.price).formatted())원 · 돌파 규칙",
+                compareRow(name: archetype.pickerLabel + " 봇",
+                           detail: "\(Int(bot.price).formatted())원 · \(archetype.ruleShort)",
                            highlight: true)
+            } else {
+                Text("이 봇은 이번 시나리오에서 한 번도 진입하지 않았어요 — 조건에 맞는 순간이 없었던 거예요.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
             }
             if let mine = myFirstBuy, let bot = botFirstBuy {
-                let gap = Int(mine.avgFillPrice - bot.price)
-                Text(gap > 0
-                     ? "봇이 \(gap.formatted())원 먼저(싸게) 탔어요. 봇은 급등의 '초입 돌파'에 반응했고, 사람은 급등이 눈에 보인 뒤에 탔기 때문이에요."
-                     : "이번엔 당신의 진입이 봇보다 낫거나 비슷했어요. 다만 봇은 이 결과를 백 번 반복해도 똑같이 해냅니다 — 그게 규칙의 힘이에요.")
+                Text(archetype.compareInsight(mine.avgFillPrice > bot.price))
                     .font(.system(size: 13))
                     .foregroundStyle(SeedTheme.violetDeep)
                     .lineSpacing(4)
@@ -169,7 +218,7 @@ struct BotCompareView: View {
             Text(name)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(highlight ? SeedTheme.violetDeep : SeedTheme.textPrimary)
-                .frame(width: 60, alignment: .leading)
+                .frame(width: 72, alignment: .leading)
             Text(detail)
                 .font(.system(size: 13))
                 .foregroundStyle(SeedTheme.textPrimary)

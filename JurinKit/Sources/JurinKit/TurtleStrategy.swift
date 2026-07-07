@@ -145,58 +145,10 @@ public enum BotComparison {
     /// 봇도 사용자와 같은 주문 API를 쓴다 — 같은 조건, 같은 슬리피지.
     public static func runTurtle(scenario: ScenarioPreset,
                                  strategy: TurtleStrategy? = nil) -> BotRun {
-        let strategy = strategy ?? scenarioTurtle
-        return runTurtleCore(scenario: scenario, strategy: strategy)
-    }
-
-    private static func runTurtleCore(scenario: ScenarioPreset,
-                                      strategy: TurtleStrategy) -> BotRun {
-        let engine = MarketEngine(scenario: scenario)
-        var turtle = strategy
-        var equityCurve: [Int] = []
-        var actions: [(candleIndex: Int, price: Double, side: Side)] = []
-        var lastCandleCount = 0
-
-        while engine.tick < scenario.durationTicks {
-            engine.step()
-            if let decision = engine.pendingDecision {
-                _ = decision
-                engine.resolveDecision() // 봇은 사람의 결정 지점을 무시하고 규칙만 따른다
-            }
-            if engine.candles.count > lastCandleCount {
-                lastCandleCount = engine.candles.count
-                equityCurve.append(engine.portfolio.equity(at: engine.lastPrice))
-
-                let action = turtle.onCandleClose(candles: engine.candles,
-                                                  avgCost: engine.portfolio.avgCost)
-                switch action {
-                case .buyUnit(let qty):
-                    if let fill = try? engine.placeMarketOrder(side: .buy, qty: qty) {
-                        actions.append((engine.candles.count, fill.avgFillPrice, .buy))
-                    }
-                case .sellAll(let qty):
-                    let sellable = min(qty, engine.portfolio.qty)
-                    if sellable > 0,
-                       let fill = try? engine.placeMarketOrder(side: .sell, qty: sellable) {
-                        actions.append((engine.candles.count, fill.avgFillPrice, .sell))
-                    }
-                case nil:
-                    break
-                }
-            }
+        var turtle = strategy ?? scenarioTurtle
+        return runCustom(name: "터틀 봇", scenario: scenario) { candles, avgCost, _ in
+            turtle.onCandleClose(candles: candles, avgCost: avgCost)
         }
-
-        let finalEquity = engine.portfolio.equity(at: engine.lastPrice)
-        return BotRun(
-            botName: "터틀 봇",
-            candles: engine.candles,
-            equityCurve: equityCurve,
-            finalEquity: finalEquity,
-            startCash: engine.config.initialCash,
-            tradeCount: actions.count,
-            maxDrawdownPct: maxDrawdown(of: equityCurve),
-            actions: actions
-        )
     }
 
     /// 최대 낙폭(MDD) — 고점 대비 최대 하락률(%).

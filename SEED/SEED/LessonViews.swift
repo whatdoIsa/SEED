@@ -7,6 +7,7 @@ struct LessonListView: View {
     @State private var activeLesson: LessonDef?
     @State private var showsDailyMarket = false
     @State private var showsBotCompare = false
+    @State private var showsQuantBuilder = false
 
     var body: some View {
         ScrollView {
@@ -26,6 +27,7 @@ struct LessonListView: View {
 
                 if store.isLessonDone(LessonCatalog.chase.id) {
                     botCompareCard
+                    quantBuilderCard
                 }
 
                 Text("교육용 모의투자 · 실제 투자 권유가 아닙니다")
@@ -46,6 +48,43 @@ struct LessonListView: View {
         .fullScreenCover(isPresented: $showsBotCompare) {
             BotCompareView(store: store)
         }
+        .fullScreenCover(isPresented: $showsQuantBuilder) {
+            QuantBuilderView(store: store)
+        }
+    }
+
+    // MARK: 전략 실험실 (퀀트 빌더)
+
+    private var quantBuilderCard: some View {
+        Button {
+            showsQuantBuilder = true
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(SeedTheme.violetTint)
+                        .frame(width: 38, height: 38)
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 15))
+                        .foregroundStyle(SeedTheme.violetDeep)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("전략 실험실")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                    Text("조건을 조립해 백테스트 — RSI·이평 교차·돌파")
+                        .font(.system(size: 12))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+            .padding(14)
+            .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: 나 vs 봇 (⑫ — 레슨 3 완료 후 열린다)

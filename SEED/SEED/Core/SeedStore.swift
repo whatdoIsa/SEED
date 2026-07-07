@@ -142,6 +142,15 @@ final class SeedStore {
         ))) ?? [])
     }
 
+    /// 왕복 매매 페어링 (A) — 보유 습관의 원료.
+    func roundTrips() -> [RoundTrip] {
+        TradePairing.roundTrips(logs: replayableLogs())
+    }
+
+    func holdingStats() -> HoldingStats? {
+        TradePairing.stats(from: roundTrips())
+    }
+
     /// 매매 지도 마커 (M4 — 부록 A-4의 aha 모먼트). 종목별.
     func tradeMarks(symbolName: String) -> [(candleIndex: Int, price: Double, side: Side)] {
         replayableLogs().compactMap { log in

@@ -24,6 +24,7 @@ struct SymbolInfoView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 priceSection
+                fundamentalsSection
                 characterSection
                 todaySection
                 newsSection
@@ -95,6 +96,62 @@ struct SymbolInfoView: View {
             .font(.system(size: 11, weight: .medium))
         }
         .padding(.vertical, 3)
+    }
+
+    // MARK: 투자 지표 (D — 합성 재무제표)
+
+    @ViewBuilder
+    private var fundamentalsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            sectionTitle("투자 지표")
+            if let financials = spec.financials {
+                let price = engine.lastPrice
+                VStack(spacing: 7) {
+                    infoRow("시가총액", wonCompact(financials.marketCap(at: price)))
+                    if let per = financials.per(at: price) {
+                        infoRow("PER", "\(per.formatted(.number.precision(.fractionLength(1))))배")
+                    }
+                    if let pbr = financials.pbr(at: price) {
+                        infoRow("PBR", "\(pbr.formatted(.number.precision(.fractionLength(2))))배")
+                    }
+                    infoRow("EPS (주당순이익)", "\(Int(financials.eps).formatted())원")
+                    infoRow("BPS (주당순자산)", "\(Int(financials.bps).formatted())원")
+                    if let yield = financials.dividendYieldPct(at: price) {
+                        infoRow("배당수익률 (연)",
+                                "\(yield.formatted(.number.precision(.fractionLength(2))))%")
+                    } else {
+                        infoRow("배당", "없음")
+                    }
+                }
+                .padding(13)
+                .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 13))
+
+                Text("PER은 지금 가격이 1년 이익의 몇 배인지예요. 낮다고 무조건 싼 게 아니에요 — 성장 기대가 크면 높은 PER에도 이유가 있고, 낮은 PER엔 낮은 이유가 있을 수 있어요. 가격이 움직이면 이 숫자들도 같이 움직이는 걸 지켜보세요.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+                    .lineSpacing(4)
+            } else {
+                Text(spec.isCrypto
+                     ? "가상자산엔 이익도 자산도 없어서 PER·PBR이 없어요. 크립토의 '펀더멘털'은 온체인 데이터인데, 그건 합성으로 만들 수 없는 실데이터 영역이에요."
+                     : "이건 이익을 내는 회사가 아니라 자산 그 자체예요 — 그래서 PER이 없어요. 가치의 근거가 다르면 보는 지표도 달라야 해요.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(SeedTheme.textSecondary)
+                    .lineSpacing(4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(13)
+                    .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 13))
+            }
+        }
+    }
+
+    /// 원 단위 큰 숫자 축약: 57.6조원 / 5,100억원
+    private func wonCompact(_ value: Int) -> String {
+        let jo = 1_000_000_000_000
+        let eok = 100_000_000
+        if value >= jo {
+            return "\((Double(value) / Double(jo)).formatted(.number.precision(.fractionLength(1))))조원"
+        }
+        return "\((value / eok).formatted())억원"
     }
 
     // MARK: 종목 성격 (β · 변동성)

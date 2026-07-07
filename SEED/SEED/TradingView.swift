@@ -14,6 +14,12 @@ struct TradingView: View {
     @State private var hasTraded = true
     @State private var newsBanner: (text: String, positive: Bool, marketWide: Bool)?
     @State private var showsCryptoIntro = false
+    /// 차트 스타일 (피드백 #2) — 캔들 해금 후 선/캔들 선택, 기기 단위로 기억
+    @AppStorage("seed.chartStyle") private var chartStyleRaw = ChartStyle.candle.rawValue
+
+    private var chartStyle: ChartStyle {
+        ChartStyle(rawValue: chartStyleRaw) ?? .candle
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,7 +31,8 @@ struct TradingView: View {
                 ChartCanvas(
                     candles: session.engine.candles,
                     current: session.engine.currentCandle,
-                    unlockLevel: store.progress.unlockLevel
+                    unlockLevel: store.progress.unlockLevel,
+                    style: chartStyle
                 )
                 .frame(maxHeight: .infinity)
                 .padding(.horizontal, 12)
@@ -370,6 +377,20 @@ struct TradingView: View {
                     .background(SeedTheme.card, in: Capsule())
             }
             Spacer()
+            // 선/캔들 토글 (피드백 #2) — 캔들을 배운(해금한) 뒤에만 선택권이 생긴다
+            if store.progress.unlockLevel >= UnlockLevel.candles {
+                Button {
+                    chartStyleRaw = (chartStyle == .candle ? ChartStyle.line : .candle).rawValue
+                } label: {
+                    Image(systemName: chartStyle == .candle
+                          ? "chart.bar.fill"
+                          : "chart.xyaxis.line")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .background(SeedTheme.card, in: Capsule())
+                }
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -403,14 +424,18 @@ struct TradingView: View {
     }
 
     // MARK: 주문 버튼 (한국식: 매도 파랑 / 매수 빨강)
+    // 이 종목을 보유하기 전엔 팔기 버튼이 존재하지 않는다 — 팔 게 없으니까.
 
     private var orderButtons: some View {
         HStack(spacing: 8) {
-            orderButton("팔기", color: SeedTheme.down, side: .sell)
+            if session.engine.portfolio.qty > 0 {
+                orderButton("팔기", color: SeedTheme.down, side: .sell)
+            }
             orderButton("사기", color: SeedTheme.up, side: .buy)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+        .animation(.snappy(duration: 0.25), value: session.engine.portfolio.qty > 0)
     }
 
     private func orderButton(_ title: String, color: Color, side: Side) -> some View {
@@ -453,13 +478,20 @@ struct TradingView: View {
 
 // MARK: - 캔들 차트 (Canvas)
 
+/// 차트 표시 방식 — 캔들 해금 후에는 사용자가 고를 수 있다 (피드백 #2).
+enum ChartStyle: String {
+    case line, candle
+}
+
 struct ChartCanvas: View {
     let candles: [Candle]
     let current: Candle
     var unlockLevel: Int = UnlockLevel.all
+    var style: ChartStyle = .candle
     private let visibleCount = 40
 
-    private var showsCandles: Bool { unlockLevel >= UnlockLevel.candles }
+    /// 캔들은 '해금됐고 + 캔들 스타일을 골랐을 때'만. 해금 전엔 항상 선.
+    private var showsCandles: Bool { unlockLevel >= UnlockLevel.candles && style == .candle }
     private var showsVolumeAndMA: Bool { unlockLevel >= UnlockLevel.volumeAndMA }
 
     var body: some View {
@@ -471,7 +503,7 @@ struct ChartCanvas: View {
             let priceLow = all.map(\.low).min() ?? 0
             let range = max(priceHigh - priceLow, 1)
 
-            // 거래량 영역은 해금 후에만 자리를 차지한다
+            // 거래량 영역은 해금 후에만 자리를 차지한다 (선 모드에서도 유지)
             let chartHeight = showsVolumeAndMA ? size.height * 0.78 : size.height
             let volumeTop = size.height * 0.82
             let volumeHeight = size.height * 0.18
@@ -485,8 +517,26 @@ struct ChartCanvas: View {
                 chartHeight * (1 - CGFloat(price - Double(priceLow)) / CGFloat(range))
             }
 
-            guard showsCandles else {
-                // Lv0: 종가 라인 하나 — 처음 온 사람은 이것만으로 충분하다
+            if showsCandles {
+                for (i, candle) in all.enumerated() {
+                    let x = slot * (CGFloat(i) + 0.5)
+                    let color = candle.isBullish ? SeedTheme.up : SeedTheme.down
+
+                    var wick = Path()
+                    wick.move(to: CGPoint(x: x, y: y(candle.high)))
+                    wick.addLine(to: CGPoint(x: x, y: y(candle.low)))
+                    context.stroke(wick, with: .color(color), lineWidth: 1)
+
+                    let top = y(max(candle.open, candle.close))
+                    let bottom = y(min(candle.open, candle.close))
+                    let bodyRect = CGRect(
+                        x: x - bodyWidth / 2, y: top,
+                        width: bodyWidth, height: max(bottom - top, 1.5)
+                    )
+                    context.fill(Path(roundedRect: bodyRect, cornerRadius: 1), with: .color(color))
+                }
+            } else {
+                // 선 차트: Lv0의 기본이자, 해금 후에도 고를 수 있는 담백한 시선
                 var line = Path()
                 for (i, candle) in all.enumerated() {
                     let point = CGPoint(x: slot * (CGFloat(i) + 0.5), y: y(candle.close))
@@ -501,29 +551,13 @@ struct ChartCanvas: View {
                                      y: y(last.close) - 4, width: 8, height: 8)
                     context.fill(Path(ellipseIn: dot), with: .color(color))
                 }
-                return
             }
 
-            let maxVolume = max(all.map(\.volume).max() ?? 1, 1)
-
-            for (i, candle) in all.enumerated() {
-                let x = slot * (CGFloat(i) + 0.5)
-                let color = candle.isBullish ? SeedTheme.up : SeedTheme.down
-
-                var wick = Path()
-                wick.move(to: CGPoint(x: x, y: y(candle.high)))
-                wick.addLine(to: CGPoint(x: x, y: y(candle.low)))
-                context.stroke(wick, with: .color(color), lineWidth: 1)
-
-                let top = y(max(candle.open, candle.close))
-                let bottom = y(min(candle.open, candle.close))
-                let bodyRect = CGRect(
-                    x: x - bodyWidth / 2, y: top,
-                    width: bodyWidth, height: max(bottom - top, 1.5)
-                )
-                context.fill(Path(roundedRect: bodyRect, cornerRadius: 1), with: .color(color))
-
-                if showsVolumeAndMA {
+            if showsVolumeAndMA {
+                let maxVolume = max(all.map(\.volume).max() ?? 1, 1)
+                for (i, candle) in all.enumerated() {
+                    let x = slot * (CGFloat(i) + 0.5)
+                    let color = candle.isBullish ? SeedTheme.up : SeedTheme.down
                     let volumeBarHeight = volumeHeight * CGFloat(candle.volume) / CGFloat(maxVolume)
                     let volumeRect = CGRect(
                         x: x - bodyWidth / 2, y: volumeTop + (volumeHeight - volumeBarHeight),
@@ -531,9 +565,6 @@ struct ChartCanvas: View {
                     )
                     context.fill(Path(volumeRect), with: .color(color.opacity(0.35)))
                 }
-            }
-
-            if showsVolumeAndMA {
                 drawMA(all.movingAverage(period: 5), color: Color(hex: 0x22C55E),
                        context: context, slot: slot, y: yDouble)
                 drawMA(all.movingAverage(period: 20), color: SeedTheme.up,

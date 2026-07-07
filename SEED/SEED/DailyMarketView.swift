@@ -14,6 +14,11 @@ struct DailyMarketView: View {
     private let scenarioId = DailyMarket.id()
     private let pattern = DailyMarket.pattern()
 
+    /// 시작 기준가 — 첫 캔들이 마감되기 전에도 안전하게 (강제 언랩 크래시 수정)
+    private var startPrice: Int {
+        engine.candles.first?.open ?? engine.currentCandle.open
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -44,7 +49,7 @@ struct DailyMarketView: View {
                     .foregroundStyle(SeedTheme.textPrimary)
                 Text("\(engine.lastPrice.formatted())원")
                     .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(SeedTheme.pnl(Double(engine.lastPrice - engine.candles.first!.open)))
+                    .foregroundStyle(SeedTheme.pnl(Double(engine.lastPrice - startPrice)))
                     .contentTransition(.numericText())
                 Spacer()
                 let portfolio = engine.portfolio
@@ -67,10 +72,13 @@ struct DailyMarketView: View {
                     .padding(.horizontal, 16).padding(.bottom, 16)
             } else {
                 HStack(spacing: 8) {
-                    dailyOrderButton("팔기", color: SeedTheme.down, side: .sell)
+                    if engine.portfolio.qty > 0 {
+                        dailyOrderButton("팔기", color: SeedTheme.down, side: .sell)
+                    }
                     dailyOrderButton("사기", color: SeedTheme.up, side: .buy)
                 }
                 .padding(.horizontal, 14).padding(.bottom, 14)
+                .animation(.snappy(duration: 0.25), value: engine.portfolio.qty > 0)
             }
         }
         .background(SeedTheme.background)

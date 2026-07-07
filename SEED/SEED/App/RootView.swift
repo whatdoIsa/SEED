@@ -22,6 +22,10 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             // 백그라운드 저장 + 복귀 시 경과분 따라잡기 (§9.2 catch-up)
             session.handleScenePhase(active: phase == .active)
+            if phase == .background {
+                SeedNotifications.rescheduleIfAuthorized(
+                    weeklyTradeCount: store.weeklyTradeCount())
+            }
         }
     }
 

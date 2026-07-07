@@ -142,6 +142,15 @@ final class SeedStore {
         ))) ?? [])
     }
 
+    /// 최근 7일 매매 수 — 주간 푸시 본문의 원료.
+    func weeklyTradeCount() -> Int {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -7, to: .now) ?? .now
+        let descriptor = FetchDescriptor<TradeLog>(
+            predicate: #Predicate { $0.timestamp >= cutoff }
+        )
+        return (try? context.fetchCount(descriptor)) ?? 0
+    }
+
     /// 왕복 매매 페어링 (A) — 보유 습관의 원료.
     func roundTrips() -> [RoundTrip] {
         TradePairing.roundTrips(logs: replayableLogs())

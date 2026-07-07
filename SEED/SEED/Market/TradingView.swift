@@ -181,6 +181,11 @@ struct TradingView: View {
                                  atCandleIndex: session.engine.candles.count)
                     session.persistState()
                     lastFill = fill
+                    if !hasTraded {
+                        // 첫 매매 — 의미 있는 순간에 주간 복기 알림 권한을 묻는다 (B)
+                        SeedNotifications.requestThenScheduleWeekly(
+                            weeklyTradeCount: store.weeklyTradeCount())
+                    }
                     hasTraded = true
                     showMiniReview(store.miniReview(for: tag))
                 case .success(.limit(let limitResult)):

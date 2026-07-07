@@ -12,7 +12,7 @@ struct TradingView: View {
     @State private var marketTab = 0
     @State private var miniReviewText: String?
     @State private var hasTraded = true
-    @State private var newsBanner: (text: String, positive: Bool)?
+    @State private var newsBanner: (text: String, positive: Bool, marketWide: Bool)?
     @State private var showsCryptoIntro = false
 
     var body: some View {
@@ -58,9 +58,11 @@ struct TradingView: View {
             }
             if let news = newsBanner {
                 HStack(spacing: 7) {
-                    Image(systemName: news.positive ? "arrow.up.right.circle.fill" : "arrow.down.right.circle.fill")
+                    Image(systemName: news.marketWide
+                          ? "globe.asia.australia.fill"
+                          : (news.positive ? "arrow.up.right.circle.fill" : "arrow.down.right.circle.fill"))
                         .font(.system(size: 12))
-                    Text("속보 · \(news.text)")
+                    Text("\(news.marketWide ? "시장 속보" : "속보") · \(news.text)")
                         .font(.system(size: 12, weight: .medium))
                     Spacer()
                 }
@@ -111,7 +113,7 @@ struct TradingView: View {
         .onChange(of: session.engine.newsFeed.count) { _, _ in
             guard let event = session.engine.latestNews else { return }
             withAnimation(.snappy(duration: 0.3)) {
-                newsBanner = (NewsHeadlines.text(for: event), event.isPositive)
+                newsBanner = (NewsHeadlines.text(for: event), event.isPositive, event.isMarketWide)
             }
             Task {
                 try? await Task.sleep(for: .seconds(5))

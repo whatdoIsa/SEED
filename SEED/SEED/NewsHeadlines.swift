@@ -30,8 +30,40 @@ enum NewsHeadlines {
         "신용등급 하향 검토"
     ]
 
+    // 거시(시장 전체) 뉴스 — 전 종목이 함께 흔들리는 이유
+    private static let marketPositive = [
+        "기준금리 동결 — 시장 안도",
+        "수출 지표 예상 상회",
+        "외국인 순매수 전환",
+        "환율 안정세 진입",
+        "경기 부양책 발표",
+        "글로벌 증시 동반 강세",
+        "물가 상승세 둔화 확인",
+        "반도체 업황 회복 신호",
+        "소비 심리 지수 반등",
+        "정책 불확실성 해소"
+    ]
+
+    private static let marketNegative = [
+        "기준금리 인상 우려 확산",
+        "환율 급등 — 외국인 이탈",
+        "글로벌 증시 동반 급락",
+        "경기 침체 경고음",
+        "지정학 리스크 부각",
+        "물가 지표 쇼크",
+        "수출 부진 — 성장 전망 하향",
+        "신용 경색 우려",
+        "대형 악재에 투자심리 급랭",
+        "정책 불확실성 고조"
+    ]
+
     static func text(for event: NewsEvent) -> String {
-        let pool = event.isPositive ? positive : negative
+        let pool: [String]
+        if event.isMarketWide {
+            pool = event.isPositive ? marketPositive : marketNegative
+        } else {
+            pool = event.isPositive ? positive : negative
+        }
         return pool[event.headlineIndex % pool.count]
     }
 }

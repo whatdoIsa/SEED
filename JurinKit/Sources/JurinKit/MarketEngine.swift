@@ -43,6 +43,8 @@ public struct EngineConfig {
     public var openingGapRange: ClosedRange<Double>
     /// KRX 가격대별 호가단위 사용 여부. false면 tickSize 고정.
     public var usesKRXTickSize: Bool
+    /// 시장 기후(공통 팩터)에 대한 민감도. 1이면 시장과 같이, 0이면 무관하게 움직인다.
+    public var marketBeta: Double
 
     public init(tickSize: Int = 50,
                 ticksPerCandle: Int = 20,
@@ -57,7 +59,8 @@ public struct EngineConfig {
                 candlesPerDay: Int = 20,
                 priceBandRate: Double = 0.30,
                 openingGapRange: ClosedRange<Double> = -0.02...0.02,
-                usesKRXTickSize: Bool = true) {
+                usesKRXTickSize: Bool = true,
+                marketBeta: Double = 1.0) {
         self.tickSize = tickSize
         self.ticksPerCandle = ticksPerCandle
         self.fairVolatility = fairVolatility
@@ -72,6 +75,7 @@ public struct EngineConfig {
         self.priceBandRate = priceBandRate
         self.openingGapRange = openingGapRange
         self.usesKRXTickSize = usesKRXTickSize
+        self.marketBeta = marketBeta
     }
 
     // MARK: 수수료·호가단위 계산
@@ -109,6 +113,8 @@ public struct NewsEvent: Equatable {
     public let isPositive: Bool
     public let magnitudePct: Double
     public let headlineIndex: Int
+    /// 시장 전체 뉴스(거시 이벤트) 여부 — 전 종목이 같은 틱에 함께 받는다.
+    public var isMarketWide: Bool = false
 }
 
 // MARK: - 시장 엔진
@@ -131,6 +137,8 @@ public final class MarketEngine {
     public let symbol: String
     /// 계좌 원장 — 여러 엔진이 공유할 수 있다 (현금은 하나)
     public let ledger: AccountLedger
+    /// 시장 기후 (공통 팩터) — 같은 기후를 공유하는 종목들은 상관되어 움직인다.
+    public let climate: MarketClimate?
     /// 이 종목 관점의 계좌 스냅샷 (기존 API 호환)
     public var portfolio: PortfolioSnapshot { ledger.snapshot(for: symbol) }
 
@@ -193,7 +201,8 @@ public final class MarketEngine {
                 config: EngineConfig = EngineConfig(),
                 agents: [MarketAgent]? = nil,
                 symbol: String = "MAIN",
-                ledger: AccountLedger? = nil) {
+                ledger: AccountLedger? = nil,
+                climate: MarketClimate? = nil) {
         self.config = config
         self.lastPrice = initialPrice
         self.referencePrice = initialPrice
@@ -201,6 +210,7 @@ public final class MarketEngine {
         self.fairAnchor = Double(initialPrice)
         self.symbol = symbol
         self.ledger = ledger ?? AccountLedger(cash: config.initialCash)
+        self.climate = climate
         self.rng = SeededRNG(seed: seed)
         self.currentCandle = Candle(open: initialPrice, index: 0)
         self.agents = agents ?? [
@@ -255,6 +265,7 @@ public final class MarketEngine {
     public func step() {
         tick += 1
         applyScenarioIfActive()
+        applyMarketClimateNews()
         maybeFireNews()
         evolveFairValue()
 
@@ -300,10 +311,30 @@ public final class MarketEngine {
         // 변동성 군집 (③): 방금까지 거칠던 시장은 계속 거칠다
         let clusteredVol = config.fairVolatility * (1 + volatilityMomentum * config.volClusterGain)
         let shock = gaussian * clusteredVol
+        // 시장 기후 (상관관계): 같은 틱의 시장 충격을 β만큼 함께 받는다.
+        // 시나리오는 자기 경로가 곧 세계라 기후를 받지 않는다.
+        let marketShock = scenario == nil
+            ? (climate?.shock(at: tick) ?? 0) * config.marketBeta
+            : 0
         let pullStrength = scenario?.anchorPull ?? config.meanReversion
         let pull = (fairAnchor - fairValue) / fairValue * pullStrength
-        fairValue *= exp(shock + pull)
+        fairValue *= exp(shock + marketShock + pull)
         fairValue = max(fairValue, Double(config.tickSize))
+    }
+
+    /// 시장 전체 뉴스 (상관관계): 기후가 터뜨리면 모든 종목이 같은 틱에 β만큼 받는다.
+    private func applyMarketClimateNews() {
+        guard scenario == nil, let climate,
+              let event = climate.news(at: tick) else { return }
+        let scaled = event.magnitude * config.marketBeta
+        fairAnchor *= event.isPositive ? (1 + scaled) : (1 - scaled)
+        newsFeed.append(NewsEvent(tick: tick, isPositive: event.isPositive,
+                                  magnitudePct: scaled * 100,
+                                  headlineIndex: event.headlineIndex,
+                                  isMarketWide: true))
+        if newsFeed.count > newsFeedLimit {
+            newsFeed.removeFirst(newsFeed.count - newsFeedLimit)
+        }
     }
 
     /// 뉴스 이벤트 (③): 낮은 확률로 fairAnchor가 점프한다 — 갭과 급변의 근원.

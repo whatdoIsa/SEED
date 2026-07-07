@@ -23,7 +23,8 @@ enum SymbolCatalog {
             config: EngineConfig(
                 fairVolatility: 0.0006,
                 volClusterGain: 30,
-                newsTickProbability: 1.0 / 1_400
+                newsTickProbability: 1.0 / 1_400,
+                marketBeta: 0.85
             )
         ),
         SymbolSpec(
@@ -31,7 +32,7 @@ enum SymbolCatalog {
             name: "한빛중공업",
             oneLiner: "평범한 중형주",
             initialPrice: 45_000,
-            config: EngineConfig()
+            config: EngineConfig(marketBeta: 1.0)
         ),
         SymbolSpec(
             code: "HBB",
@@ -42,7 +43,8 @@ enum SymbolCatalog {
                 fairVolatility: 0.0018,
                 volClusterGain: 55,
                 newsTickProbability: 1.0 / 500,
-                newsMagnitudeRange: 0.03...0.10
+                newsMagnitudeRange: 0.03...0.10,
+                marketBeta: 1.4
             )
         ),
         // 크립토 합성 모드 (§16): 주식과 같은 엔진, 다른 제도 —
@@ -62,7 +64,8 @@ enum SymbolCatalog {
                 sellTaxRate: 0,
                 candlesPerDay: 0,
                 priceBandRate: 0,
-                usesKRXTickSize: false
+                usesKRXTickSize: false,
+                marketBeta: 0.2
             ),
             isCrypto: true
         )

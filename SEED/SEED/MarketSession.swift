@@ -39,6 +39,8 @@ final class MarketSession {
 
     init(store: SeedStore?) {
         let ledger = AccountLedger(cash: 10_000_000)
+        // 시장 기후: 시즌 고정 시드 — 모든 종목이 같은 기후를 공유해 상관되어 움직인다.
+        let climate = MarketClimate(seed: store?.climateSeed() ?? .random(in: 0...UInt64.max))
         var engines: [String: MarketEngine] = [:]
         var seeds: [String: UInt64] = [:]
         var freshCodes: [String] = []
@@ -51,13 +53,13 @@ final class MarketSession {
                 restoredTargets[spec.code] = state.tick
                 engines[spec.code] = MarketEngine(
                     seed: state.seed, initialPrice: spec.initialPrice,
-                    config: spec.config, symbol: spec.code, ledger: ledger)
+                    config: spec.config, symbol: spec.code, ledger: ledger, climate: climate)
             } else {
                 let seed = UInt64.random(in: 0...UInt64.max)
                 seeds[spec.code] = seed
                 let engine = MarketEngine(
                     seed: seed, initialPrice: spec.initialPrice,
-                    config: spec.config, symbol: spec.code, ledger: ledger)
+                    config: spec.config, symbol: spec.code, ledger: ledger, climate: climate)
                 engine.advance(ticks: spec.config.ticksPerCandle * warmupCandles)
                 engines[spec.code] = engine
                 freshCodes.append(spec.code)
@@ -166,17 +168,20 @@ final class MarketSession {
         loop = nil
     }
 
-    /// 계좌 부검 통과 후: 새 원장·새 시장들로 새 시즌을 연다 (M4-3).
+    /// 계좌 부검 통과 후: 새 원장·새 시장들·새 기후로 새 시즌을 연다 (M4-3).
     func resetForNewSeason() {
         stop()
         let fresh = AccountLedger(cash: 10_000_000)
+        // 새 시즌 = 새 기후 (store가 시즌 전환 후 새 시드를 발급·고정한다)
+        let climate = MarketClimate(seed: store?.climateSeed() ?? .random(in: 0...UInt64.max))
         var engines: [String: MarketEngine] = [:]
         var seeds: [String: UInt64] = [:]
         for spec in SymbolCatalog.all {
             let seed = UInt64.random(in: 0...UInt64.max)
             seeds[spec.code] = seed
             let engine = MarketEngine(seed: seed, initialPrice: spec.initialPrice,
-                                      config: spec.config, symbol: spec.code, ledger: fresh)
+                                      config: spec.config, symbol: spec.code,
+                                      ledger: fresh, climate: climate)
             engine.advance(ticks: spec.config.ticksPerCandle * warmupCandles)
             engines[spec.code] = engine
         }

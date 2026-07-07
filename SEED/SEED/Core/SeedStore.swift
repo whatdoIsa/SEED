@@ -290,9 +290,30 @@ final class SeedStore {
     }
 
     #if DEBUG
-    /// 개발용: 레슨 없이 해금 레벨을 강제 조정 (배포 빌드에는 포함되지 않음).
+    /// 개발용: 차트 도구 레벨만 강제 조정 (레슨 완료 상태는 건드리지 않음).
     func debugSetUnlockLevel(_ level: Int) {
         progress.unlockLevel = level
+        try? context.save()
+    }
+
+    /// 개발용: 모든 레슨 완료 처리 + 전체 해금 — 오늘의 장·복기·봇·퀀트·후속 레슨이
+    /// 전부 열린다. 미션을 하나하나 하지 않고 화면을 점검할 때.
+    func debugUnlockEverything() {
+        for lesson in LessonCatalog.registered where !isLessonDone(lesson.id) {
+            let progressRecord = LessonProgress(lessonId: lesson.id)
+            progressRecord.completedAt = .now
+            context.insert(progressRecord)
+        }
+        progress.unlockLevel = UnlockLevel.all
+        progress.onboardingDone = true
+        try? context.save()
+    }
+
+    /// 개발용: 진행 상태 전체 초기화 (레슨·해금·온보딩) — 처음부터 흐름 점검용.
+    func debugResetProgress() {
+        let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
+        for lesson in lessons { context.delete(lesson) }
+        progress.unlockLevel = UnlockLevel.lineOnly
         try? context.save()
     }
     #endif

@@ -89,6 +89,13 @@ public struct FillResult {
     /// 주문 제출 시점의 최우선 호가 (사용자 화면에 보이던 값)
     public let displayedPrice: Int
 
+    public init(side: Side, requestedQty: Int, fills: [Fill], displayedPrice: Int) {
+        self.side = side
+        self.requestedQty = requestedQty
+        self.fills = fills
+        self.displayedPrice = displayedPrice
+    }
+
     public var filledQty: Int { fills.reduce(0) { $0 + $1.qty } }
     public var notional: Int { fills.reduce(0) { $0 + $1.price * $1.qty } }
 
@@ -175,6 +182,18 @@ public final class OrderBook {
         return book.values.flatMap { $0 }.reduce(0) { $0 + $1.qty }
     }
 
+    /// 특정 참여자의 주문만 남기고 전부 걷는다 — 거래일 경계의 봇 호가 리셋용.
+    public func cancelAllExcept(agentId: String) {
+        for (price, queue) in bids {
+            let remaining = queue.filter { $0.agentId == agentId }
+            if remaining.isEmpty { bids[price] = nil } else { bids[price] = remaining }
+        }
+        for (price, queue) in asks {
+            let remaining = queue.filter { $0.agentId == agentId }
+            if remaining.isEmpty { asks[price] = nil } else { asks[price] = remaining }
+        }
+    }
+
     public func cancelAll(agentId: String) {
         for (price, queue) in bids {
             let remaining = queue.filter { $0.agentId != agentId }
@@ -189,6 +208,12 @@ public final class OrderBook {
     /// 지정가 주문: 반대편과 교차하면 먼저 체결하고, 남으면 호가창에 앉는다.
     @discardableResult
     public func submitLimit(agentId: String, side: Side, price: Int, qty: Int, tick: Int) -> [Trade] {
+        submitLimitTracked(agentId: agentId, side: side, price: price, qty: qty, tick: tick).trades
+    }
+
+    /// 지정가 주문 + 잔여분의 주문 ID 반환 — 사용자 미체결 추적용.
+    public func submitLimitTracked(agentId: String, side: Side, price: Int, qty: Int, tick: Int)
+    -> (trades: [Trade], restingOrderId: UInt64?, restingQty: Int) {
         var remaining = qty
         var trades: [Trade] = []
 
@@ -204,8 +229,10 @@ public final class OrderBook {
             if fills.isEmpty { break }
         }
 
+        var restingId: UInt64?
         if remaining > 0 {
             let order = Order(id: nextOrderId, agentId: agentId, side: side, price: price, qty: remaining, tick: tick)
+            restingId = nextOrderId
             nextOrderId += 1
             if side == .buy {
                 bids[price, default: []].append(order)
@@ -213,7 +240,28 @@ public final class OrderBook {
                 asks[price, default: []].append(order)
             }
         }
-        return trades
+        return (trades, restingId, remaining)
+    }
+
+    /// 특정 주문의 현재 잔량 (체결·취소로 사라졌으면 0).
+    public func remainingQty(orderId: UInt64, side: Side, price: Int) -> Int {
+        let queue = (side == .buy ? bids[price] : asks[price]) ?? []
+        return queue.first { $0.id == orderId }?.qty ?? 0
+    }
+
+    /// 주문 취소. 남은 잔량을 반환한다.
+    @discardableResult
+    public func cancel(orderId: UInt64, side: Side, price: Int) -> Int {
+        var queue = (side == .buy ? bids[price] : asks[price]) ?? []
+        guard let index = queue.firstIndex(where: { $0.id == orderId }) else { return 0 }
+        let remaining = queue[index].qty
+        queue.remove(at: index)
+        if side == .buy {
+            bids[price] = queue.isEmpty ? nil : queue
+        } else {
+            asks[price] = queue.isEmpty ? nil : queue
+        }
+        return remaining
     }
 
     /// 시장가 미리보기: 호가창을 바꾸지 않고 체결 내역만 계산 (잔고 검증용).

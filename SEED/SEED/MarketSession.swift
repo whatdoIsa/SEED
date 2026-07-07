@@ -2,8 +2,9 @@ import Foundation
 import Observation
 import JurinKit
 
-/// 엔진과 UI 사이의 드라이버. 엔진에는 Timer가 없으므로(설계 결정)
-/// 배속에 맞춰 step을 호출하는 책임이 여기 있다 — 스펙 1(배속)의 UI 측 절반.
+/// 엔진들과 UI 사이의 드라이버 (다종목).
+/// 모든 종목의 시장이 함께 흐르고(같은 시간), 계좌 원장은 하나를 공유한다.
+/// 엔진에는 Timer가 없으므로 배속에 맞춰 step을 호출하는 책임이 여기 있다.
 @Observable
 @MainActor
 final class MarketSession {
@@ -14,12 +15,15 @@ final class MarketSession {
         var label: String { "\(rawValue)x" }
     }
 
-    private(set) var engine: MarketEngine
-    private(set) var engineSeed: UInt64
+    private(set) var ledger: AccountLedger
+    private(set) var engines: [String: MarketEngine] = [:]
+    var activeSymbolCode: String = SymbolCatalog.all[0].code
     var speed: Speed = .x1
     private(set) var isRunning = false
-    /// 세션 시작 기준가 — 등락 표시의 기준.
-    private(set) var startPrice: Int
+    /// 종목별 세션 시작 기준가 — 등락 표시의 기준.
+    private(set) var startPrices: [String: Int] = [:]
+    /// 종목별 시드 (영속용)
+    private(set) var engineSeeds: [String: UInt64] = [:]
 
     private weak var store: SeedStore?
     private var loop: Task<Void, Never>?
@@ -27,52 +31,99 @@ final class MarketSession {
     private let baseTickInterval: Duration = .seconds(1)
     /// 백그라운드 경과를 따라잡는 상한 — 최대 30분치.
     private let catchUpCap = 1_800
+    private let warmupCandles = 30
+
+    var activeSpec: SymbolSpec { SymbolCatalog.spec(code: activeSymbolCode) ?? SymbolCatalog.all[0] }
+    var engine: MarketEngine { engines[activeSymbolCode] ?? enginesList[0] }
+    var enginesList: [MarketEngine] { SymbolCatalog.all.compactMap { engines[$0.code] } }
 
     init(store: SeedStore?) {
-        let seed: UInt64
-        let engine: MarketEngine
-        var isFreshMarket = false
+        let ledger = AccountLedger(cash: 10_000_000)
+        var engines: [String: MarketEngine] = [:]
+        var seeds: [String: UInt64] = [:]
+        var freshCodes: [String] = []
+        var restoredTargets: [String: Int] = [:]
 
-        if let state = store?.marketState() {
-            // 연속성: 같은 시드로 엔진을 만들고, 과거 주문을 원래 틱에 재실행하면
-            // 결정론에 의해 완전히 같은 시장·포트폴리오가 복원된다.
-            seed = state.seed
-            engine = MarketEngine(seed: seed)
+        for spec in SymbolCatalog.all {
+            if let state = store?.symbolState(code: spec.code) {
+                // 연속성: 같은 시드 → 리플레이로 같은 시장·계좌 복원
+                seeds[spec.code] = state.seed
+                restoredTargets[spec.code] = state.tick
+                engines[spec.code] = MarketEngine(
+                    seed: state.seed, initialPrice: spec.initialPrice,
+                    config: spec.config, symbol: spec.code, ledger: ledger)
+            } else {
+                let seed = UInt64.random(in: 0...UInt64.max)
+                seeds[spec.code] = seed
+                let engine = MarketEngine(
+                    seed: seed, initialPrice: spec.initialPrice,
+                    config: spec.config, symbol: spec.code, ledger: ledger)
+                engine.advance(ticks: spec.config.ticksPerCandle * warmupCandles)
+                engines[spec.code] = engine
+                freshCodes.append(spec.code)
+            }
+        }
+
+        // 전 종목 주문을 틱 순으로 리플레이 — 현금 흐름의 시간 순서를 보존한다
+        if !restoredTargets.isEmpty {
             for log in store?.replayableLogs() ?? [] {
-                guard let atTick = log.atTick, atTick <= state.tick else { continue }
+                guard let code = SymbolCatalog.code(forName: log.symbol),
+                      let target = restoredTargets[code],
+                      let engine = engines[code],
+                      let atTick = log.atTick, atTick <= target else { continue }
                 engine.advance(ticks: max(atTick - engine.tick, 0))
                 if log.isLimitFill == true {
-                    // 지정가 체결은 정산 틱이 기록되지 않으므로 포트폴리오만 복원
                     engine.restoreFill(side: log.side, price: Int(log.avgFillPrice), qty: log.qty)
                 } else {
                     _ = try? engine.placeMarketOrder(side: log.side, qty: log.qty)
                 }
             }
-            engine.advance(ticks: max(state.tick - engine.tick, 0))
-        } else {
-            // 첫 실행 (또는 리플레이 좌표가 없는 구버전 데이터 → 포트폴리오 스냅샷 폴백)
-            seed = .random(in: 0...UInt64.max)
-            engine = MarketEngine(seed: seed, portfolio: store?.restorePortfolio())
-            engine.advance(ticks: engine.config.ticksPerCandle * 30)
-            isFreshMarket = true
+            for (code, target) in restoredTargets {
+                engines[code]?.advance(ticks: max(target - (engines[code]?.tick ?? 0), 0))
+            }
         }
 
+        self.ledger = ledger
+        self.engines = engines
+        self.engineSeeds = seeds
+        self.startPrices = engines.mapValues { $0.candles.last?.close ?? $0.lastPrice }
         self.store = store
-        self.engineSeed = seed
-        self.engine = engine
-        self.startPrice = engine.candles.last?.close ?? engine.lastPrice
-        if isFreshMarket {
-            store?.persistMarketState(seed: seed, tick: engine.tick)
+
+        for code in freshCodes {
+            persistSymbol(code)
         }
+    }
+
+    // MARK: 등락·자산
+
+    var startPrice: Int { startPrices[activeSymbolCode] ?? engine.lastPrice }
+    var change: Int { engine.lastPrice - startPrice }
+    var changePercent: Double {
+        guard startPrice > 0 else { return 0 }
+        return Double(change) / Double(startPrice) * 100
+    }
+
+    var currentPrices: [String: Int] {
+        engines.mapValues(\.lastPrice)
+    }
+
+    /// 전 종목 통합 평가액 — 진짜 내 자산.
+    var totalEquity: Int {
+        ledger.totalEquity(prices: currentPrices)
     }
 
     // MARK: 연속성
 
-    func persistState() {
-        store?.persistMarketState(seed: engineSeed, tick: engine.tick)
+    private func persistSymbol(_ code: String) {
+        guard let engine = engines[code], let seed = engineSeeds[code] else { return }
+        store?.persistSymbolState(code: code, seed: seed, tick: engine.tick)
     }
 
-    /// 씬 전환 처리: 백그라운드 진입 시 상태 저장, 복귀 시 경과분 따라잡기 (P1 catch-up).
+    func persistState() {
+        for code in engines.keys { persistSymbol(code) }
+    }
+
+    /// 씬 전환 처리: 백그라운드 진입 시 상태 저장, 복귀 시 경과분 따라잡기 (catch-up).
     func handleScenePhase(active: Bool) {
         if active {
             catchUpAfterBackground()
@@ -80,7 +131,6 @@ final class MarketSession {
         } else {
             stop()
             persistState()
-            store?.persistPortfolio(engine.portfolio)
         }
     }
 
@@ -88,20 +138,13 @@ final class MarketSession {
         guard let lastActive = store?.lastActiveAt else { return }
         let elapsed = Int(Date.now.timeIntervalSince(lastActive))
         guard elapsed > 2 else { return }
-        engine.advance(ticks: min(elapsed, catchUpCap))
+        let ticks = min(elapsed, catchUpCap)
+        for engine in enginesList { engine.advance(ticks: ticks) }
         processUserFills()
         persistState()
     }
 
-    // MARK: 등락 (기준가 대비)
-
-    var change: Int { engine.lastPrice - startPrice }
-    var changePercent: Double {
-        guard startPrice > 0 else { return 0 }
-        return Double(change) / Double(startPrice) * 100
-    }
-
-    // MARK: 루프 제어
+    // MARK: 루프 제어 — 모든 종목의 시간이 함께 흐른다
 
     func start() {
         guard loop == nil else { return }
@@ -109,7 +152,7 @@ final class MarketSession {
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self, self.isRunning else { return }
-                self.engine.step()
+                for engine in self.enginesList { engine.step() }
                 self.processUserFills()
                 let interval = self.baseTickInterval / self.speed.rawValue
                 try? await Task.sleep(for: interval)
@@ -123,14 +166,25 @@ final class MarketSession {
         loop = nil
     }
 
-    /// 계좌 부검 통과 후: 새 시드머니로 새 시장을 연다 (M4-3).
+    /// 계좌 부검 통과 후: 새 원장·새 시장들로 새 시즌을 연다 (M4-3).
     func resetForNewSeason() {
         stop()
-        engineSeed = .random(in: 0...UInt64.max)
-        let fresh = MarketEngine(seed: engineSeed)
-        fresh.advance(ticks: fresh.config.ticksPerCandle * 30)
-        engine = fresh
-        startPrice = fresh.candles.last?.close ?? fresh.lastPrice
+        let fresh = AccountLedger(cash: 10_000_000)
+        var engines: [String: MarketEngine] = [:]
+        var seeds: [String: UInt64] = [:]
+        for spec in SymbolCatalog.all {
+            let seed = UInt64.random(in: 0...UInt64.max)
+            seeds[spec.code] = seed
+            let engine = MarketEngine(seed: seed, initialPrice: spec.initialPrice,
+                                      config: spec.config, symbol: spec.code, ledger: fresh)
+            engine.advance(ticks: spec.config.ticksPerCandle * warmupCandles)
+            engines[spec.code] = engine
+        }
+        self.ledger = fresh
+        self.engines = engines
+        self.engineSeeds = seeds
+        self.startPrices = engines.mapValues { $0.candles.last?.close ?? $0.lastPrice }
+        self.limitTags = [:]
         speed = .x1
         persistState()
         start()
@@ -151,7 +205,7 @@ final class MarketSession {
         }
     }
 
-    // MARK: 주문
+    // MARK: 주문 (활성 종목)
 
     func placeOrder(side: Side, qty: Int) -> Result<FillResult, OrderError> {
         do {
@@ -166,8 +220,8 @@ final class MarketSession {
 
     // MARK: 지정가 (①)
 
-    /// 대기 주문 ID → 주문 시 고른 태그 (사후 체결 기록용)
-    private var limitTags: [UInt64: TradeReasonTag] = [:]
+    /// "종목코드#주문ID" → 주문 시 고른 태그 (사후 체결 기록용)
+    private var limitTags: [String: TradeReasonTag] = [:]
     /// 방금 체결된 대기 주문 알림 (UI 배너)
     private(set) var limitFillNotice: String?
 
@@ -176,7 +230,7 @@ final class MarketSession {
         do {
             let result = try engine.placeLimitOrder(side: side, price: price, qty: qty)
             if let resting = result.restingOrder {
-                limitTags[resting.id] = tag
+                limitTags["\(activeSymbolCode)#\(resting.id)"] = tag
             }
             return .success(result)
         } catch let error as OrderError {
@@ -188,42 +242,46 @@ final class MarketSession {
 
     func cancelOrder(id: UInt64) {
         engine.cancelOrder(id: id)
-        limitTags[id] = nil
-        persistState()
-        store?.persistPortfolio(engine.portfolio)
+        limitTags["\(activeSymbolCode)#\(id)"] = nil
+        persistSymbol(activeSymbolCode)
     }
 
-    /// 대기 체결 이벤트를 기록·영속·알림으로 처리. 루프와 스킵·복귀 후에 호출된다.
+    /// 전 종목의 대기 체결 이벤트를 기록·영속·알림으로 처리.
     func processUserFills() {
-        let events = engine.drainUserFillEvents()
-        guard !events.isEmpty else { return }
-        for event in events {
-            let fallback: TradeReasonTag = event.side == .buy ? .gutBuy : .gutSell
-            let tag = limitTags[event.orderId] ?? fallback
-            let fill = FillResult(side: event.side, requestedQty: event.qty,
-                                  fills: [Fill(price: event.price, qty: event.qty)],
-                                  displayedPrice: event.price)
-            store?.record(fill: fill, tag: tag,
-                          avgCostBeforeOrder: event.avgCostBefore,
-                          atTick: engine.tick,
-                          atCandleIndex: engine.candles.count,
-                          wasLimit: true)
-            if !engine.openOrders.contains(where: { $0.id == event.orderId }) {
-                limitTags[event.orderId] = nil
+        for spec in SymbolCatalog.all {
+            guard let engine = engines[spec.code] else { continue }
+            let events = engine.drainUserFillEvents()
+            guard !events.isEmpty else { continue }
+            for event in events {
+                let key = "\(spec.code)#\(event.orderId)"
+                let fallback: TradeReasonTag = event.side == .buy ? .gutBuy : .gutSell
+                let tag = limitTags[key] ?? fallback
+                let fill = FillResult(side: event.side, requestedQty: event.qty,
+                                      fills: [Fill(price: event.price, qty: event.qty)],
+                                      displayedPrice: event.price)
+                store?.record(fill: fill, tag: tag, symbol: spec.name,
+                              avgCostBeforeOrder: event.avgCostBefore,
+                              atTick: engine.tick,
+                              atCandleIndex: engine.candles.count,
+                              wasLimit: true)
+                if !engine.openOrders.contains(where: { $0.id == event.orderId }) {
+                    limitTags[key] = nil
+                }
+                limitFillNotice = "\(spec.name) 지정가 체결 · \(event.side == .buy ? "매수" : "매도") \(event.qty)주 @ \(event.price.formatted())원"
             }
-            limitFillNotice = "지정가 체결 · \(event.side == .buy ? "매수" : "매도") \(event.qty)주 @ \(event.price.formatted())원"
+            persistSymbol(spec.code)
         }
-        store?.persistPortfolio(engine.portfolio)
-        persistState()
-        Task {
-            try? await Task.sleep(for: .seconds(4))
-            limitFillNotice = nil
+        if limitFillNotice != nil {
+            Task {
+                try? await Task.sleep(for: .seconds(4))
+                limitFillNotice = nil
+            }
         }
     }
 
-    /// 다음 캔들로 스킵 — 스킵 중 발생한 대기 체결도 처리한다.
+    /// 다음 캔들로 스킵 — 모든 종목의 시간이 함께 간다.
     func skipToNextCandle() {
-        engine.advanceToNextCandle()
+        for engine in enginesList { engine.advanceToNextCandle() }
         processUserFills()
     }
 }

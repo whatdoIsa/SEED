@@ -16,6 +16,7 @@ struct TradingView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            symbolPicker
             header
             marketTabPicker
             if marketTab == 0 {
@@ -111,17 +112,18 @@ struct TradingView: View {
                        allowsLimit: store.progress.unlockLevel >= UnlockLevel.orderBook) { result, tag, avgCostBefore in
                 switch result {
                 case .success(.market(let fill)):
-                    store.record(fill: fill, tag: tag, avgCostBeforeOrder: avgCostBefore,
+                    store.record(fill: fill, tag: tag, symbol: session.activeSpec.name,
+                                 avgCostBeforeOrder: avgCostBefore,
                                  atTick: session.engine.tick,
                                  atCandleIndex: session.engine.candles.count)
-                    store.persistPortfolio(session.engine.portfolio)
                     session.persistState()
                     lastFill = fill
                     hasTraded = true
                     showMiniReview(store.miniReview(for: tag))
                 case .success(.limit(let limitResult)):
                     if let immediate = limitResult.immediateFill {
-                        store.record(fill: immediate, tag: tag, avgCostBeforeOrder: avgCostBefore,
+                        store.record(fill: immediate, tag: tag, symbol: session.activeSpec.name,
+                                     avgCostBeforeOrder: avgCostBefore,
                                      atTick: session.engine.tick,
                                      atCandleIndex: session.engine.candles.count,
                                      wasLimit: true)
@@ -131,7 +133,6 @@ struct TradingView: View {
                     if let resting = limitResult.restingOrder {
                         showMiniReview("지정가 접수 · \(resting.remainingQty)주 대기 중 — 체결되면 알려드릴게요")
                     }
-                    store.persistPortfolio(session.engine.portfolio)
                     session.persistState()
                 case .failure(let error):
                     orderErrorMessage = message(for: error)
@@ -160,10 +161,33 @@ struct TradingView: View {
 
     // MARK: 헤더 (종목 · 현재가 · 등락)
 
+    // MARK: 종목 선택 (다종목)
+
+    private var symbolPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(SymbolCatalog.all) { spec in
+                    let selected = session.activeSymbolCode == spec.code
+                    Button {
+                        session.activeSymbolCode = spec.code
+                    } label: {
+                        Text(spec.name)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(selected ? SeedTheme.inverse : SeedTheme.textSecondary)
+                            .padding(.horizontal, 11).padding(.vertical, 6)
+                            .background(selected ? SeedTheme.textPrimary : SeedTheme.card, in: Capsule())
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .padding(.top, 8)
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                Text("한빛전자")
+                Text(session.activeSpec.name)
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(SeedTheme.textPrimary)
                 Text("모의")

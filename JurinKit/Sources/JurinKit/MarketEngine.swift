@@ -12,6 +12,8 @@ public struct Portfolio {
     public private(set) var reservedCash: Int = 0
     /// 미체결 지정가 매도에 묶인 주식
     public private(set) var reservedShares: Int = 0
+    /// 누적 수수료·세금 — 잦은 매매의 비용을 가르치는 숫자
+    public private(set) var feesPaid: Int = 0
 
     public var availableCash: Int { cash - reservedCash }
     public var availableShares: Int { qty - reservedShares }
@@ -35,22 +37,24 @@ public struct Portfolio {
         Double(qty) * (Double(price) - avgCost)
     }
 
-    mutating func applyBuy(_ result: FillResult) {
+    mutating func applyBuy(_ result: FillResult, fee: Int = 0) {
         let cost = result.notional
         let newQty = qty + result.filledQty
         if newQty > 0 {
             avgCost = (avgCost * Double(qty) + Double(cost)) / Double(newQty)
         }
         qty = newQty
-        cash -= cost
+        cash -= cost + fee
+        feesPaid += fee
     }
 
-    mutating func applySell(_ result: FillResult) {
+    mutating func applySell(_ result: FillResult, fee: Int = 0) {
         let proceeds = result.notional
-        realizedPnL += Double(proceeds) - avgCost * Double(result.filledQty)
+        realizedPnL += Double(proceeds - fee) - avgCost * Double(result.filledQty)
         qty -= result.filledQty
         if qty == 0 { avgCost = 0 }
-        cash += proceeds
+        cash += proceeds - fee
+        feesPaid += fee
     }
 
     // MARK: 지정가 예약·정산
@@ -61,24 +65,26 @@ public struct Portfolio {
     mutating func releaseShares(_ amount: Int) { reservedShares = max(reservedShares - amount, 0) }
 
     /// 대기 중이던 지정가 매수가 체결됨 — 예약금으로 정산.
-    mutating func settleRestingBuy(price: Int, qty fillQty: Int) {
+    mutating func settleRestingBuy(price: Int, qty fillQty: Int, fee: Int = 0) {
         let cost = price * fillQty
-        releaseCash(cost)
+        releaseCash(cost + fee)
         let newQty = qty + fillQty
         if newQty > 0 {
             avgCost = (avgCost * Double(qty) + Double(cost)) / Double(newQty)
         }
         qty = newQty
-        cash -= cost
+        cash -= cost + fee
+        feesPaid += fee
     }
 
     /// 대기 중이던 지정가 매도가 체결됨 — 예약 주식으로 정산.
-    mutating func settleRestingSell(price: Int, qty fillQty: Int) {
+    mutating func settleRestingSell(price: Int, qty fillQty: Int, fee: Int = 0) {
         releaseShares(fillQty)
-        realizedPnL += (Double(price) - avgCost) * Double(fillQty)
+        realizedPnL += Double(price * fillQty - fee) - avgCost * Double(fillQty)
         qty -= fillQty
         if qty == 0 { avgCost = 0 }
-        cash += price * fillQty
+        cash += price * fillQty - fee
+        feesPaid += fee
     }
 }
 
@@ -89,6 +95,8 @@ public enum OrderError: Error, Equatable {
     case insufficientHoldings(requested: Int, held: Int)
     case noLiquidity
     case invalidQuantity
+    /// 상·하한가 밖의 지정가 (제도 팩)
+    case priceOutOfBand(lower: Int, upper: Int)
 }
 
 // MARK: - 엔진 설정
@@ -108,6 +116,21 @@ public struct EngineConfig {
     /// 뉴스 한 방이 fairAnchor를 움직이는 크기 (비율)
     public var newsMagnitudeRange: ClosedRange<Double>
 
+    // MARK: 시장 제도 (제도 팩)
+
+    /// 매수·매도 공통 위탁 수수료율
+    public var commissionRate: Double
+    /// 매도 시 거래세율 (수수료와 별도)
+    public var sellTaxRate: Double
+    /// 거래일 = 이 캔들 수. 경계에서 기준가 갱신·시가 갭·봇 호가 리셋.
+    public var candlesPerDay: Int
+    /// 상·하한가 폭 (기준가 대비 비율). 0이면 비활성 (크립토 등).
+    public var priceBandRate: Double
+    /// 거래일 시작 시 fairAnchor에 적용되는 시가 갭 범위 (시나리오 중 비활성)
+    public var openingGapRange: ClosedRange<Double>
+    /// KRX 가격대별 호가단위 사용 여부. false면 tickSize 고정.
+    public var usesKRXTickSize: Bool
+
     public init(tickSize: Int = 50,
                 ticksPerCandle: Int = 20,
                 fairVolatility: Double = 0.0009,
@@ -115,7 +138,13 @@ public struct EngineConfig {
                 initialCash: Int = 10_000_000,
                 volClusterGain: Double = 40,
                 newsTickProbability: Double = 1.0 / 900,
-                newsMagnitudeRange: ClosedRange<Double> = 0.02...0.07) {
+                newsMagnitudeRange: ClosedRange<Double> = 0.02...0.07,
+                commissionRate: Double = 0.00015,
+                sellTaxRate: Double = 0.0018,
+                candlesPerDay: Int = 20,
+                priceBandRate: Double = 0.30,
+                openingGapRange: ClosedRange<Double> = -0.02...0.02,
+                usesKRXTickSize: Bool = true) {
         self.tickSize = tickSize
         self.ticksPerCandle = ticksPerCandle
         self.fairVolatility = fairVolatility
@@ -124,6 +153,39 @@ public struct EngineConfig {
         self.volClusterGain = volClusterGain
         self.newsTickProbability = newsTickProbability
         self.newsMagnitudeRange = newsMagnitudeRange
+        self.commissionRate = commissionRate
+        self.sellTaxRate = sellTaxRate
+        self.candlesPerDay = candlesPerDay
+        self.priceBandRate = priceBandRate
+        self.openingGapRange = openingGapRange
+        self.usesKRXTickSize = usesKRXTickSize
+    }
+
+    // MARK: 수수료·호가단위 계산
+
+    public func buyFee(on notional: Int) -> Int {
+        Int((Double(notional) * commissionRate).rounded())
+    }
+
+    public func sellFee(on notional: Int) -> Int {
+        Int((Double(notional) * (commissionRate + sellTaxRate)).rounded())
+    }
+
+    /// KRX 가격대별 호가단위 (2023 개편 기준).
+    public static func krxTickSize(for price: Int) -> Int {
+        switch price {
+        case ..<2_000: return 1
+        case ..<5_000: return 5
+        case ..<20_000: return 10
+        case ..<50_000: return 50
+        case ..<200_000: return 100
+        case ..<500_000: return 250
+        default: return 1_000
+        }
+    }
+
+    public func tickSize(at price: Int) -> Int {
+        usesKRXTickSize ? Self.krxTickSize(for: price) : tickSize
     }
 }
 
@@ -164,6 +226,33 @@ public final class MarketEngine {
     public private(set) var openOrders: [UserOrder] = []
     private var userFillEvents: [UserFillEvent] = []
 
+    // MARK: 거래일·가격제한 상태 (제도 팩)
+
+    public private(set) var tradingDay: Int = 1
+    /// 기준가 (전일 종가) — 상·하한가의 기준.
+    public private(set) var referencePrice: Int
+
+    public var hasPriceBand: Bool { config.priceBandRate > 0 }
+
+    public var upperLimitPrice: Int {
+        guard hasPriceBand else { return Int.max }
+        let raw = Int(Double(referencePrice) * (1 + config.priceBandRate))
+        let tick = config.tickSize(at: raw)
+        return raw / tick * tick
+    }
+
+    public var lowerLimitPrice: Int {
+        guard hasPriceBand else { return config.tickSize }
+        let raw = Int(Double(referencePrice) * (1 - config.priceBandRate))
+        let tick = config.tickSize(at: raw)
+        return (raw + tick - 1) / tick * tick
+    }
+
+    private func clampToBand(_ price: Int) -> Int {
+        guard hasPriceBand else { return price }
+        return min(max(price, lowerLimitPrice), upperLimitPrice)
+    }
+
     // MARK: 리얼리즘 상태 (③)
 
     /// 최근 캔들 변동의 EMA — 변동성 군집의 기억.
@@ -188,6 +277,7 @@ public final class MarketEngine {
                 portfolio: Portfolio? = nil) {
         self.config = config
         self.lastPrice = initialPrice
+        self.referencePrice = initialPrice
         self.fairValue = Double(initialPrice)
         self.fairAnchor = Double(initialPrice)
         self.portfolio = portfolio ?? Portfolio(cash: config.initialCash)
@@ -215,15 +305,28 @@ public final class MarketEngine {
         )
     }
 
-    /// 시작 시 빈 호가창을 마켓메이커 스타일로 채워 첫 주문부터 체결이 가능하게 한다.
+    /// 시작·장 개시 시 빈 호가창을 마켓메이커 스타일로 채워 첫 주문부터 체결이 가능하게 한다.
     private func seedInitialBook() {
+        let tick = config.tickSize(at: lastPrice)
         for level in 1...5 {
-            let offset = level * config.tickSize
+            let offset = level * tick
             book.submitLimit(agentId: "SEED", side: .buy,
-                             price: lastPrice - offset, qty: 150 + level * 30, tick: 0)
+                             price: clampToBand(lastPrice - offset), qty: 150 + level * 30, tick: 0)
             book.submitLimit(agentId: "SEED", side: .sell,
-                             price: lastPrice + offset, qty: 150 + level * 30, tick: 0)
+                             price: clampToBand(lastPrice + offset), qty: 150 + level * 30, tick: 0)
         }
+    }
+
+    /// 거래일 경계 (제도 팩): 기준가 갱신 → 시가 갭 → 봇 호가 리셋 (동시호가 근사).
+    /// 사용자의 대기 주문은 실제 시장의 GTC처럼 살아남는다.
+    private func startNewTradingDay() {
+        tradingDay += 1
+        referencePrice = lastPrice
+        if scenario == nil {
+            fairAnchor *= (1 + rng.double(in: config.openingGapRange))
+        }
+        book.cancelAllExcept(agentId: Self.userAgentId)
+        seedInitialBook()
     }
 
     // MARK: 틱 루프
@@ -237,7 +340,7 @@ public final class MarketEngine {
 
         let ctx = MarketContext(tick: tick, lastPrice: lastPrice, fairValue: fairValue,
                                 bestBid: book.bestBid, bestAsk: book.bestAsk,
-                                candles: candles, tickSize: config.tickSize)
+                                candles: candles, tickSize: config.tickSize(at: lastPrice))
 
         for agent in agents.shuffled(using: &rng) {
             if agent.refreshesQuotes { book.cancelAll(agentId: agent.id) }
@@ -250,6 +353,9 @@ public final class MarketEngine {
 
         if tick % config.ticksPerCandle == 0 {
             closeCandle()
+            if config.candlesPerDay > 0 && candles.count % config.candlesPerDay == 0 {
+                startNewTradingDay()
+            }
         }
     }
 
@@ -342,7 +448,9 @@ public final class MarketEngine {
             trades = executed
         case .limit(let price, let qty):
             guard qty > 0, price > 0 else { return }
-            trades = book.submitLimit(agentId: agentId, side: intent.side, price: price, qty: qty, tick: tick)
+            // 봇 호가는 상·하한가 안으로 클램프 — 호가창의 모든 가격이 밴드 안에 있게 된다
+            trades = book.submitLimit(agentId: agentId, side: intent.side,
+                                      price: clampToBand(price), qty: qty, tick: tick)
         }
         record(trades)
     }
@@ -389,8 +497,9 @@ public final class MarketEngine {
         switch side {
         case .buy:
             let cost = preview.reduce(0) { $0 + $1.price * $1.qty }
-            guard cost <= portfolio.availableCash else {
-                throw OrderError.insufficientCash(needed: cost, available: portfolio.availableCash)
+            let needed = cost + config.buyFee(on: cost)
+            guard needed <= portfolio.availableCash else {
+                throw OrderError.insufficientCash(needed: needed, available: portfolio.availableCash)
             }
         case .sell:
             guard qty <= portfolio.availableShares else {
@@ -403,8 +512,8 @@ public final class MarketEngine {
 
         let result = FillResult(side: side, requestedQty: qty, fills: fills, displayedPrice: displayed)
         switch side {
-        case .buy: portfolio.applyBuy(result)
-        case .sell: portfolio.applySell(result)
+        case .buy: portfolio.applyBuy(result, fee: config.buyFee(on: result.notional))
+        case .sell: portfolio.applySell(result, fee: config.sellFee(on: result.notional))
         }
         return result
     }
@@ -417,6 +526,8 @@ public final class MarketEngine {
         public let price: Int
         public let restingQty: Int
         public var filledQty: Int = 0
+        /// 매수 대기에 묶어둔 예약금 잔액 (수수료 포함) — 정산·취소 시 정확히 해제
+        public var reservedCashLeft: Int = 0
         public var remainingQty: Int { restingQty - filledQty }
     }
 
@@ -441,6 +552,9 @@ public final class MarketEngine {
     /// 매수는 잔여 × 지정가만큼 현금을, 매도는 잔여 주식을 예약한다.
     public func placeLimitOrder(side: Side, price: Int, qty: Int) throws -> LimitOrderResult {
         guard qty > 0, price > 0 else { throw OrderError.invalidQuantity }
+        if hasPriceBand && (price > upperLimitPrice || price < lowerLimitPrice) {
+            throw OrderError.priceOutOfBand(lower: lowerLimitPrice, upper: upperLimitPrice)
+        }
         let displayed = displayedPrice(for: side) ?? price
 
         // 즉시 교차분 비용 미리 계산 (지정가 이하/이상만 먹는다)
@@ -449,10 +563,11 @@ public final class MarketEngine {
         let immediateQty = crossable.reduce(0) { $0 + $1.qty }
         let immediateCost = crossable.reduce(0) { $0 + $1.price * $1.qty }
         let restingQty = qty - immediateQty
+        let restingReserve = restingQty * price + config.buyFee(on: restingQty * price)
 
         switch side {
         case .buy:
-            let needed = immediateCost + restingQty * price
+            let needed = immediateCost + config.buyFee(on: immediateCost) + restingReserve
             guard needed <= portfolio.availableCash else {
                 throw OrderError.insufficientCash(needed: needed, available: portfolio.availableCash)
             }
@@ -472,19 +587,23 @@ public final class MarketEngine {
             let result = FillResult(side: side, requestedQty: qty - actualResting,
                                     fills: fills, displayedPrice: displayed)
             switch side {
-            case .buy: portfolio.applyBuy(result)
-            case .sell: portfolio.applySell(result)
+            case .buy: portfolio.applyBuy(result, fee: config.buyFee(on: result.notional))
+            case .sell: portfolio.applySell(result, fee: config.sellFee(on: result.notional))
             }
             immediate = result
         }
 
         var resting: UserOrder?
         if let restingId, actualResting > 0 {
+            var order = UserOrder(id: restingId, side: side, price: price, restingQty: actualResting)
             switch side {
-            case .buy: portfolio.reserveCash(actualResting * price)
-            case .sell: portfolio.reserveShares(actualResting)
+            case .buy:
+                let reserve = actualResting * price + config.buyFee(on: actualResting * price)
+                portfolio.reserveCash(reserve)
+                order.reservedCashLeft = reserve
+            case .sell:
+                portfolio.reserveShares(actualResting)
             }
-            let order = UserOrder(id: restingId, side: side, price: price, restingQty: actualResting)
             openOrders.append(order)
             resting = order
         }
@@ -497,7 +616,7 @@ public final class MarketEngine {
         let order = openOrders[index]
         let released = book.cancel(orderId: id, side: order.side, price: order.price)
         switch order.side {
-        case .buy: portfolio.releaseCash(released * order.price)
+        case .buy: portfolio.releaseCash(order.reservedCashLeft)
         case .sell: portfolio.releaseShares(released)
         }
         openOrders.remove(at: index)
@@ -520,15 +639,26 @@ public final class MarketEngine {
             if newlyFilled > 0 {
                 let avgCostBefore = portfolio.avgCost
                 switch order.side {
-                case .buy: portfolio.settleRestingBuy(price: order.price, qty: newlyFilled)
-                case .sell: portfolio.settleRestingSell(price: order.price, qty: newlyFilled)
+                case .buy:
+                    let cost = order.price * newlyFilled
+                    let fee = config.buyFee(on: cost)
+                    portfolio.settleRestingBuy(price: order.price, qty: newlyFilled, fee: fee)
+                    order.reservedCashLeft = max(order.reservedCashLeft - cost - fee, 0)
+                case .sell:
+                    let fee = config.sellFee(on: order.price * newlyFilled)
+                    portfolio.settleRestingSell(price: order.price, qty: newlyFilled, fee: fee)
                 }
                 order.filledQty += newlyFilled
                 userFillEvents.append(UserFillEvent(
                     orderId: order.id, side: order.side, price: order.price,
                     qty: newlyFilled, avgCostBefore: avgCostBefore))
             }
-            if remaining > 0 { stillOpen.append(order) }
+            if remaining > 0 {
+                stillOpen.append(order)
+            } else if order.side == .buy && order.reservedCashLeft > 0 {
+                // 부분 체결 수수료 반올림 잔액 — 전량 체결 시 정확히 해제
+                portfolio.releaseCash(order.reservedCashLeft)
+            }
         }
         openOrders = stillOpen
     }
@@ -539,8 +669,8 @@ public final class MarketEngine {
         let result = FillResult(side: side, requestedQty: qty,
                                 fills: [Fill(price: price, qty: qty)], displayedPrice: price)
         switch side {
-        case .buy: portfolio.applyBuy(result)
-        case .sell: portfolio.applySell(result)
+        case .buy: portfolio.applyBuy(result, fee: config.buyFee(on: result.notional))
+        case .sell: portfolio.applySell(result, fee: config.sellFee(on: result.notional))
         }
     }
 }

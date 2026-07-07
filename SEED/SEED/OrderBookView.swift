@@ -18,6 +18,9 @@ struct OrderBookView: View {
             tapeColumn
                 .frame(width: 118)
             VStack(spacing: 3) {
+                if engine.hasPriceBand {
+                    bandRow(label: "상한가", price: engine.upperLimitPrice, color: SeedTheme.up)
+                }
                 ForEach(asks.reversed(), id: \.price) { level in
                     ladderRow(price: level.price, qty: level.qty, maxQty: maxQty, side: .sell)
                 }
@@ -25,9 +28,25 @@ struct OrderBookView: View {
                 ForEach(bids, id: \.price) { level in
                     ladderRow(price: level.price, qty: level.qty, maxQty: maxQty, side: .buy)
                 }
+                if engine.hasPriceBand {
+                    bandRow(label: "하한가", price: engine.lowerLimitPrice, color: SeedTheme.down)
+                }
             }
         }
         .padding(.horizontal, 16)
+    }
+
+    private func bandRow(label: String, price: Int, color: Color) -> some View {
+        HStack {
+            Text(price.formatted())
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(color)
+            Spacer()
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(color.opacity(0.8))
+        }
+        .padding(.vertical, 2)
     }
 
     // MARK: 사다리

@@ -140,7 +140,12 @@ struct TradingView: View {
             .presentationDetents([.height(470)])
         }
         .sheet(item: $lastFill) { fill in
-            FillResultSheet(fill: fill)
+            FillResultSheet(
+                fill: fill,
+                fee: fill.side == .buy
+                    ? session.engine.config.buyFee(on: fill.notional)
+                    : session.engine.config.sellFee(on: fill.notional)
+            )
                 .presentationDetents([.height(340)])
         }
         .alert("주문이 안 됐어요", isPresented: .init(
@@ -166,6 +171,9 @@ struct TradingView: View {
                     .foregroundStyle(SeedTheme.violet)
                     .padding(.horizontal, 8).padding(.vertical, 2)
                     .overlay(Capsule().stroke(SeedTheme.violet, lineWidth: 1))
+                Text("D+\(session.engine.tradingDay)일차")
+                    .font(.system(size: 11))
+                    .foregroundStyle(SeedTheme.textSecondary)
                 Spacer()
                 #if DEBUG
                 Menu {
@@ -398,6 +406,8 @@ struct TradingView: View {
             return "지금은 살 수 있는 물량이 없어요. 잠시 뒤 다시 해봐요."
         case .invalidQuantity:
             return "수량을 확인해 주세요."
+        case .priceOutOfBand(let lower, let upper):
+            return "오늘 주문 가능한 범위는 \(lower.formatted())원(하한가) ~ \(upper.formatted())원(상한가)이에요."
         }
     }
 }
@@ -658,6 +668,7 @@ struct OrderSheet: View {
 
 struct FillResultSheet: View {
     let fill: FillResult
+    var fee: Int = 0
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -672,6 +683,11 @@ struct FillResultSheet: View {
                 row("화면에 보이던 가격", "\(fill.displayedPrice.formatted())원")
                 row("평균 체결가", "\(fill.avgFillPrice.formatted(.number.precision(.fractionLength(0))))원")
                 row("체결 수량", "\(fill.filledQty)주 / 주문 \(fill.requestedQty)주")
+                if fill.side == .buy {
+                    row("수수료", "\(fee.formatted())원")
+                } else {
+                    row("수수료 + 세금", "\(fee.formatted())원")
+                }
             }
 
             if fill.slippage >= 1 {

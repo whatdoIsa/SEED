@@ -182,6 +182,18 @@ public final class OrderBook {
         return book.values.flatMap { $0 }.reduce(0) { $0 + $1.qty }
     }
 
+    /// 특정 참여자의 주문만 남기고 전부 걷는다 — 거래일 경계의 봇 호가 리셋용.
+    public func cancelAllExcept(agentId: String) {
+        for (price, queue) in bids {
+            let remaining = queue.filter { $0.agentId == agentId }
+            if remaining.isEmpty { bids[price] = nil } else { bids[price] = remaining }
+        }
+        for (price, queue) in asks {
+            let remaining = queue.filter { $0.agentId == agentId }
+            if remaining.isEmpty { asks[price] = nil } else { asks[price] = remaining }
+        }
+    }
+
     public func cancelAll(agentId: String) {
         for (price, queue) in bids {
             let remaining = queue.filter { $0.agentId != agentId }

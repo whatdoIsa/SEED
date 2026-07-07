@@ -143,15 +143,18 @@ final class EngineTests: XCTestCase {
         let cashBefore = engine.portfolio.cash
 
         let buy = try engine.placeMarketOrder(side: .buy, qty: 10)
+        let buyFee = engine.config.buyFee(on: buy.notional)
         XCTAssertEqual(buy.filledQty, 10)
         XCTAssertEqual(engine.portfolio.qty, 10)
-        XCTAssertEqual(engine.portfolio.cash, cashBefore - buy.notional)
+        XCTAssertEqual(engine.portfolio.cash, cashBefore - buy.notional - buyFee)
         XCTAssertEqual(engine.portfolio.avgCost, buy.avgFillPrice, accuracy: 0.001)
 
         let sell = try engine.placeMarketOrder(side: .sell, qty: 10)
+        let sellFee = engine.config.sellFee(on: sell.notional)
         XCTAssertEqual(sell.filledQty, 10)
         XCTAssertEqual(engine.portfolio.qty, 0)
-        XCTAssertEqual(engine.portfolio.cash, cashBefore - buy.notional + sell.notional)
+        XCTAssertEqual(engine.portfolio.cash,
+                       cashBefore - buy.notional - buyFee + sell.notional - sellFee)
     }
 
     func testBuyRejectedWhenCashInsufficient() {

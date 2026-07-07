@@ -49,6 +49,9 @@ struct PortfolioView: View {
                     }
                     detailRow("실현손익", "\(Int(portfolio.realizedPnL).formatted())원",
                               color: SeedTheme.pnl(portfolio.realizedPnL))
+                    if portfolio.feesPaid > 0 {
+                        detailRow("누적 수수료·세금", "\(portfolio.feesPaid.formatted())원")
+                    }
                 }
                 .padding(16)
                 .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))

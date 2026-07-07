@@ -13,6 +13,7 @@ struct TradingView: View {
     @State private var miniReviewText: String?
     @State private var hasTraded = true
     @State private var newsBanner: (text: String, positive: Bool)?
+    @State private var showsCryptoIntro = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -95,6 +96,18 @@ struct TradingView: View {
         }
         .animation(.snappy(duration: 0.3), value: miniReviewText)
         .onAppear { hasTraded = store.tradeCount() > 0 }
+        .onChange(of: session.activeSymbolCode) { _, _ in
+            // 크립토 첫 진입: 색 규칙·제도 차이 교육 카드 (§16.4)
+            if session.activeSpec.isCrypto,
+               !UserDefaults.standard.bool(forKey: "seed.cryptoIntroSeen") {
+                UserDefaults.standard.set(true, forKey: "seed.cryptoIntroSeen")
+                showsCryptoIntro = true
+            }
+        }
+        .sheet(isPresented: $showsCryptoIntro) {
+            CryptoIntroSheet()
+                .presentationDetents([.height(430)])
+        }
         .onChange(of: session.engine.newsFeed.count) { _, _ in
             guard let event = session.engine.latestNews else { return }
             withAnimation(.snappy(duration: 0.3)) {
@@ -195,7 +208,7 @@ struct TradingView: View {
                     .foregroundStyle(SeedTheme.violet)
                     .padding(.horizontal, 8).padding(.vertical, 2)
                     .overlay(Capsule().stroke(SeedTheme.violet, lineWidth: 1))
-                Text("D+\(session.engine.tradingDay)일차")
+                Text(session.activeSpec.isCrypto ? "24시간 시장" : "D+\(session.engine.tradingDay)일차")
                     .font(.system(size: 11))
                     .foregroundStyle(SeedTheme.textSecondary)
                 Spacer()

@@ -44,6 +44,27 @@ enum SymbolCatalog {
                 newsTickProbability: 1.0 / 500,
                 newsMagnitudeRange: 0.03...0.10
             )
+        ),
+        // 크립토 합성 모드 (§16): 주식과 같은 엔진, 다른 제도 —
+        // 24시간(장 마감 없음)·상하한가 없음·거래세 없음·고변동. 데이터는 합성.
+        SymbolSpec(
+            code: "BTX",
+            name: "비트씨",
+            oneLiner: "24시간 도는 가상자산",
+            initialPrice: 480_000,
+            config: EngineConfig(
+                tickSize: 500,
+                fairVolatility: 0.0028,
+                volClusterGain: 65,
+                newsTickProbability: 1.0 / 400,
+                newsMagnitudeRange: 0.04...0.12,
+                commissionRate: 0.0005,
+                sellTaxRate: 0,
+                candlesPerDay: 0,
+                priceBandRate: 0,
+                usesKRXTickSize: false
+            ),
+            isCrypto: true
         )
     ]
 

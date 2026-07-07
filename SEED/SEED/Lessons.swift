@@ -21,6 +21,7 @@ enum MissionKind {
     case chaseScenario
     case tapVolumeSpike
     case crashScenario
+    case diversification
 }
 
 struct LessonDef: Identifiable {
@@ -142,8 +143,29 @@ enum LessonCatalog {
         mission: .crashScenario
     )
 
+    static let diversify = LessonDef(
+        id: "lesson.diversify",
+        order: 6,
+        title: "계란과 바구니",
+        subtitle: "시장 전체가 빠지는 날의 생존법",
+        duration: "약 2분",
+        unlocksLevel: nil,
+        unlockLabel: "분산 감각 장착",
+        concept: [
+            ConceptPage(
+                text: "종목 뉴스는 고르면 피할 수 있어요. 그런데 **시장 뉴스는 모두가 함께 맞아요** — 금리, 환율, 침체 공포. 그런 날엔 좋은 종목도 같이 빠집니다.\n\n\"계란을 한 바구니에 담지 말라\"는 말은 이 날을 위한 거예요.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "종목마다 시장에 반응하는 크기가 달라요 — 이걸 **베타(β)**라고 해요.\n\n테마주는 시장이 1 빠질 때 **1.4배**로 맞고, 방어주는 **절반**만 맞고, 금 같은 자산은 **반대로** 움직이기도 해요.\n\n섞으면 계좌의 흔들림이 줄어요. 말로는 안 와닿죠 — 직접 맞아봅시다.",
+                visual: .none
+            )
+        ],
+        mission: .diversification
+    )
+
     static var all: [LessonDef] { registered }
-    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash]
+    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify]
 }
 
 // MARK: - 미션 1용 손수 만든 캔들 (교육 목적으로 모양을 통제)

@@ -94,13 +94,23 @@ public struct QuantStrategy {
 
 public extension BotComparison {
 
+    /// 캔들 마감 시점에 봇이 보는 시장 상태.
+    struct BotContext {
+        public let candles: [Candle]
+        public let avgCost: Double
+        public let holdingQty: Int
+        public let lastPrice: Int
+        /// 내재가치 대용 (가치투자 봇이 저평가/고평가를 판단하는 기준)
+        public let fairValue: Double
+    }
+
     /// 사용자 전략을 시나리오에 백테스트. 봇과 같은 조건 — 같은 주문 API, 같은 슬리피지·수수료.
     static func run(strategy: QuantStrategy, scenario: ScenarioPreset) -> BotRun {
-        runCustom(name: strategy.name, scenario: scenario) { candles, _, holdingQty in
-            if holdingQty == 0 {
-                return strategy.entry.isMet(candles: candles) ? .buyUnit(qty: strategy.unitQty) : nil
+        runCustom(name: strategy.name, scenario: scenario) { ctx in
+            if ctx.holdingQty == 0 {
+                return strategy.entry.isMet(candles: ctx.candles) ? .buyUnit(qty: strategy.unitQty) : nil
             } else {
-                return strategy.exit.isMet(candles: candles) ? .sellAll(qty: holdingQty) : nil
+                return strategy.exit.isMet(candles: ctx.candles) ? .sellAll(qty: ctx.holdingQty) : nil
             }
         }
     }
@@ -108,7 +118,7 @@ public extension BotComparison {
     /// 캔들 마감마다 결정 클로저를 호출하는 공용 하니스.
     static func runCustom(name: String,
                           scenario: ScenarioPreset,
-                          decide: (_ candles: [Candle], _ avgCost: Double, _ holdingQty: Int) -> TurtleStrategy.Action?) -> BotRun {
+                          decide: (_ ctx: BotContext) -> TurtleStrategy.Action?) -> BotRun {
         let engine = MarketEngine(scenario: scenario)
         var equityCurve: [Int] = []
         var actions: [(candleIndex: Int, price: Double, side: Side)] = []
@@ -123,7 +133,13 @@ public extension BotComparison {
                 lastCandleCount = engine.candles.count
                 equityCurve.append(engine.portfolio.equity(at: engine.lastPrice))
 
-                let action = decide(engine.candles, engine.portfolio.avgCost, engine.portfolio.qty)
+                let action = decide(BotContext(
+                    candles: engine.candles,
+                    avgCost: engine.portfolio.avgCost,
+                    holdingQty: engine.portfolio.qty,
+                    lastPrice: engine.lastPrice,
+                    fairValue: engine.fairValue
+                ))
                 switch action {
                 case .buyUnit(let qty):
                     if let fill = try? engine.placeMarketOrder(side: .buy, qty: qty) {

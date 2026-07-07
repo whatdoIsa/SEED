@@ -29,10 +29,6 @@
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
    </TestAction>
-   <!-- queueDebuggingEnabled = "No":
-        Xcode의 Queue Debugging("Enable backtrace recording")이 최신 OS 런타임과
-        충돌해 OS_dispatch_mach_msg unrecognized selector 크래시를 일으킨다.
-        디버거 실행에서만 발생하는 Xcode 진단 기능 버그 — 앱 코드 문제가 아님. -->
    <LaunchAction
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"

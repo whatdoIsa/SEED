@@ -74,6 +74,19 @@ final class MarketClimateTests: XCTestCase {
                              "β가 낮으면 시장과의 상관도 낮아야 한다 (high \(corrHigh) vs low \(corrLow)) — 분산의 근거")
     }
 
+    func testNegativeBetaMovesAgainstMarket() {
+        // 안전자산(음의 β): 시장이 빠지는 날 오히려 오른다 — 분산 레슨의 재료
+        let climate = MarketClimate(seed: 777, tickVolatility: 0.0012, newsTickProbability: 0)
+        let market = MarketEngine(seed: 1, config: quietConfig(beta: 1.0), climate: climate)
+        let safeHaven = MarketEngine(seed: 4, config: quietConfig(beta: -0.8), climate: climate)
+        market.advance(ticks: 4_000)
+        safeHaven.advance(ticks: 4_000)
+
+        let corr = correlation(candleReturns(market), candleReturns(safeHaven))
+        XCTAssertLessThan(corr, -0.15,
+                          "음의 β는 시장과 음의 상관을 만들어야 한다 (측정: \(corr))")
+    }
+
     func testMarketNewsHitsAllSymbolsAtSameTick() {
         // 뉴스 확률을 높여 반드시 몇 번 터지게 한다
         let climate = MarketClimate(seed: 42, newsTickProbability: 1.0 / 150)

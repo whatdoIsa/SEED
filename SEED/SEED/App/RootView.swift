@@ -22,7 +22,8 @@ struct RootView: View {
         .onChange(of: scenePhase) { _, phase in
             // 백그라운드 저장 + 복귀 시 경과분 따라잡기 (§9.2 catch-up)
             session.handleScenePhase(active: phase == .active)
-            if phase == .background {
+            // 알림 갱신은 활성화 시에만 — 서스펜드 순간의 XPC 호출은 크래시를 부른다
+            if phase == .active {
                 SeedNotifications.rescheduleIfAuthorized(
                     weeklyTradeCount: store.weeklyTradeCount())
             }

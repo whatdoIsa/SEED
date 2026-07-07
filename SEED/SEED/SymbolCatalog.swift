@@ -47,6 +47,32 @@ enum SymbolCatalog {
                 marketBeta: 1.4
             )
         ),
+        SymbolSpec(
+            code: "HBF",
+            name: "한빛식품",
+            oneLiner: "시장이 흔들려도 밥은 먹는 방어주",
+            initialPrice: 68_000,
+            config: EngineConfig(
+                fairVolatility: 0.0005,
+                volClusterGain: 25,
+                newsTickProbability: 1.0 / 1_800,
+                newsMagnitudeRange: 0.015...0.04,
+                marketBeta: 0.45
+            )
+        ),
+        SymbolSpec(
+            code: "GLD",
+            name: "한빛골드",
+            oneLiner: "시장과 반대로 숨쉬는 안전자산",
+            initialPrice: 250_000,
+            config: EngineConfig(
+                fairVolatility: 0.0007,
+                volClusterGain: 25,
+                newsTickProbability: 1.0 / 1_800,
+                newsMagnitudeRange: 0.015...0.04,
+                marketBeta: -0.5
+            )
+        ),
         // 크립토 합성 모드 (§16): 주식과 같은 엔진, 다른 제도 —
         // 24시간(장 마감 없음)·상하한가 없음·거래세 없음·고변동. 데이터는 합성.
         SymbolSpec(

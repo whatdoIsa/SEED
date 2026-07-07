@@ -111,6 +111,8 @@ final class Season {
     var engineSeedBits: Int64?
     var lastTick: Int?
     var lastActiveAt: Date?
+    /// 시장 기후(상관관계) 시드 — 시즌 단위로 고정
+    var climateSeedBits: Int64?
 
     init(number: Int, startedAt: Date = .now, startCash: Int) {
         self.number = number

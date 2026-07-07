@@ -116,6 +116,17 @@ final class SeedStore {
 
     var lastActiveAt: Date? { currentSeason.lastActiveAt }
 
+    /// 시장 기후 시드 — 시즌마다 하나. 없으면 만들어 고정한다 (리플레이 연속성).
+    func climateSeed() -> UInt64 {
+        if let bits = currentSeason.climateSeedBits {
+            return UInt64(bitPattern: bits)
+        }
+        let seed = UInt64.random(in: 0...UInt64.max)
+        currentSeason.climateSeedBits = Int64(bitPattern: seed)
+        try? context.save()
+        return seed
+    }
+
     /// 리플레이 대상: 현재 시즌의 본 세션 매매 (시나리오 제외), 틱 순.
     func replayableLogs() -> [TradeLog] {
         seasonLogs()

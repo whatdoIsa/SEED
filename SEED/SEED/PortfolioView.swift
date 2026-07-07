@@ -61,6 +61,8 @@ struct PortfolioView: View {
                     }
                 }
 
+                diversificationCard(ledger: ledger, prices: prices)
+
                 if let rule = store.currentSeason.carriedRule {
                     HStack(spacing: 7) {
                         Image(systemName: "flag.fill")
@@ -138,6 +140,127 @@ struct PortfolioView: View {
 
     private var seasonLogs: [TradeLog] {
         logs.filter { $0.seasonNumber == store.currentSeason.number }
+    }
+
+    // MARK: 분산 체감 지표 — 레슨 6(계란과 바구니)의 일상 연장
+
+    @ViewBuilder
+    private func diversificationCard(ledger: AccountLedger, prices: [String: Int]) -> some View {
+        let equity = session.totalEquity
+        if equity > 0 {
+            // 계좌 β: 보유 평가액 가중 평균 (현금은 β 0 — 현금도 분산이다)
+            let weighted = SymbolCatalog.all.reduce(0.0) { sum, spec in
+                let value = Double(ledger.qty(of: spec.code) * (prices[spec.code] ?? 0))
+                return sum + value * spec.config.marketBeta
+            }
+            let accountBeta = weighted / Double(equity)
+            let shockPct = -3.0
+            let impactPct = shockPct * accountBeta
+            let impactWon = Int(Double(equity) * impactPct / 100)
+            let biggest = SymbolCatalog.all
+                .map { (name: $0.name, value: ledger.qty(of: $0.code) * (prices[$0.code] ?? 0)) }
+                .max { $0.value < $1.value }
+            let concentration = Double(biggest?.value ?? 0) / Double(equity) * 100
+            let hasHoldings = (biggest?.value ?? 0) > 0
+
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("분산 점검")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                    Spacer()
+                    Text("내 계좌 β \(accountBeta.formatted(.number.precision(.fractionLength(2))))")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(SeedTheme.violetDeep)
+                        .padding(.horizontal, 9).padding(.vertical, 3)
+                        .background(SeedTheme.violetTint, in: Capsule())
+                }
+
+                betaScale(accountBeta: accountBeta)
+
+                if hasHoldings {
+                    Text(impactSentence(impactPct: impactPct, impactWon: impactWon))
+                        .font(.system(size: 13))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                        .lineSpacing(4)
+
+                    if concentration >= 50, let biggest {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 11))
+                            Text("\(biggest.name) 한 바구니에 계좌의 \(Int(concentration))%가 담겨 있어요.")
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundStyle(SeedTheme.down)
+                        .padding(.horizontal, 11).padding(.vertical, 8)
+                        .background(SeedTheme.downTint, in: RoundedRectangle(cornerRadius: 10))
+                    }
+                } else {
+                    Text("전부 현금이에요. 흔들림은 0% — 하지만 자라지도 않아요. 그것도 하나의 선택입니다.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                        .lineSpacing(4)
+                }
+
+                if !store.isLessonDone(LessonCatalog.diversify.id) {
+                    Text("β가 뭔지 궁금하면 → 배우기 탭 레슨 6")
+                        .font(.system(size: 11))
+                        .foregroundStyle(SeedTheme.textSecondary.opacity(0.8))
+                }
+            }
+            .padding(15)
+            .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    private func impactSentence(impactPct: Double, impactWon: Int) -> AttributedString {
+        let direction = impactPct <= 0 ? "흔들려요" : "오히려 올라요"
+        var text = AttributedString("시장이 -3% 빠지는 날, 내 계좌는 약 ")
+        var number = AttributedString("\(impactPct.formatted(.number.precision(.fractionLength(1))))% (\(impactWon.formatted())원)")
+        number.foregroundColor = impactPct <= 0 ? SeedTheme.down : SeedTheme.up
+        number.font = .system(size: 13, weight: .semibold)
+        text += number
+        text += AttributedString(" \(direction).")
+        return text
+    }
+
+    /// β 눈금자: 현금(0) — 시장(1) 기준선 위에 내 계좌 위치를 찍는다.
+    private func betaScale(accountBeta: Double) -> some View {
+        let minBeta = -0.6, maxBeta = 1.5
+        func position(_ beta: Double, width: CGFloat) -> CGFloat {
+            let clamped = min(max(beta, minBeta), maxBeta)
+            return width * CGFloat((clamped - minBeta) / (maxBeta - minBeta))
+        }
+        return VStack(spacing: 3) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(SeedTheme.band).frame(height: 6)
+                        .frame(maxHeight: .infinity)
+                    ForEach([0.0, 1.0], id: \.self) { mark in
+                        Rectangle()
+                            .fill(SeedTheme.textSecondary.opacity(0.5))
+                            .frame(width: 1.5, height: 12)
+                            .position(x: position(mark, width: geo.size.width), y: geo.size.height / 2)
+                    }
+                    Circle()
+                        .fill(SeedTheme.violet)
+                        .frame(width: 14, height: 14)
+                        .position(x: position(accountBeta, width: geo.size.width), y: geo.size.height / 2)
+                }
+            }
+            .frame(height: 16)
+            GeometryReader { geo in
+                ZStack {
+                    Text("현금 0")
+                        .position(x: position(0, width: geo.size.width), y: 6)
+                    Text("시장 1.0")
+                        .position(x: position(1.0, width: geo.size.width), y: 6)
+                }
+                .font(.system(size: 10))
+                .foregroundStyle(SeedTheme.textSecondary.opacity(0.8))
+            }
+            .frame(height: 12)
+        }
     }
 
     private func holdingRow(spec: SymbolSpec, ledger: AccountLedger, price: Int) -> some View {

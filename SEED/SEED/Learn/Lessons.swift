@@ -24,6 +24,7 @@ enum MissionKind {
     case diversification
     case valueTrap
     case supportBounce
+    case stopLoss
 }
 
 struct LessonDef: Identifiable {
@@ -208,8 +209,29 @@ enum LessonCatalog {
         mission: .supportBounce
     )
 
+    static let stopLoss = LessonDef(
+        id: "lesson.stoploss",
+        order: 9,
+        title: "손절, 지키기 위한 규칙",
+        subtitle: "질 때 작게 지는 법",
+        duration: "약 3분",
+        unlocksLevel: nil,
+        unlockLabel: "손절 원칙 장착",
+        concept: [
+            ConceptPage(
+                text: "투자에서 이기는 사람과 무너지는 사람의 차이는 이길 때가 아니라 **질 때** 갈려요. 크게 잃지만 않으면 계좌는 살아남거든요.\n\n**손절**은 '여기까지 내려오면 판다'를 **사기 전에 미리 정해두는 것**이에요. 이미 물린 뒤에 '조금만 더 기다려볼까' 하는 건 손절이 아니라 희망이에요.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "손절선을 정하는 법은 여러 가지예요 — 산 값에서 **일정 % 아래**, 또는 지지선(이평선)을 **뚫고 내려가는 자리**.\n\n중요한 건 정한 선을 **지키는 것**이에요. 선에 닿으면 감정 없이 판다. 반토막의 수학 기억하죠? -50%는 +100%가 있어야 회복돼요. 작게 지는 습관이 결국 이기는 습관이에요.\n\n같은 하락을, 손절 있는 사람과 없는 사람으로 나눠서 겪어봅시다.",
+                visual: .none
+            )
+        ],
+        mission: .stopLoss
+    )
+
     static var all: [LessonDef] { registered }
-    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify, valueTrap, supportBounce]
+    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify, valueTrap, supportBounce, stopLoss]
 }
 
 // MARK: - 미션 1용 손수 만든 캔들 (교육 목적으로 모양을 통제)

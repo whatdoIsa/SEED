@@ -275,8 +275,12 @@ struct TradingView: View {
                 Spacer()
                 #if DEBUG
                 Menu {
+                    Button("전체 해금 + 모든 레슨 완료") { store.debugUnlockEverything() }
+                    Button("전체 초기화 (Lv0)") { store.debugResetProgress() }
+                    Divider()
+                    // 차트 도구만 테스트할 때: 레벨만 조정 (레슨 완료는 건드리지 않음)
                     ForEach([0, 1, 2, 3, 9], id: \.self) { level in
-                        Button("Lv\(level)") { store.debugSetUnlockLevel(level) }
+                        Button("차트만 Lv\(level)") { store.debugSetUnlockLevel(level) }
                     }
                 } label: {
                     Text("Lv\(store.progress.unlockLevel)")

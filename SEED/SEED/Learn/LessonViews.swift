@@ -293,6 +293,8 @@ struct LessonFlowView: View {
             ValueTrapMissionView { stage = .done }
         case .supportBounce:
             SupportBounceMissionView { stage = .done }
+        case .stopLoss:
+            StopLossMissionView { stage = .done }
         }
     }
 

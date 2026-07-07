@@ -79,7 +79,7 @@ struct TradingView: View {
                 .gesture(chartZoomGesture)
                 lockedToolCards
                 openOrdersSection
-            } else {
+            } else if marketTab == 1 {
                 if store.progress.unlockLevel >= UnlockLevel.orderBook {
                     ScrollView {
                         OrderBookView(engine: session.engine)
@@ -89,6 +89,8 @@ struct TradingView: View {
                 } else {
                     OrderBookLockedView()
                 }
+            } else {
+                SymbolInfoView(session: session)
             }
             if let text = miniReviewText {
                 HStack(spacing: 7) {
@@ -334,7 +336,7 @@ struct TradingView: View {
 
     private var marketTabPicker: some View {
         HStack(spacing: 16) {
-            ForEach(Array(["차트", "호가"].enumerated()), id: \.offset) { index, title in
+            ForEach(Array(["차트", "호가", "정보"].enumerated()), id: \.offset) { index, title in
                 Button {
                     marketTab = index
                 } label: {

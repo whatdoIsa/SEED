@@ -19,6 +19,7 @@ struct TradingView: View {
     /// 차트 줌 (핀치) — 보이는 캔들 수, 기기 단위로 기억
     @AppStorage("seed.chartZoom") private var visibleCandles = 40
     @State private var pinchBaseCount: Int?
+    @State private var showsFullChart = false
 
     private var chartStyle: ChartStyle {
         ChartStyle(rawValue: chartStyleRaw) ?? .candle
@@ -155,6 +156,9 @@ struct TradingView: View {
                 UserDefaults.standard.set(true, forKey: "seed.cryptoIntroSeen")
                 showsCryptoIntro = true
             }
+        }
+        .fullScreenCover(isPresented: $showsFullChart) {
+            FullScreenChartView(session: session, store: store)
         }
         .sheet(isPresented: $showsCryptoIntro) {
             CryptoIntroSheet()
@@ -425,6 +429,16 @@ struct TradingView: View {
                     .background(SeedTheme.card, in: Capsule())
             }
             Spacer()
+            // 전체화면 차트 (토스 '자세한 차트' 확대 모드)
+            Button {
+                showsFullChart = true
+            } label: {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(SeedTheme.card, in: Capsule())
+            }
             // 선/캔들 토글 (피드백 #2) — 캔들을 배운(해금한) 뒤에만 선택권이 생긴다
             if store.progress.unlockLevel >= UnlockLevel.candles {
                 Button {

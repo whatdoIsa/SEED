@@ -287,6 +287,8 @@ struct LessonFlowView: View {
             TapVolumeSpikeMissionView { stage = .done }
         case .crashScenario:
             CrashScenarioMissionView(store: store) { stage = .done }
+        case .diversification:
+            DiversificationMissionView { stage = .done }
         }
     }
 

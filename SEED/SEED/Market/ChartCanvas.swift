@@ -128,36 +128,23 @@ struct ChartCanvas: View {
     }
 
     private func drawLine(_ context: GraphicsContext, _ m: Metrics) {
-        // 구간(세그먼트) 단위 색상: 오르는 구간은 빨강, 내리는 구간은 파랑 —
-        // 방향이 꺾이는 즉시 색이 바뀐다. 마지막 구간은 형성 중인 캔들이라
-        // 틱마다 방향·색이 실시간으로 반응한다.
-        let style = StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round)
-        var upPath = Path()
-        var downPath = Path()
-
-        if m.all.count > 1 {
-            for i in 1..<m.all.count {
-                let from = CGPoint(x: m.x(i - 1), y: m.y(m.all[i - 1].close))
-                let to = CGPoint(x: m.x(i), y: m.y(m.all[i].close))
-                if m.all[i].close >= m.all[i - 1].close {
-                    upPath.move(to: from)
-                    upPath.addLine(to: to)
-                } else {
-                    downPath.move(to: from)
-                    downPath.addLine(to: to)
-                }
-            }
-            context.stroke(downPath, with: .color(SeedTheme.down), style: style)
-            context.stroke(upPath, with: .color(SeedTheme.up), style: style)
+        // 선 전체가 한 가지 색 — 현재가가 기준가(전일 종가) 위면 빨강, 아래면 파랑.
+        // 기준선을 넘는 순간 선 전체 색이 즉시 바뀐다 (토스 방식).
+        // 기준가가 없는 화면(미션 등)은 창의 시작 가격을 기준으로 쓴다.
+        var line = Path()
+        for (i, candle) in m.all.enumerated() {
+            let point = CGPoint(x: m.x(i), y: m.y(candle.close))
+            if i == 0 { line.move(to: point) } else { line.addLine(to: point) }
         }
+        let lastClose = m.all.last?.close ?? 0
+        let basis = referencePrice ?? m.all.first?.close ?? lastClose
+        let color = lastClose >= basis ? SeedTheme.up : SeedTheme.down
 
-        // 끝점 도트는 마지막 구간의 방향색
+        context.stroke(line, with: .color(color),
+                       style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
         if let last = m.all.last {
-            let lastRising = m.all.count < 2
-                || last.close >= m.all[m.all.count - 2].close
             let dot = CGRect(x: m.x(m.all.count - 1) - 4, y: m.y(last.close) - 4, width: 8, height: 8)
-            context.fill(Path(ellipseIn: dot),
-                         with: .color(lastRising ? SeedTheme.up : SeedTheme.down))
+            context.fill(Path(ellipseIn: dot), with: .color(color))
         }
     }
 

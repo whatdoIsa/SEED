@@ -22,6 +22,7 @@ enum MissionKind {
     case tapVolumeSpike
     case crashScenario
     case diversification
+    case valueTrap
 }
 
 struct LessonDef: Identifiable {
@@ -164,8 +165,29 @@ enum LessonCatalog {
         mission: .diversification
     )
 
+    static let valueTrap = LessonDef(
+        id: "lesson.valuetrap",
+        order: 7,
+        title: "싼 데는 이유가 있다",
+        subtitle: "PER·PBR로 종목을 저울질하기",
+        duration: "약 2분",
+        unlocksLevel: nil,
+        unlockLabel: "가치 지표 읽는 눈",
+        concept: [
+            ConceptPage(
+                text: "가격만 보면 뭐가 싼지 알 수 없어요. 5만원짜리와 50만원짜리 중 뭐가 싼 걸까요? 답은 **이익 대비 얼마인가**예요.\n\n**PER**는 지금 가격이 회사 1년 이익의 몇 배인지예요. PER 10이면 지금 이익이 10년 쌓이면 주가만큼 벌어요. 낮을수록 '이익에 비해 싸다'는 뜻이에요.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "그런데 **낮은 PER이 무조건 좋은 건 아니에요.** 시장이 그 회사의 미래를 어둡게 보면, 이익이 곧 줄 거라 예상해서 가격을 미리 낮춰둔 거예요 — 이걸 **가치 함정**이라고 해요.\n\n반대로 PER이 높은데도 사람들이 사는 건, 이익이 앞으로 크게 늘 거라 **기대**하기 때문이에요.\n\n숫자 하나로 단정하지 말고, '왜 이 값일까'를 물어야 해요. 직접 저울질해봅시다.",
+                visual: .none
+            )
+        ],
+        mission: .valueTrap
+    )
+
     static var all: [LessonDef] { registered }
-    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify]
+    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify, valueTrap]
 }
 
 // MARK: - 미션 1용 손수 만든 캔들 (교육 목적으로 모양을 통제)

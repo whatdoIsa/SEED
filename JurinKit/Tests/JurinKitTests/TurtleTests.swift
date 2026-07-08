@@ -65,4 +65,32 @@ final class TurtleTests: XCTestCase {
         let buyCount = actions.filter { if case .buyUnit = $0 { return true }; return false }.count
         XCTAssertEqual(buyCount, 2, "maxUnits를 넘겨 피라미딩하지 않는다")
     }
+
+    // MARK: 가치투자 봇
+
+    func testValueBotBuysTheDip() {
+        // 급락 시나리오: 공포에 가격이 내재가치 밑으로 빠질 때 가치봇이 줍는다
+        let run = BotComparison.runValue(scenario: .panicCrash())
+        XCTAssertEqual(run.equityCurve.count, run.candles.count)
+        XCTAssertTrue((0...100).contains(run.maxDrawdownPct))
+        XCTAssertEqual(run.botName, "가치투자 봇")
+        XCTAssertFalse(run.actions.filter { $0.side == .buy }.isEmpty,
+                       "저평가되면 가치봇이 진입해야 한다")
+    }
+
+    func testValueBotIsDeterministic() {
+        let a = BotComparison.runValue(scenario: .chaseRally())
+        let b = BotComparison.runValue(scenario: .chaseRally())
+        XCTAssertEqual(a.finalEquity, b.finalEquity)
+        XCTAssertEqual(a.actions.map(\.candleIndex), b.actions.map(\.candleIndex))
+    }
+
+    func testValueAndTrendDifferOnSameScenario() {
+        // 두 철학은 같은 시나리오에서 다르게 움직여야 의미가 있다
+        let turtle = BotComparison.runTurtle(scenario: .chaseRally())
+        let value = BotComparison.runValue(scenario: .chaseRally())
+        XCTAssertNotEqual(turtle.actions.map(\.candleIndex),
+                          value.actions.map(\.candleIndex),
+                          "추세추종과 가치투자는 진입 시점이 달라야 한다")
+    }
 }

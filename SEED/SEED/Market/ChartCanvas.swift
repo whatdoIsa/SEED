@@ -128,13 +128,18 @@ struct ChartCanvas: View {
     }
 
     private func drawLine(_ context: GraphicsContext, _ m: Metrics) {
+        // 선 전체가 한 가지 색 — 현재가가 기준가(전일 종가) 위면 빨강, 아래면 파랑.
+        // 기준선을 넘는 순간 선 전체 색이 즉시 바뀐다 (토스 방식).
+        // 기준가가 없는 화면(미션 등)은 창의 시작 가격을 기준으로 쓴다.
         var line = Path()
         for (i, candle) in m.all.enumerated() {
             let point = CGPoint(x: m.x(i), y: m.y(candle.close))
             if i == 0 { line.move(to: point) } else { line.addLine(to: point) }
         }
-        let rising = (m.all.last?.close ?? 0) >= (m.all.first?.close ?? 0)
-        let color = rising ? SeedTheme.up : SeedTheme.down
+        let lastClose = m.all.last?.close ?? 0
+        let basis = referencePrice ?? m.all.first?.close ?? lastClose
+        let color = lastClose >= basis ? SeedTheme.up : SeedTheme.down
+
         context.stroke(line, with: .color(color),
                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
         if let last = m.all.last {

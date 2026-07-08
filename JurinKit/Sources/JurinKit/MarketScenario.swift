@@ -186,4 +186,70 @@ public extension ScenarioPreset {
             timeScaleLabel: "1캔들 = 1일"
         )
     }
+
+    /// 데드캣 바운스 시나리오: 급락 → 반짝 반등(희망) → 다시 하락(진짜 바닥).
+    /// "떨어진 게 반등하니 바닥인 줄 알고 샀다가 더 물리는" 함정을 체험시킨다.
+    static func deadCatBounce(seed: UInt64 = 20_260_709) -> ScenarioPreset {
+        ScenarioPreset(
+            id: "scenario.dead-cat",
+            seed: seed,
+            initialPrice: 50_000,
+            durationTicks: 640,
+            anchorPull: 0.12,
+            keyframes: [
+                Keyframe(tick: 0, value: 50_000),      // 평온
+                Keyframe(tick: 120, value: 50_200),
+                Keyframe(tick: 180, value: 43_000),    // 1차 급락
+                Keyframe(tick: 240, value: 47_500),    // 반짝 반등 (죽은 고양이의 튀어오름)
+                Keyframe(tick: 300, value: 47_000),    // 결정 지점 부근 — "바닥인가?"
+                Keyframe(tick: 400, value: 39_000),    // 진짜 하락 재개
+                Keyframe(tick: 520, value: 40_500),    // 진짜 바닥 다지기
+                Keyframe(tick: 640, value: 41_500)
+            ],
+            overrides: [
+                AgentOverride(agentId: "TREND", startTick: 120, endTick: 460,
+                              params: AgentParams(activity: 0.85, minQty: 50, maxQty: 200)),
+                AgentOverride(agentId: "NOISE", startTick: 120, endTick: 460,
+                              params: AgentParams(activity: 0.92, minQty: 25, maxQty: 150)),
+                AgentOverride(agentId: "VALUE", startTick: 460, endTick: 620,
+                              params: AgentParams(activity: 0.8, minQty: 70, maxQty: 240))
+            ],
+            decisions: [
+                DecisionPrompt(
+                    tick: 285,
+                    prompt: "떨어지던 게 다시 오르네요. 바닥일까요?",
+                    options: [
+                        DecisionPrompt.Option(label: "반등이니 지금 사기", tagRaw: "chase"),
+                        DecisionPrompt.Option(label: "더 지켜보기", tagRaw: "dip")
+                    ]
+                )
+            ],
+            timeScaleLabel: "1캔들 = 1일"
+        )
+    }
+
+    /// 횡보 시나리오: 아무 일도 없이 좁은 박스권. 지루함에 매매하면 수수료만 나간다.
+    /// "가만히 있는 것도 매매"라는 인내를 가르친다.
+    static func sideways(seed: UInt64 = 20_260_710) -> ScenarioPreset {
+        ScenarioPreset(
+            id: "scenario.sideways",
+            seed: seed,
+            initialPrice: 50_000,
+            durationTicks: 600,
+            anchorPull: 0.18,   // 강한 회귀로 박스권을 좁게 유지
+            keyframes: [
+                Keyframe(tick: 0, value: 50_000),
+                Keyframe(tick: 150, value: 50_400),
+                Keyframe(tick: 300, value: 49_700),
+                Keyframe(tick: 450, value: 50_300),
+                Keyframe(tick: 600, value: 50_000)
+            ],
+            overrides: [
+                // 노이즈만 잔파도를 만들고 추세는 죽여 방향성이 안 생기게
+                AgentOverride(agentId: "TREND", startTick: 0, endTick: 600,
+                              params: AgentParams(activity: 0.1, minQty: 20, maxQty: 60))
+            ],
+            timeScaleLabel: "1캔들 = 1일"
+        )
+    }
 }

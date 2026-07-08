@@ -19,6 +19,7 @@ struct TradingView: View {
     /// 차트 줌 (핀치) — 보이는 캔들 수, 기기 단위로 기억
     @AppStorage("seed.chartZoom") private var visibleCandles = 40
     @State private var pinchBaseCount: Int?
+    @State private var showsFullChart = false
 
     private var chartStyle: ChartStyle {
         ChartStyle(rawValue: chartStyleRaw) ?? .candle
@@ -156,6 +157,9 @@ struct TradingView: View {
                 showsCryptoIntro = true
             }
         }
+        .fullScreenCover(isPresented: $showsFullChart) {
+            FullScreenChartView(session: session, store: store)
+        }
         .sheet(isPresented: $showsCryptoIntro) {
             CryptoIntroSheet()
                 .presentationDetents([.height(430)])
@@ -271,8 +275,12 @@ struct TradingView: View {
                 Spacer()
                 #if DEBUG
                 Menu {
+                    Button("전체 해금 + 모든 레슨 완료") { store.debugUnlockEverything() }
+                    Button("전체 초기화 (Lv0)") { store.debugResetProgress() }
+                    Divider()
+                    // 차트 도구만 테스트할 때: 레벨만 조정 (레슨 완료는 건드리지 않음)
                     ForEach([0, 1, 2, 3, 9], id: \.self) { level in
-                        Button("Lv\(level)") { store.debugSetUnlockLevel(level) }
+                        Button("차트만 Lv\(level)") { store.debugSetUnlockLevel(level) }
                     }
                 } label: {
                     Text("Lv\(store.progress.unlockLevel)")
@@ -425,6 +433,16 @@ struct TradingView: View {
                     .background(SeedTheme.card, in: Capsule())
             }
             Spacer()
+            // 전체화면 차트 (토스 '자세한 차트' 확대 모드)
+            Button {
+                showsFullChart = true
+            } label: {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(SeedTheme.card, in: Capsule())
+            }
             // 선/캔들 토글 (피드백 #2) — 캔들을 배운(해금한) 뒤에만 선택권이 생긴다
             if store.progress.unlockLevel >= UnlockLevel.candles {
                 Button {

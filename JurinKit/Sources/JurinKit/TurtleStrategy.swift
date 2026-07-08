@@ -146,8 +146,34 @@ public enum BotComparison {
     public static func runTurtle(scenario: ScenarioPreset,
                                  strategy: TurtleStrategy? = nil) -> BotRun {
         var turtle = strategy ?? scenarioTurtle
-        return runCustom(name: "터틀 봇", scenario: scenario) { candles, avgCost, _ in
-            turtle.onCandleClose(candles: candles, avgCost: avgCost)
+        return runCustom(name: "터틀 봇", scenario: scenario) { ctx in
+            turtle.onCandleClose(candles: ctx.candles, avgCost: ctx.avgCost)
+        }
+    }
+
+    /// 가치투자 거장 봇 (§15) — fairValue 대비 싸면 사서 버티고, 비싸지면 판다.
+    /// 추세추종(터틀)과 정반대 철학: 남들이 던질 때 줍고, 열광할 때 판다.
+    /// 압축 시나리오는 실측 시장보다 fairValue를 바짝 따라가므로 안전마진을 작게 잡는다.
+    /// 핵심: 순간 fairValue가 아니라 그 장기 EMA(intrinsic)를 기준으로 쓴다. 가격이 버블로
+    /// 치솟으면 fairValue도 따라 오르지만, 추정치는 천천히 움직여 "지금은 비싸다"를 알아본다.
+    /// 이것이 가치투자가 거품에 휩쓸리지 않는 이유를 재현한다.
+    public static func runValue(scenario: ScenarioPreset,
+                                marginOfSafety: Double = 0.035,
+                                premium: Double = 0.04,
+                                emaAlpha: Double = 0.06,
+                                unitQty: Int = 120) -> BotRun {
+        var intrinsic: Double = 0
+        return runCustom(name: "가치투자 봇", scenario: scenario) { ctx in
+            intrinsic = intrinsic == 0 ? ctx.fairValue
+                : intrinsic * (1 - emaAlpha) + ctx.fairValue * emaAlpha
+            let price = Double(ctx.lastPrice)
+            if ctx.holdingQty == 0 {
+                // 내재가치 추정보다 안전마진만큼 쌀 때만 산다
+                return price <= intrinsic * (1 - marginOfSafety) ? .buyUnit(qty: unitQty) : nil
+            } else {
+                // 내재가치 추정보다 프리미엄만큼 비싸지면 전량 매도
+                return price >= intrinsic * (1 + premium) ? .sellAll(qty: ctx.holdingQty) : nil
+            }
         }
     }
 

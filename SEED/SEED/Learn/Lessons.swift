@@ -22,6 +22,9 @@ enum MissionKind {
     case tapVolumeSpike
     case crashScenario
     case diversification
+    case valueTrap
+    case supportBounce
+    case stopLoss
 }
 
 struct LessonDef: Identifiable {
@@ -164,8 +167,71 @@ enum LessonCatalog {
         mission: .diversification
     )
 
+    static let valueTrap = LessonDef(
+        id: "lesson.valuetrap",
+        order: 7,
+        title: "싼 데는 이유가 있다",
+        subtitle: "PER·PBR로 종목을 저울질하기",
+        duration: "약 2분",
+        unlocksLevel: nil,
+        unlockLabel: "가치 지표 읽는 눈",
+        concept: [
+            ConceptPage(
+                text: "가격만 보면 뭐가 싼지 알 수 없어요. 5만원짜리와 50만원짜리 중 뭐가 싼 걸까요? 답은 **이익 대비 얼마인가**예요.\n\n**PER**는 지금 가격이 회사 1년 이익의 몇 배인지예요. PER 10이면 지금 이익이 10년 쌓이면 주가만큼 벌어요. 낮을수록 '이익에 비해 싸다'는 뜻이에요.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "그런데 **낮은 PER이 무조건 좋은 건 아니에요.** 시장이 그 회사의 미래를 어둡게 보면, 이익이 곧 줄 거라 예상해서 가격을 미리 낮춰둔 거예요 — 이걸 **가치 함정**이라고 해요.\n\n반대로 PER이 높은데도 사람들이 사는 건, 이익이 앞으로 크게 늘 거라 **기대**하기 때문이에요.\n\n숫자 하나로 단정하지 말고, '왜 이 값일까'를 물어야 해요. 직접 저울질해봅시다.",
+                visual: .none
+            )
+        ],
+        mission: .valueTrap
+    )
+
+    static let supportBounce = LessonDef(
+        id: "lesson.support",
+        order: 8,
+        title: "선이 받쳐주는 자리",
+        subtitle: "이동평균선과 지지·저항",
+        duration: "약 2분",
+        unlocksLevel: nil,
+        unlockLabel: "추세를 읽는 눈",
+        concept: [
+            ConceptPage(
+                text: "**이동평균선**은 최근 며칠 종가의 평균을 이은 선이에요. 20일선은 최근 20일 평균이죠. 개별 캔들의 출렁임을 걷어내고 **큰 흐름**만 보여줘요.\n\n가격이 이평선 위에 있으면 상승 흐름, 아래면 하락 흐름 — 방향을 한눈에 읽는 도구예요.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "신기하게도, 오르던 가격이 잠깐 내려도 **이평선 근처에서 다시 튀어오르는** 일이 자주 있어요. 많은 사람이 '이 선에서는 사자'고 생각하니까요 — 이걸 **지지**라고 해요. 반대로 위에서 막히면 **저항**이고요.\n\n이런 흐름은 캔들 몇 개론 안 보여요. 수십 캔들이 지나야 드러나죠. 배속을 올려서 시간을 빠르게 감아봅시다.",
+                visual: .none
+            )
+        ],
+        mission: .supportBounce
+    )
+
+    static let stopLoss = LessonDef(
+        id: "lesson.stoploss",
+        order: 9,
+        title: "손절, 지키기 위한 규칙",
+        subtitle: "질 때 작게 지는 법",
+        duration: "약 3분",
+        unlocksLevel: nil,
+        unlockLabel: "손절 원칙 장착",
+        concept: [
+            ConceptPage(
+                text: "투자에서 이기는 사람과 무너지는 사람의 차이는 이길 때가 아니라 **질 때** 갈려요. 크게 잃지만 않으면 계좌는 살아남거든요.\n\n**손절**은 '여기까지 내려오면 판다'를 **사기 전에 미리 정해두는 것**이에요. 이미 물린 뒤에 '조금만 더 기다려볼까' 하는 건 손절이 아니라 희망이에요.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "손절선을 정하는 법은 여러 가지예요 — 산 값에서 **일정 % 아래**, 또는 지지선(이평선)을 **뚫고 내려가는 자리**.\n\n중요한 건 정한 선을 **지키는 것**이에요. 선에 닿으면 감정 없이 판다. 반토막의 수학 기억하죠? -50%는 +100%가 있어야 회복돼요. 작게 지는 습관이 결국 이기는 습관이에요.\n\n같은 하락을, 손절 있는 사람과 없는 사람으로 나눠서 겪어봅시다.",
+                visual: .none
+            )
+        ],
+        mission: .stopLoss
+    )
+
     static var all: [LessonDef] { registered }
-    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify]
+    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify, valueTrap, supportBounce, stopLoss]
 }
 
 // MARK: - 미션 1용 손수 만든 캔들 (교육 목적으로 모양을 통제)

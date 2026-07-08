@@ -289,6 +289,12 @@ struct LessonFlowView: View {
             CrashScenarioMissionView(store: store) { stage = .done }
         case .diversification:
             DiversificationMissionView { stage = .done }
+        case .valueTrap:
+            ValueTrapMissionView { stage = .done }
+        case .supportBounce:
+            SupportBounceMissionView { stage = .done }
+        case .stopLoss:
+            StopLossMissionView { stage = .done }
         }
     }
 

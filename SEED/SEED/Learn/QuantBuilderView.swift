@@ -7,6 +7,10 @@ struct QuantBuilderView: View {
     let store: SeedStore
     @Environment(\.dismiss) private var dismiss
 
+    @State private var mode = 0            // 0: 기술적 백테스트, 1: 가치 스크리너
+    @State private var maxPER = 15.0
+    @State private var maxPBR = 1.5
+    @State private var minDividend = 0.0
     @State private var template = 0
     @State private var rsiEntry = 30.0
     @State private var rsiExit = 65.0
@@ -41,57 +45,22 @@ struct QuantBuilderView: View {
                             .foregroundStyle(SeedTheme.textSecondary)
                     }
                 }
-                Text("조건을 조립하고, 감정 없는 규칙이 시나리오에서 어떤 성적을 내는지 확인해요.")
+                Text(mode == 0
+                     ? "조건을 조립하고, 감정 없는 규칙이 시나리오에서 어떤 성적을 내는지 확인해요."
+                     : "가치 지표로 종목을 걸러내요. 조건에 맞는 종목만 순위로 보여줘요.")
                     .font(.system(size: 13))
                     .foregroundStyle(SeedTheme.textSecondary)
 
-                Picker("전략", selection: $template) {
-                    ForEach(Array(templates.enumerated()), id: \.offset) { index, name in
-                        Text(name).tag(index)
-                    }
+                Picker("모드", selection: $mode) {
+                    Text("기술적 백테스트").tag(0)
+                    Text("가치 스크리너").tag(1)
                 }
                 .pickerStyle(.segmented)
 
-                parameterCard
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("어느 장에서 시험할까요?")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(SeedTheme.textSecondary)
-                    HStack(spacing: 6) {
-                        ForEach(Array(scenarios.enumerated()), id: \.offset) { index, item in
-                            Button {
-                                scenarioIndex = index
-                                run = nil
-                            } label: {
-                                Text(item.name)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(scenarioIndex == index ? SeedTheme.inverse : SeedTheme.textPrimary)
-                                    .padding(.horizontal, 12).padding(.vertical, 8)
-                                    .background(scenarioIndex == index ? SeedTheme.textPrimary : SeedTheme.card,
-                                                in: Capsule())
-                            }
-                        }
-                    }
-                }
-
-                Button {
-                    runBacktest()
-                } label: {
-                    HStack(spacing: 8) {
-                        if isRunning { ProgressView().tint(.white) }
-                        Text("백테스트 실행")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(SeedTheme.violet, in: RoundedRectangle(cornerRadius: 14))
-                }
-                .disabled(isRunning)
-
-                if let run {
-                    resultSection(run)
+                if mode == 0 {
+                    technicalPanel
+                } else {
+                    valueScreenerPanel
                 }
 
                 Text("교육용 백테스트 · 백테스트 우수 ≠ 실전 수익 · 투자 권유 아님")
@@ -102,6 +71,167 @@ struct QuantBuilderView: View {
             .padding(16)
         }
         .background(SeedTheme.background)
+    }
+
+    // MARK: 기술적 백테스트 패널 (기존)
+
+    @ViewBuilder
+    private var technicalPanel: some View {
+        Picker("전략", selection: $template) {
+            ForEach(Array(templates.enumerated()), id: \.offset) { index, name in
+                Text(name).tag(index)
+            }
+        }
+        .pickerStyle(.segmented)
+
+        parameterCard
+
+        VStack(alignment: .leading, spacing: 8) {
+            Text("어느 장에서 시험할까요?")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(SeedTheme.textSecondary)
+            HStack(spacing: 6) {
+                ForEach(Array(scenarios.enumerated()), id: \.offset) { index, item in
+                    Button {
+                        scenarioIndex = index
+                        run = nil
+                    } label: {
+                        Text(item.name)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(scenarioIndex == index ? SeedTheme.inverse : SeedTheme.textPrimary)
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .background(scenarioIndex == index ? SeedTheme.textPrimary : SeedTheme.card,
+                                        in: Capsule())
+                    }
+                }
+            }
+        }
+
+        Button {
+            runBacktest()
+        } label: {
+            HStack(spacing: 8) {
+                if isRunning { ProgressView().tint(.white) }
+                Text("백테스트 실행")
+                    .font(.system(size: 16, weight: .semibold))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(SeedTheme.violet, in: RoundedRectangle(cornerRadius: 14))
+        }
+        .disabled(isRunning)
+
+        if let run {
+            resultSection(run)
+        }
+    }
+
+    // MARK: 가치 스크리너 패널 (신규 — 6종목 카탈로그를 재무 지표로 필터)
+
+    /// 조건 통과 종목을 저평가 순(PER 낮은 순)으로. §11.1: 점 예측이 아니라 '조건 통과 + 순위'.
+    private var screenedSymbols: [(spec: SymbolSpec, per: Double, pbr: Double, yield: Double, price: Int)] {
+        SymbolCatalog.all.compactMap { spec in
+            guard let f = spec.financials,
+                  let per = f.per(at: spec.initialPrice),
+                  let pbr = f.pbr(at: spec.initialPrice) else { return nil }
+            let yield = f.dividendYieldPct(at: spec.initialPrice) ?? 0
+            guard per <= maxPER, pbr <= maxPBR, yield >= minDividend else { return nil }
+            return (spec, per, pbr, yield, spec.initialPrice)
+        }
+        .sorted { $0.per < $1.per }
+    }
+
+    @ViewBuilder
+    private var valueScreenerPanel: some View {
+        let totalWithFinancials = SymbolCatalog.all.filter { $0.financials != nil }.count
+
+        VStack(alignment: .leading, spacing: 12) {
+            screenSlider("PER 최대", value: $maxPER, range: 3...80, step: 1,
+                         suffix: "배 이하")
+            screenSlider("PBR 최대", value: $maxPBR, range: 0.4...8, step: 0.1,
+                         suffix: "배 이하", fraction: 1)
+            screenSlider("배당수익률 최소", value: $minDividend, range: 0...5, step: 0.5,
+                         suffix: "% 이상", fraction: 1)
+        }
+        .padding(14)
+        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+
+        let results = screenedSymbols
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("통과 종목")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Spacer()
+                Text("\(results.count) / \(totalWithFinancials)종목")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+            if results.isEmpty {
+                Text("조건에 맞는 종목이 없어요. 기준을 조금 느슨하게 해볼까요?")
+                    .font(.system(size: 13))
+                    .foregroundStyle(SeedTheme.textSecondary)
+                    .padding(13)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 12))
+            } else {
+                ForEach(Array(results.enumerated()), id: \.element.spec.code) { index, r in
+                    screenResultRow(rank: index + 1, r: r)
+                }
+                Text("PER이 낮은 순으로 정렬했어요. 단, 이건 '싸 보이는 순서'일 뿐 — 왜 싼지는 각 종목을 열어 확인하세요. (레슨 7)")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.violetDeep)
+                    .lineSpacing(4)
+                    .padding(11)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(SeedTheme.violetTint, in: RoundedRectangle(cornerRadius: 11))
+            }
+        }
+    }
+
+    private func screenSlider(_ label: String, value: Binding<Double>,
+                              range: ClosedRange<Double>, step: Double,
+                              suffix: String, fraction: Int = 0) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(label).font(.system(size: 13)).foregroundStyle(SeedTheme.textPrimary)
+                Spacer()
+                Text("\(value.wrappedValue.formatted(.number.precision(.fractionLength(fraction))))\(suffix)")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(SeedTheme.violetDeep)
+            }
+            Slider(value: value, in: range, step: step)
+        }
+    }
+
+    private func screenResultRow(rank: Int,
+                                 r: (spec: SymbolSpec, per: Double, pbr: Double, yield: Double, price: Int)) -> some View {
+        HStack(spacing: 10) {
+            Text("\(rank)")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(SeedTheme.violetDeep)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(r.spec.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Text(r.spec.oneLiner)
+                    .font(.system(size: 11))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("PER \(r.per.formatted(.number.precision(.fractionLength(1))))배")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Text("PBR \(r.pbr.formatted(.number.precision(.fractionLength(1)))) · 배당 \(r.yield.formatted(.number.precision(.fractionLength(1))))%")
+                    .font(.system(size: 11))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+        }
+        .padding(12)
+        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: 파라미터 (템플릿별)

@@ -295,11 +295,11 @@ struct TradingView: View {
                     Button("전체 초기화 (Lv0)") { store.debugResetProgress() }
                     Divider()
                     // 차트 도구만 테스트할 때: 레벨만 조정 (레슨 완료는 건드리지 않음)
-                    ForEach([0, 1, 2, 3, 9], id: \.self) { level in
-                        Button("차트만 Lv\(level)") { store.debugSetUnlockLevel(level) }
+                    ForEach([0, 1, 2, 3, 4], id: \.self) { level in
+                        Button("도구 \(level)/4") { store.debugSetUnlockLevel(level) }
                     }
                 } label: {
-                    Text("Lv\(store.progress.unlockLevel)")
+                    Text("도구 \(min(store.progress.unlockLevel, UnlockLevel.all))/\(UnlockLevel.all)")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(SeedTheme.textSecondary)
                         .padding(.horizontal, 8).padding(.vertical, 2)

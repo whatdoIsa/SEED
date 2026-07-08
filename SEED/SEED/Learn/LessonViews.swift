@@ -125,31 +125,75 @@ struct LessonListView: View {
 
     private var dailyMarketCard: some View {
         let doneToday = store.isLessonDone(DailyMarket.id())
+        let streak = DailyMarket.streak(completed: store.completedLessonIds)
+        let week = DailyMarket.lastSevenDays(completed: store.completedLessonIds)
+        let patterns = DailyMarket.patternCounts(completed: store.completedLessonIds)
+
         return Button {
             if !doneToday { showsDailyMarket = true }
         } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(doneToday ? SeedTheme.card : SeedTheme.violet)
-                        .frame(width: 38, height: 38)
-                    Image(systemName: doneToday ? "checkmark" : "sunrise.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(doneToday ? SeedTheme.textSecondary : .white)
+            VStack(alignment: .leading, spacing: 11) {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(doneToday ? SeedTheme.card : SeedTheme.violet)
+                            .frame(width: 38, height: 38)
+                        Image(systemName: doneToday ? "checkmark" : "sunrise.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(doneToday ? SeedTheme.textSecondary : .white)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text("오늘의 장")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(SeedTheme.textPrimary)
+                            if streak >= 2 {
+                                Text("🔥 \(streak)일 연속")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(SeedTheme.violetDeep)
+                                    .padding(.horizontal, 7).padding(.vertical, 2)
+                                    .background(SeedTheme.background, in: Capsule())
+                            }
+                        }
+                        Text(doneToday ? "오늘 완료 · 내일 새로운 장이 열려요" : "오늘은 어떤 장일까요? 자유롭게 매매해보세요")
+                            .font(.system(size: 12))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                    }
+                    Spacer()
+                    if !doneToday {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13))
+                            .foregroundStyle(SeedTheme.violet)
+                    }
                 }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("오늘의 장")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(SeedTheme.textPrimary)
-                    Text(doneToday ? "오늘 완료 · 내일 새로운 장이 열려요" : "오늘은 어떤 장일까요? 자유롭게 매매해보세요")
-                        .font(.system(size: 12))
+
+                // 최근 7일 점 캘린더 — 오늘이 맨 오른쪽
+                HStack(spacing: 5) {
+                    ForEach(Array(week.enumerated()), id: \.offset) { index, done in
+                        Circle()
+                            .fill(done ? SeedTheme.violet : SeedTheme.band)
+                            .frame(width: 7, height: 7)
+                            .overlay {
+                                if index == week.count - 1 {
+                                    Circle().stroke(SeedTheme.violetDeep.opacity(0.5), lineWidth: 1.5)
+                                        .frame(width: 11, height: 11)
+                                }
+                            }
+                    }
+                    Text("최근 7일")
+                        .font(.system(size: 10))
                         .foregroundStyle(SeedTheme.textSecondary)
-                }
-                Spacer()
-                if !doneToday {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13))
-                        .foregroundStyle(SeedTheme.violet)
+                        .padding(.leading, 3)
+                    Spacer()
+                    // 겪어본 패턴 — 많이 겪은 순 상위 2개
+                    if !patterns.isEmpty {
+                        Text(patterns.prefix(2)
+                            .map { "\($0.pattern.revealName) ×\($0.count)" }
+                            .joined(separator: " · "))
+                            .font(.system(size: 10))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                            .lineLimit(1)
+                    }
                 }
             }
             .padding(14)

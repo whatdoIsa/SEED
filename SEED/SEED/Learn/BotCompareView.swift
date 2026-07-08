@@ -96,6 +96,10 @@ struct BotCompareView: View {
                         statCard("최대 낙폭", "-\(run.maxDrawdownPct.formatted(.number.precision(.fractionLength(1))))%")
                     }
 
+                    buyAndHoldLine(run: run)
+
+                    journalSection(run: run)
+
                     comparisonCard(run: run)
                 } else {
                     HStack(spacing: 8) {
@@ -167,6 +171,69 @@ struct BotCompareView: View {
             Text(text)
                 .font(.system(size: 12))
                 .foregroundStyle(SeedTheme.inkText.opacity(0.85))
+        }
+    }
+
+    // MARK: 존버 기준선 — 봇이 항상 이기는 건 아니라는 정직한 비교
+
+    @ViewBuilder
+    private func buyAndHoldLine(run: BotRun) -> some View {
+        if let first = run.candles.first, let last = run.candles.last, first.close > 0 {
+            let holdPct = Double(last.close - first.close) / Double(first.close) * 100
+            let botWins = run.returnPct > holdPct
+            HStack(spacing: 7) {
+                Image(systemName: "hand.raised.fill").font(.system(size: 11))
+                Text("그냥 들고만 있었다면 \(holdPct >= 0 ? "+" : "")\(holdPct.formatted(.number.precision(.fractionLength(2))))% — \(botWins ? "이번엔 봇의 규칙이 나았어요" : "이번엔 존버가 나았어요. 봇이 항상 이기는 건 아니에요")")
+                    .font(.system(size: 12))
+                Spacer()
+            }
+            .foregroundStyle(SeedTheme.textSecondary)
+            .padding(.horizontal, 13).padding(.vertical, 9)
+            .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 11))
+        }
+    }
+
+    // MARK: 매매 일지 — 왜 그때 샀는가
+
+    @ViewBuilder
+    private func journalSection(run: BotRun) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("봇의 매매 일지")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(SeedTheme.textPrimary)
+            if run.actions.isEmpty {
+                Text("이번 장에선 한 번도 매매하지 않았어요 — 조건에 맞는 순간이 없으면 봇은 그냥 기다려요. 그것도 규칙이에요.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+                    .lineSpacing(4)
+            } else {
+                ForEach(Array(run.actions.enumerated()), id: \.offset) { _, action in
+                    journalRow(action)
+                }
+            }
+        }
+        .padding(15)
+        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func journalRow(_ action: BotAction) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(action.side == .buy ? "매수" : "매도")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 7).padding(.vertical, 3)
+                .background(action.side == .buy ? SeedTheme.up : SeedTheme.down,
+                            in: RoundedRectangle(cornerRadius: 6))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(action.candleIndex)번째 캔들 · \(Int(action.price).formatted())원")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Text(action.reason)
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+                    .lineSpacing(3)
+            }
+            Spacer()
         }
     }
 

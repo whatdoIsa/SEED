@@ -20,6 +20,7 @@ struct LessonListView: View {
                     .foregroundStyle(SeedTheme.textSecondary)
 
                 dailyMarketCard
+                deepLinkListener
 
                 ForEach(LessonCatalog.all) { lesson in
                     lessonRow(lesson)
@@ -122,6 +123,16 @@ struct LessonListView: View {
     }
 
     // MARK: 오늘의 장 (⑦ — 매일 다른 장이 열린다)
+
+    private var deepLinkListener: some View {
+        Color.clear
+            .frame(height: 0)
+            .onReceive(NotificationCenter.default.publisher(for: .seedOpenDailyMarket)) { _ in
+                if !store.isLessonDone(DailyMarket.id()) {
+                    showsDailyMarket = true
+                }
+            }
+    }
 
     private var dailyMarketCard: some View {
         let doneToday = store.isLessonDone(DailyMarket.id())

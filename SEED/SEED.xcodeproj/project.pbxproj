@@ -8,13 +8,44 @@
 
 /* Begin PBXBuildFile section */
 		AA0000000000000000000001 /* JurinKit in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000002 /* JurinKit */; };
+		AB00000000000000000010 /* SEEDWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AB00000000000000000001 /* SEEDWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		AB00000000000000000007 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E9CC17612FFBB238001C5393 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AB00000000000000000006;
+			remoteInfo = SEEDWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		AB00000000000000000009 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				AB00000000000000000010 /* SEEDWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		AB00000000000000000001 /* SEEDWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SEEDWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E9CC17692FFBB238001C5393 /* SEED.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SEED.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		AB00000000000000000002 /* SEEDWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = SEEDWidget;
+			sourceTree = "<group>";
+		};
 		E9CC176B2FFBB238001C5393 /* SEED */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = SEED;
@@ -23,6 +54,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		AB00000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E9CC17662FFBB238001C5393 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -38,6 +76,7 @@
 			isa = PBXGroup;
 			children = (
 				E9CC176B2FFBB238001C5393 /* SEED */,
+				AB00000000000000000002 /* SEEDWidget */,
 				E9CC176A2FFBB238001C5393 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -46,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				E9CC17692FFBB238001C5393 /* SEED.app */,
+				AB00000000000000000001 /* SEEDWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -53,6 +93,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		AB00000000000000000006 /* SEEDWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AB00000000000000000013 /* Build configuration list for PBXNativeTarget "SEEDWidgetExtension" */;
+			buildPhases = (
+				AB00000000000000000003 /* Sources */,
+				AB00000000000000000004 /* Frameworks */,
+				AB00000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				AB00000000000000000002 /* SEEDWidget */,
+			);
+			name = SEEDWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = SEEDWidgetExtension;
+			productReference = AB00000000000000000001 /* SEEDWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		E9CC17682FFBB238001C5393 /* SEED */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E9CC17762FFBB23A001C5393 /* Build configuration list for PBXNativeTarget "SEED" */;
@@ -60,10 +122,12 @@
 				E9CC17652FFBB238001C5393 /* Sources */,
 				E9CC17662FFBB238001C5393 /* Frameworks */,
 				E9CC17672FFBB238001C5393 /* Resources */,
+				AB00000000000000000009 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				AB00000000000000000008 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				E9CC176B2FFBB238001C5393 /* SEED */,
@@ -109,11 +173,19 @@
 			projectRoot = "";
 			targets = (
 				E9CC17682FFBB238001C5393 /* SEED */,
+				AB00000000000000000006 /* SEEDWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		AB00000000000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E9CC17672FFBB238001C5393 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -124,6 +196,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		AB00000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E9CC17652FFBB238001C5393 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -133,7 +212,67 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		AB00000000000000000008 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AB00000000000000000006 /* SEEDWidgetExtension */;
+			targetProxy = AB00000000000000000007 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		AB00000000000000000011 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SEEDWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = T6245YXX47;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WidgetInfo.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SEED;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = kr.arcseed.SEED.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AB00000000000000000012 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SEEDWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = T6245YXX47;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = WidgetInfo.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SEED;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = kr.arcseed.SEED.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		E9CC17742FFBB23A001C5393 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -326,6 +465,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		AB00000000000000000013 /* Build configuration list for PBXNativeTarget "SEEDWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB00000000000000000011 /* Debug */,
+				AB00000000000000000012 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		E9CC17642FFBB238001C5393 /* Build configuration list for PBXProject "SEED" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

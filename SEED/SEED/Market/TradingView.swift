@@ -214,6 +214,8 @@ struct TradingView: View {
             }
             .presentationDetents([.height(470)])
         }
+        .sensoryFeedback(.success, trigger: lastFill?.id)
+        .sensoryFeedback(.success, trigger: session.limitFillNotice)
         .sheet(item: $lastFill) { fill in
             FillResultSheet(
                 fill: fill,

@@ -1,9 +1,13 @@
 import SwiftUI
+import JurinKit
 
 /// 온보딩 (M5-1, 부록 A-2) — 무가입, 안심 메시지, 경험 분기 1문항.
 /// 목표: 설치 후 60초 안에 첫 매수 체결 (§7.1).
 struct OnboardingView: View {
     let store: SeedStore
+    // 살아있는 시장 미리보기 — 설치 첫 화면부터 시장이 움직인다
+    @State private var previewEngine = MarketEngine(seed: 20_260_601)
+    @State private var previewLoop: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -37,6 +41,39 @@ struct OnboardingView: View {
             .padding(.horizontal, 12).padding(.vertical, 6)
             .background(SeedTheme.violetTint, in: Capsule())
             .padding(.top, 18)
+
+            // 살아있는 시장 미리보기 — "이미 움직이고 있어요"
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 5) {
+                    Circle().fill(SeedTheme.up).frame(width: 6, height: 6)
+                    Text("지금 이 순간에도 시장이 움직여요")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                    Spacer()
+                    Text("\(previewEngine.lastPrice.formatted())원")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                        .contentTransition(.numericText())
+                }
+                ChartCanvas(candles: previewEngine.candles,
+                            current: previewEngine.currentCandle,
+                            unlockLevel: UnlockLevel.lineOnly)
+                    .frame(height: 90)
+            }
+            .padding(13)
+            .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+            .padding(.top, 20)
+            .task {
+                guard previewLoop == nil else { return }
+                previewEngine.advance(ticks: 600) // 지나온 역사부터
+                previewLoop = Task {
+                    while !Task.isCancelled {
+                        previewEngine.step()
+                        try? await Task.sleep(for: .milliseconds(60))
+                    }
+                }
+            }
+            .onDisappear { previewLoop?.cancel() }
 
             Spacer()
 

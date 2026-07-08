@@ -80,7 +80,7 @@ struct SettingsView: View {
     private var dataSection: some View {
         section("데이터") {
             VStack(alignment: .leading, spacing: 10) {
-                Text("매매 기록·시즌·레슨 진행이 모두 이 기기에만 저장돼요. 서버로 보내지 않아요.")
+                Text("매매 기록·시즌·레슨 진행은 이 기기와 내 iCloud(개인 저장소)에만 저장돼요. 개발자 서버로는 아무것도 보내지 않아요.")
                     .font(.system(size: 12))
                     .foregroundStyle(SeedTheme.textSecondary)
                     .lineSpacing(4)
@@ -137,7 +137,7 @@ struct SettingsView: View {
         return section("정보") {
             VStack(spacing: 8) {
                 infoRow("버전", "\(version) (\(build))")
-                infoRow("데이터 보관", "이 기기에만 저장")
+                infoRow("데이터 보관", "이 기기 + 내 iCloud")
                 infoRow("광고", "없음")
             }
         }

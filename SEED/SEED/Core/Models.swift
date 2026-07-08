@@ -37,19 +37,20 @@ enum TradeReasonTag: String, Codable, CaseIterable {
 
 @Model
 final class TradeLog {
-    var timestamp: Date
-    var sideRaw: String
-    var symbol: String
+    // CloudKit 호환: 모든 속성은 인라인 기본값 필수 (init이 실제 값으로 덮어씀)
+    var timestamp: Date = Date.distantPast
+    var sideRaw: String = "buy"
+    var symbol: String = ""
     /// 주문 시 화면에 보이던 최우선 호가
-    var displayedPrice: Int
-    var qty: Int
-    var avgFillPrice: Double
+    var displayedPrice: Int = 0
+    var qty: Int = 0
+    var avgFillPrice: Double = 0
     /// 표시가 대비 불리한 방향이 양수 (슬리피지 튜토리얼·복기의 원료)
-    var slippage: Double
-    var reasonTagRaw: String
+    var slippage: Double = 0
+    var reasonTagRaw: String = "gut_buy"
     var note: String?
     var scenarioId: String?
-    var seasonNumber: Int
+    var seasonNumber: Int = 1
     /// 매도 시에만: 평단 대비 확정 수익률(%). L1 복기의 핵심 집계 대상.
     var realizedReturnPct: Double?
     /// 체결 시점의 엔진 틱 — 세션 리플레이의 좌표 (시나리오 매매는 nil)
@@ -94,10 +95,10 @@ final class TradeLog {
 @Model
 final class Season {
     /// 시즌 번호 (1부터). 리셋마다 +1.
-    var number: Int
-    var startedAt: Date
+    var number: Int = 1
+    var startedAt: Date = Date.distantPast
     var endedAt: Date?
-    var startCash: Int
+    var startCash: Int = 0
     /// 계좌 부검 시점의 최종 평가액
     var endEquity: Int?
     /// 부검에서 고른, 다음 시즌으로 가져가는 규칙 — 이월되는 것은 돈이 아니라 이것.
@@ -125,10 +126,10 @@ final class Season {
 
 @Model
 final class SymbolState {
-    var seasonNumber: Int
-    var code: String
-    var seedBits: Int64
-    var lastTick: Int
+    var seasonNumber: Int = 1
+    var code: String = ""
+    var seedBits: Int64 = 0
+    var lastTick: Int = 0
 
     init(seasonNumber: Int, code: String, seedBits: Int64, lastTick: Int) {
         self.seasonNumber = seasonNumber
@@ -143,8 +144,8 @@ final class SymbolState {
 @Model
 final class LessonProgress {
     /// 예: "lesson.candle", "lesson.orderbook", "lesson.chase"
-    var lessonId: String
-    var startedAt: Date
+    var lessonId: String = ""
+    var startedAt: Date = Date.distantPast
     var completedAt: Date?
 
     init(lessonId: String, startedAt: Date = .now) {
@@ -159,8 +160,8 @@ final class LessonProgress {
 final class AppProgress {
     /// 도구 해금 레벨 — P0 레슨 사슬 순서를 따른다:
     /// 0 라인차트 → 1 캔들(레슨1) → 2 호가창·체결(레슨2) → 3 거래량·이평선(레슨3)
-    var unlockLevel: Int
-    var onboardingDone: Bool
+    var unlockLevel: Int = 0
+    var onboardingDone: Bool = false
 
     init(unlockLevel: Int = 0, onboardingDone: Bool = false) {
         self.unlockLevel = unlockLevel

@@ -175,5 +175,6 @@ enum UnlockLevel {
     static let candles = 1
     static let orderBook = 2
     static let volumeAndMA = 3
-    static let all = 9
+    /// 전체 해금. 과거 데이터엔 9로 저장된 경우가 있으나 비교는 전부 >= 라 유효.
+    static let all = 4
 }

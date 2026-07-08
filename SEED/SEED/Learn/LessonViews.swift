@@ -308,7 +308,8 @@ struct LessonFlowView: View {
                 missionView
             case .done:
                 LessonCompletionView(lesson: lesson) {
-                    store.completeLesson(lesson.id, unlocksLevel: lesson.unlocksLevel)
+                    // 레벨 = 레슨 순번 — 레슨을 마칠 때마다 Lv이 오른다
+                    store.completeLesson(lesson.id, unlocksLevel: lesson.order)
                     dismiss()
                 }
             }

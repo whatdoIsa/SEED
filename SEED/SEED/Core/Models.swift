@@ -170,11 +170,14 @@ final class AppProgress {
 }
 
 /// 해금 레벨 상수 — 매직 넘버 방지.
+/// 레벨 = 완료한 레슨 수. 레슨 하나를 마칠 때마다 1씩 오른다 (직관 체계).
+/// 도구는 그것을 가르치는 레슨의 순번에서 열린다.
 enum UnlockLevel {
     static let lineOnly = 0
-    static let candles = 1
-    static let orderBook = 2
-    static let volumeAndMA = 3
-    /// 전체 해금. 과거 데이터엔 9로 저장된 경우가 있으나 비교는 전부 >= 라 유효.
-    static let all = 4
+    static let candles = 1      // 레슨 1: 캔들
+    static let orderBook = 2    // 레슨 2: 호가창
+    static let volumeAndMA = 4  // 레슨 4: 거래량·이동평균선
+    static let all = 5          // 레슨 5: 급락 — 이후 도구 전부
+    /// 표시용 최대 레벨 = 전체 레슨 수
+    static var max: Int { LessonCatalog.registered.count }
 }

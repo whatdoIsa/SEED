@@ -389,7 +389,7 @@ final class SeedStore {
             context.insert(progressRecord)
         }
         completedLessonIds = Set(LessonCatalog.registered.map(\.id))
-        progress.unlockLevel = UnlockLevel.all
+        progress.unlockLevel = UnlockLevel.max
         progress.onboardingDone = true
         try? context.save()
     }

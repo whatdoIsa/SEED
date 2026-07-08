@@ -47,6 +47,47 @@ enum DailyMarket {
         return Pattern(rawValue: rng.int(in: 0...Pattern.allCases.count - 1)) ?? .sideways
     }
 
+    // MARK: 스트릭 (§6.2 리텐션 루프 — "매일 한 판"의 기록)
+
+    /// 연속 완료 일수. 오늘 아직 안 했으면 어제까지의 연속을 센다 (스트릭은 자정에 끊기지 않는다).
+    static func streak(completed: Set<String>, today: Date = .now) -> Int {
+        let calendar = Calendar.current
+        var cursor = today
+        // 오늘 미완료면 어제부터 시작 — 아직 오늘 판이 남아있는 것뿐
+        if !completed.contains(id(for: cursor)) {
+            guard let yesterday = calendar.date(byAdding: .day, value: -1, to: cursor) else { return 0 }
+            cursor = yesterday
+        }
+        var count = 0
+        while completed.contains(id(for: cursor)) {
+            count += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = previous
+        }
+        return count
+    }
+
+    /// 최근 7일 완료 여부 (과거 → 오늘 순).
+    static func lastSevenDays(completed: Set<String>, today: Date = .now) -> [Bool] {
+        let calendar = Calendar.current
+        return (0..<7).reversed().map { offset in
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { return false }
+            return completed.contains(id(for: day))
+        }
+    }
+
+    /// 완료한 날들의 패턴별 횟수 — 날짜에서 결정론적으로 재계산 (저장 불필요).
+    static func patternCounts(completed: Set<String>) -> [(pattern: Pattern, count: Int)] {
+        var counts: [Pattern: Int] = [:]
+        for lessonId in completed where lessonId.hasPrefix("daily.") {
+            guard let stamp = Int(lessonId.dropFirst("daily.".count)) else { continue }
+            var rng = SeededRNG(seed: UInt64(stamp))
+            let pattern = Pattern(rawValue: rng.int(in: 0...Pattern.allCases.count - 1)) ?? .sideways
+            counts[pattern, default: 0] += 1
+        }
+        return counts.sorted { $0.value > $1.value }.map { ($0.key, $0.value) }
+    }
+
     /// 날짜 시드로 프리셋 생성 — 패턴 골격은 같고 크기·타이밍은 매일 다르다.
     static func scenario(for date: Date = .now) -> ScenarioPreset {
         let stamp = dayStamp(date)

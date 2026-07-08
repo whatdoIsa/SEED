@@ -13,6 +13,16 @@ struct SEEDApp: App {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
 
+        // iCloud 백업: 사용자의 프라이빗 CloudKit DB로 조용히 동기화 (무가입 유지).
+        // iCloud 미로그인·컨테이너 문제 시 로컬 전용으로, 그마저 실패하면 인메모리로 폴백.
+        func makeCloudContainer() -> ModelContainer? {
+            try? ModelContainer(
+                for: SeedStore.schema,
+                configurations: [ModelConfiguration(
+                    schema: SeedStore.schema,
+                    cloudKitDatabase: .private("iCloud.kr.arcseed.SEED"))]
+            )
+        }
         func makeContainer(inMemory: Bool) -> ModelContainer? {
             try? ModelContainer(
                 for: SeedStore.schema,
@@ -23,7 +33,9 @@ struct SEEDApp: App {
 
         // 디스크 저장소가 끝내 실패해도 앱을 죽이지 않는다 —
         // 인메모리로 내려앉아 이번 실행만 비영속으로 돈다 (fatalError 제거).
-        if let container = makeContainer(inMemory: false) {
+        if let cloud = makeCloudContainer() {
+            self.container = cloud
+        } else if let container = makeContainer(inMemory: false) {
             self.container = container
         } else if let fallback = makeContainer(inMemory: true) {
             self.container = fallback

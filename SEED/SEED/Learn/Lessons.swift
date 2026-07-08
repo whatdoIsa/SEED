@@ -89,7 +89,7 @@ enum LessonCatalog {
         title: "급등주를 쫓으면 생기는 일",
         subtitle: "안전하게 한 번 데여보기",
         duration: "약 3분",
-        unlocksLevel: UnlockLevel.volumeAndMA,
+        unlocksLevel: nil,  // 심리 레슨 — 도구 해금 없음
         unlockLabel: "거래량·이평선 + 복기 리포트 해금",
         concept: [
             ConceptPage(
@@ -110,7 +110,7 @@ enum LessonCatalog {
         title: "거래량, 움직임의 진심",
         subtitle: "가격은 속여도 거래량은 못 속인다",
         duration: "약 90초",
-        unlocksLevel: nil,
+        unlocksLevel: UnlockLevel.volumeAndMA,
         unlockLabel: "거래량 읽는 눈 완성",
         concept: [
             ConceptPage(
@@ -131,7 +131,7 @@ enum LessonCatalog {
         title: "급락, 공포를 파는 날",
         subtitle: "안전하게 한 번 더 데여보기",
         duration: "약 3분",
-        unlocksLevel: nil,
+        unlocksLevel: UnlockLevel.all,
         unlockLabel: "급락 생존 훈련 완료",
         concept: [
             ConceptPage(

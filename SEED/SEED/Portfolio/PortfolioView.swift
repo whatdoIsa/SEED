@@ -8,6 +8,7 @@ struct PortfolioView: View {
     let store: SeedStore
     @Query(sort: \TradeLog.timestamp, order: .reverse) private var logs: [TradeLog]
     @State private var showsAutopsy = false
+    @State private var showsSettings = false
 
     var body: some View {
         let ledger = session.ledger
@@ -25,6 +26,15 @@ struct PortfolioView: View {
                         .foregroundStyle(SeedTheme.violet)
                         .padding(.horizontal, 10).padding(.vertical, 4)
                         .background(SeedTheme.violetTint, in: Capsule())
+                    Button {
+                        showsSettings = true
+                    } label: {
+                        Image(systemName: "gearshape.fill")
+                            .font(.system(size: 15))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(SeedTheme.card, in: Circle())
+                    }
                 }
 
                 VStack(spacing: 10) {
@@ -133,6 +143,9 @@ struct PortfolioView: View {
             .padding(16)
         }
         .background(SeedTheme.background)
+        .sheet(isPresented: $showsSettings) {
+            SettingsView(session: session, store: store)
+        }
         .fullScreenCover(isPresented: $showsAutopsy) {
             AutopsyView(store: store, session: session)
         }

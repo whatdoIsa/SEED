@@ -10,9 +10,15 @@ struct DailyMarketView: View {
     @State private var isFinished = false
     @State private var orderSide: Side?
     @State private var loop: Task<Void, Never>?
+    @State private var isPaused = false
+    @State private var speed = 1  // 1x/2x/4x
 
     private let scenarioId = DailyMarket.id()
     private let pattern = DailyMarket.pattern()
+    private let preset = DailyMarket.scenario()
+
+    private var totalCandles: Int { preset.durationTicks / engine.config.ticksPerCandle }
+    private var tickDelayMs: Int { [1: 45, 2: 24, 4: 12][speed] ?? 45 }
 
     /// 시작 기준가 — 첫 캔들이 마감되기 전에도 안전하게 (강제 언랩 크래시 수정)
     private var startPrice: Int {
@@ -21,48 +27,82 @@ struct DailyMarketView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            // 헤더: 제목 + 진행바 + 닫기
+            HStack(spacing: 10) {
                 HStack(spacing: 6) {
                     Image(systemName: "sunrise.fill")
                         .font(.system(size: 11))
-                    Text("오늘의 장 · 1캔들 = 1일 · 모의")
-                        .font(.system(size: 12, weight: .medium))
+                    Text("오늘의 장")
+                        .font(.system(size: 13, weight: .semibold))
                 }
                 .foregroundStyle(SeedTheme.violetDeep)
-                Spacer()
-                Text("D+\(engine.candles.count)일")
+                // 진행바: 오늘 장이 어디까지 왔는지 한눈에
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(SeedTheme.band).frame(height: 4)
+                        Capsule().fill(SeedTheme.violet)
+                            .frame(width: geo.size.width
+                                   * CGFloat(min(engine.candles.count, totalCandles))
+                                   / CGFloat(totalCandles),
+                                   height: 4)
+                    }
+                    .frame(maxHeight: .infinity)
+                }
+                .frame(height: 14)
+                Text("D+\(engine.candles.count)/\(totalCandles)")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(SeedTheme.violetDeep)
+                    .monospacedDigit()
                 Button {
                     dismiss()
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(SeedTheme.textSecondary)
+                        .frame(width: 30, height: 30)
+                        .background(SeedTheme.card, in: Circle())
                 }
             }
-            .padding(.horizontal, 16).padding(.top, 14)
+            .padding(.horizontal, 16).padding(.top, 12)
 
+            // 가격 + 내 포지션 (평가손익 포함)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("오늘의 종목")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(SeedTheme.textPrimary)
                 Text("\(engine.lastPrice.formatted())원")
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.system(size: 26, weight: .semibold))
                     .foregroundStyle(SeedTheme.pnl(Double(engine.lastPrice - startPrice)))
                     .contentTransition(.numericText())
+                let changePct = startPrice > 0
+                    ? Double(engine.lastPrice - startPrice) / Double(startPrice) * 100 : 0
+                Text("\(changePct >= 0 ? "+" : "")\(changePct.formatted(.number.precision(.fractionLength(1))))%")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(SeedTheme.pnl(changePct))
                 Spacer()
-                let portfolio = engine.portfolio
-                if portfolio.qty > 0 {
-                    Text("\(portfolio.qty)주 · 평단 \(Int(portfolio.avgCost).formatted())")
-                        .font(.system(size: 12))
-                        .foregroundStyle(SeedTheme.textSecondary)
-                }
             }
-            .padding(.horizontal, 16).padding(.top, 10)
+            .padding(.horizontal, 16).padding(.top, 8)
 
+            let portfolio = engine.portfolio
+            if portfolio.qty > 0 {
+                let unrealizedPct = portfolio.avgCost > 0
+                    ? (Double(engine.lastPrice) - portfolio.avgCost) / portfolio.avgCost * 100 : 0
+                HStack(spacing: 8) {
+                    Text("\(portfolio.qty)주 · 평단 \(Int(portfolio.avgCost).formatted())원")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                    Text("\(unrealizedPct >= 0 ? "+" : "")\(unrealizedPct.formatted(.number.precision(.fractionLength(1))))%")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(SeedTheme.pnl(unrealizedPct))
+                    Spacer()
+                }
+                .padding(.horizontal, 16).padding(.top, 2)
+            }
+
+            // 상세 차트 (축·기준선·평단선)
             ChartCanvas(candles: engine.candles, current: engine.currentCandle,
-                        unlockLevel: UnlockLevel.all)
+                        unlockLevel: UnlockLevel.all,
+                        detailed: true,
+                        referencePrice: startPrice,
+                        avgCost: portfolio.qty > 0 ? portfolio.avgCost : nil,
+                        candlesPerDay: 0)
                 .frame(maxHeight: .infinity)
                 .padding(.horizontal, 14)
                 .padding(.top, 6)
@@ -71,14 +111,49 @@ struct DailyMarketView: View {
                 resultCard
                     .padding(.horizontal, 16).padding(.bottom, 16)
             } else {
+                // 시간 컨트롤: 일시정지 + 배속 — 생각할 시간은 사용자가 정한다
                 HStack(spacing: 8) {
-                    if engine.portfolio.qty > 0 {
+                    Button {
+                        isPaused.toggle()
+                    } label: {
+                        Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(SeedTheme.inverse)
+                            .frame(width: 40, height: 32)
+                            .background(SeedTheme.textPrimary, in: Capsule())
+                    }
+                    ForEach([1, 2, 4], id: \.self) { value in
+                        Button {
+                            speed = value
+                            isPaused = false
+                        } label: {
+                            Text("\(value)x")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(speed == value && !isPaused
+                                                 ? SeedTheme.inverse : SeedTheme.textSecondary)
+                                .padding(.horizontal, 13).padding(.vertical, 7)
+                                .background(speed == value && !isPaused
+                                            ? SeedTheme.textPrimary : SeedTheme.card,
+                                            in: Capsule())
+                        }
+                    }
+                    Spacer()
+                    if isPaused {
+                        Text("멈춤 — 차트를 천천히 보세요")
+                            .font(.system(size: 11))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                    }
+                }
+                .padding(.horizontal, 16).padding(.top, 4)
+
+                HStack(spacing: 8) {
+                    if portfolio.qty > 0 {
                         dailyOrderButton("팔기", color: SeedTheme.down, side: .sell)
                     }
                     dailyOrderButton("사기", color: SeedTheme.up, side: .buy)
                 }
-                .padding(.horizontal, 14).padding(.bottom, 14)
-                .animation(.snappy(duration: 0.25), value: engine.portfolio.qty > 0)
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .animation(.snappy(duration: 0.25), value: portfolio.qty > 0)
             }
         }
         .background(SeedTheme.background)
@@ -127,6 +202,29 @@ struct DailyMarketView: View {
                 .font(.system(size: 14))
                 .foregroundStyle(SeedTheme.inkText)
                 .lineSpacing(5)
+            // 공유 카드 — 오늘 판을 포함한 스트릭으로 렌더
+            if let card = DailyShareCard.render(
+                patternName: pattern.revealName,
+                lessonLine: pattern.lessonLine,
+                pnl: pnl,
+                streak: DailyMarket.streak(
+                    completed: store.completedLessonIds.union([scenarioId]))
+            ) {
+                ShareLink(item: card,
+                          preview: SharePreview("오늘의 장 · \(pattern.revealName)", image: card)) {
+                    HStack(spacing: 7) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("오늘 결과 공유하기")
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                    .foregroundStyle(SeedTheme.violetOnDark)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .stroke(SeedTheme.violetOnDark.opacity(0.5), lineWidth: 1.2))
+                }
+            }
             Button {
                 store.completeLesson(scenarioId, unlocksLevel: nil)
                 dismiss()
@@ -148,14 +246,15 @@ struct DailyMarketView: View {
         guard loop == nil else { return }
         loop = Task {
             while !Task.isCancelled {
-                if orderSide == nil && !isFinished {
+                // 주문 시트가 열려 있거나 일시정지면 시장도 멈춘다 — 생각할 시간 보장
+                if orderSide == nil && !isFinished && !isPaused {
                     engine.step()
                     if engine.isScenarioFinished {
                         isFinished = true
                         return
                     }
                 }
-                try? await Task.sleep(for: .milliseconds(28))
+                try? await Task.sleep(for: .milliseconds(tickDelayMs))
             }
         }
     }

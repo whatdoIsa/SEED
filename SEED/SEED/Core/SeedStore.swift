@@ -294,6 +294,85 @@ final class SeedStore {
         completedLessonIds.contains(lessonId)
     }
 
+    /// iCloud 복원 반영: CloudKit 임포트는 앱 실행 뒤에 도착하므로,
+    /// 활성화될 때마다 저장소를 다시 읽어 참조를 최신으로 맞추고
+    /// (새 기기 부트스트랩이 만든) 중복 레코드를 병합·정리한다. 멱등.
+    func refreshAfterRemoteImport() {
+        // 레슨: 완료 집합 재구성 (복원분 합류)
+        let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
+        completedLessonIds = Set(lessons.filter { $0.completedAt != nil }.map(\.lessonId))
+
+        // 진행 상태: 여러 개면 최댓값으로 병합 후 하나만 남긴다
+        let allProgress = (try? context.fetch(FetchDescriptor<AppProgress>())) ?? []
+        if let first = allProgress.first {
+            if allProgress.count > 1 {
+                let mergedLevel = allProgress.map(\.unlockLevel).max() ?? 0
+                let mergedOnboarding = allProgress.contains { $0.onboardingDone }
+                first.unlockLevel = mergedLevel
+                first.onboardingDone = mergedOnboarding
+                for extra in allProgress.dropFirst() { context.delete(extra) }
+            }
+            progress = first
+        }
+
+        // 시즌: 활성(endedAt == nil) 중 복원본(엔진 시드 보유) 우선, 나머지 빈 껍데기 제거
+        let seasons = (try? context.fetch(FetchDescriptor<Season>(
+            sortBy: [SortDescriptor(\.number, order: .reverse)]
+        ))) ?? []
+        let active = seasons.filter { $0.endedAt == nil }
+        if active.count > 1 {
+            let best = active.first { $0.engineSeedBits != nil } ?? active[0]
+            for extra in active where extra !== best && extra.engineSeedBits == nil {
+                context.delete(extra)
+            }
+            currentSeason = best
+        } else if let only = active.first {
+            currentSeason = only
+        }
+
+        // 종목 상태: (시즌, 종목)당 하나 — 진행 틱이 큰 쪽(복원본)을 남긴다
+        let states = (try? context.fetch(FetchDescriptor<SymbolState>())) ?? []
+        var seen: [String: SymbolState] = [:]
+        for state in states {
+            let key = "\(state.seasonNumber)#\(state.code)"
+            if let kept = seen[key] {
+                if state.lastTick > kept.lastTick {
+                    context.delete(kept)
+                    seen[key] = state
+                } else {
+                    context.delete(state)
+                }
+            } else {
+                seen[key] = state
+            }
+        }
+        try? context.save()
+    }
+
+    /// 전체 초기화 (설정): 모든 매매·시즌·레슨·진행을 지우고 첫 실행 상태로.
+    /// 온보딩부터 다시 시작된다. 되돌릴 수 없다 — 호출 전 UI에서 반드시 확인받을 것.
+    func eraseAll() {
+        func deleteAll<T: PersistentModel>(_ type: T.Type) {
+            let items = (try? context.fetch(FetchDescriptor<T>())) ?? []
+            for item in items { context.delete(item) }
+        }
+        deleteAll(TradeLog.self)
+        deleteAll(Season.self)
+        deleteAll(LessonProgress.self)
+        deleteAll(AppProgress.self)
+        deleteAll(SymbolState.self)
+
+        let season = Season(number: 1, startCash: 10_000_000)
+        context.insert(season)
+        currentSeason = season
+        let fresh = AppProgress()
+        context.insert(fresh)
+        progress = fresh
+        completedLessonIds = []
+        try? context.save()
+        Analytics.log(.accountReset, ["reason": "erase-all"])
+    }
+
     #if DEBUG
     /// 개발용: 차트 도구 레벨만 강제 조정 (레슨 완료 상태는 건드리지 않음).
     func debugSetUnlockLevel(_ level: Int) {
@@ -310,7 +389,7 @@ final class SeedStore {
             context.insert(progressRecord)
         }
         completedLessonIds = Set(LessonCatalog.registered.map(\.id))
-        progress.unlockLevel = UnlockLevel.all
+        progress.unlockLevel = UnlockLevel.max
         progress.onboardingDone = true
         try? context.save()
     }

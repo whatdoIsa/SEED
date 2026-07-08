@@ -127,6 +127,29 @@ struct DailyMarketView: View {
                 .font(.system(size: 14))
                 .foregroundStyle(SeedTheme.inkText)
                 .lineSpacing(5)
+            // 공유 카드 — 오늘 판을 포함한 스트릭으로 렌더
+            if let card = DailyShareCard.render(
+                patternName: pattern.revealName,
+                lessonLine: pattern.lessonLine,
+                pnl: pnl,
+                streak: DailyMarket.streak(
+                    completed: store.completedLessonIds.union([scenarioId]))
+            ) {
+                ShareLink(item: card,
+                          preview: SharePreview("오늘의 장 · \(pattern.revealName)", image: card)) {
+                    HStack(spacing: 7) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("오늘 결과 공유하기")
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                    .foregroundStyle(SeedTheme.violetOnDark)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .stroke(SeedTheme.violetOnDark.opacity(0.5), lineWidth: 1.2))
+                }
+            }
             Button {
                 store.completeLesson(scenarioId, unlocksLevel: nil)
                 dismiss()

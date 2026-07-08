@@ -8,6 +8,7 @@ struct BotCompareView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var archetype: BotArchetype = .turtle
     @State private var run: BotRun?
+    @State private var showsRematch = false
 
     /// 봇 아키타입 — 철학·시간지평·규칙·아이콘을 한 곳에.
     enum BotArchetype: String, CaseIterable, Identifiable {
@@ -36,7 +37,7 @@ struct BotCompareView: View {
             switch self {
             case .turtle:
                 return { $0
-                    ? "봇이 먼저(싸게) 탔어요. 봇은 급등의 '초입 돌파'에 반응했고, 사람은 급등이 눈에 보인 뒤에 탔기 때문이에요."
+                    ? "봇이 먼저(싸게) 탔어요. 공정하게 말하면 — 레슨 3에서 당신에게 주어진 선택지는 급등이 이미 다 보인 고점뿐이었어요. 그게 현실에서 초보가 급등주를 만나는 시점이거든요. 봇은 그보다 앞선 돌파 순간에 기계적으로 반응했고요. 아래 리매치로 같은 조건에서 직접 겨뤄보세요."
                     : "이번엔 당신의 진입이 봇보다 낫거나 비슷했어요. 다만 봇은 백 번 반복해도 똑같이 해냅니다 — 그게 규칙의 힘이에요." }
             case .value:
                 return { _ in
@@ -101,6 +102,21 @@ struct BotCompareView: View {
                     journalSection(run: run)
 
                     comparisonCard(run: run)
+
+                    Button {
+                        showsRematch = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.trianglehead.counterclockwise")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("같은 장, 직접 다시 겪기")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(SeedTheme.violet, in: RoundedRectangle(cornerRadius: 13))
+                    }
                 } else {
                     HStack(spacing: 8) {
                         ProgressView()
@@ -123,6 +139,9 @@ struct BotCompareView: View {
         .task(id: archetype) {
             // 결정론 덕분에 언제 돌려도 같은 결과 — 캐시가 필요 없다
             run = archetype.run()
+        }
+        .fullScreenCover(isPresented: $showsRematch) {
+            ChaseRematchView()
         }
     }
 

@@ -294,6 +294,30 @@ final class SeedStore {
         completedLessonIds.contains(lessonId)
     }
 
+    /// 전체 초기화 (설정): 모든 매매·시즌·레슨·진행을 지우고 첫 실행 상태로.
+    /// 온보딩부터 다시 시작된다. 되돌릴 수 없다 — 호출 전 UI에서 반드시 확인받을 것.
+    func eraseAll() {
+        func deleteAll<T: PersistentModel>(_ type: T.Type) {
+            let items = (try? context.fetch(FetchDescriptor<T>())) ?? []
+            for item in items { context.delete(item) }
+        }
+        deleteAll(TradeLog.self)
+        deleteAll(Season.self)
+        deleteAll(LessonProgress.self)
+        deleteAll(AppProgress.self)
+        deleteAll(SymbolState.self)
+
+        let season = Season(number: 1, startCash: 10_000_000)
+        context.insert(season)
+        currentSeason = season
+        let fresh = AppProgress()
+        context.insert(fresh)
+        progress = fresh
+        completedLessonIds = []
+        try? context.save()
+        Analytics.log(.accountReset, ["reason": "erase-all"])
+    }
+
     #if DEBUG
     /// 개발용: 차트 도구 레벨만 강제 조정 (레슨 완료 상태는 건드리지 않음).
     func debugSetUnlockLevel(_ level: Int) {

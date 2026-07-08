@@ -6,6 +6,8 @@ struct RootView: View {
     let store: SeedStore
     @Environment(\.scenePhase) private var scenePhase
 
+    @State private var selectedTab = 0
+
     var body: some View {
         Group {
             if store.progress.onboardingDone {
@@ -40,16 +42,31 @@ struct RootView: View {
     }
 
     private var mainTabs: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             TradingView(session: session, store: store)
                 .tabItem { Label("시장", systemImage: "chart.bar.fill") }
+                .tag(0)
             LessonListView(store: store)
                 .tabItem { Label("배우기", systemImage: "book.fill") }
+                .tag(1)
             ReviewReportView(store: store, session: session)
                 .tabItem { Label("복기", systemImage: "text.magnifyingglass") }
+                .tag(2)
             PortfolioView(session: session, store: store)
                 .tabItem { Label("내 주식", systemImage: "briefcase.fill") }
+                .tag(3)
         }
         .tint(SeedTheme.textPrimary)
+        .onOpenURL { url in
+            // 위젯 딥링크: seed://daily → 배우기 탭 + 오늘의 장
+            guard url.scheme == "seed", url.host() == "daily" else { return }
+            selectedTab = 1
+            NotificationCenter.default.post(name: .seedOpenDailyMarket, object: nil)
+        }
     }
+}
+
+extension Notification.Name {
+    /// 위젯 딥링크가 오늘의 장을 열라고 알릴 때
+    static let seedOpenDailyMarket = Notification.Name("seed.openDailyMarket")
 }

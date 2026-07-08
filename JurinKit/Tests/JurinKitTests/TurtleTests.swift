@@ -58,8 +58,9 @@ final class TurtleTests: XCTestCase {
             candle.apply(Trade(price: base - 2, qty: 1, tick: i, aggressor: .sell))
             candle.apply(Trade(price: base + 6, qty: 1, tick: i, aggressor: .buy))
             candles.append(candle)
-            if let action = strategy.onCandleClose(candles: candles, avgCost: 100) {
-                actions.append(action)
+            if let decision = strategy.onCandleClose(candles: candles, avgCost: 100) {
+                actions.append(decision.action)
+                XCTAssertFalse(decision.reason.isEmpty, "모든 매매엔 이유가 붙는다")
             }
         }
         let buyCount = actions.filter { if case .buyUnit = $0 { return true }; return false }.count
@@ -83,6 +84,16 @@ final class TurtleTests: XCTestCase {
         let b = BotComparison.runValue(scenario: .chaseRally())
         XCTAssertEqual(a.finalEquity, b.finalEquity)
         XCTAssertEqual(a.actions.map(\.candleIndex), b.actions.map(\.candleIndex))
+    }
+
+    func testBotActionsCarryReasons() {
+        for run in [BotComparison.runTurtle(scenario: .chaseRally()),
+                    BotComparison.runValue(scenario: .panicCrash())] {
+            for action in run.actions {
+                XCTAssertFalse(action.reason.isEmpty,
+                               "\(run.botName)의 매매 일지엔 이유가 있어야 한다")
+            }
+        }
     }
 
     func testValueAndTrendDifferOnSameScenario() {

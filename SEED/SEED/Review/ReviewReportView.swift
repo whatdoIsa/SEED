@@ -56,15 +56,39 @@ struct ReviewReportView: View {
                         .foregroundStyle(SeedTheme.textSecondary)
                 }
 
-                HStack(spacing: 10) {
-                    metricCard("매매", "\(tradeCount)건")
-                    metricCard("승률", winRate.map { "\(Int($0))%" } ?? "—")
-                    metricCard("확정 손익률",
-                               avgRealizedText(stats),
-                               color: avgRealizedColor(stats))
+                if tradeCount == 0 {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "chart.line.uptrend.xyaxis.circle.fill")
+                                .font(.system(size: 30))
+                                .foregroundStyle(SeedTheme.violet)
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("복기는 기록에서 시작해요")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(SeedTheme.textPrimary)
+                                Text("시장 탭에서 첫 매매를 하면, 태그·매매 지도·보유 습관이 여기 쌓여요. 잘한 매매보다 이유를 적은 매매가 복기엔 더 값져요.")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(SeedTheme.textSecondary)
+                                    .lineSpacing(4)
+                            }
+                        }
+                    }
+                    .padding(15)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
                 }
 
-                tradeMapSection
+                if tradeCount > 0 {
+                    HStack(spacing: 10) {
+                        metricCard("매매", "\(tradeCount)건")
+                        metricCard("승률", winRate.map { "\(Int($0))%" } ?? "—")
+                        metricCard("확정 손익률",
+                                   avgRealizedText(stats),
+                                   color: avgRealizedColor(stats))
+                    }
+
+                    tradeMapSection
+                }
 
                 if !stats.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
@@ -80,9 +104,10 @@ struct ReviewReportView: View {
                     }
                 }
 
-                holdingHabitSection
-
-                coachCard(worst: worst, tradeCount: tradeCount)
+                if tradeCount > 0 {
+                    holdingHabitSection
+                    coachCard(worst: worst, tradeCount: tradeCount)
+                }
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("다음, 딱 한 가지")

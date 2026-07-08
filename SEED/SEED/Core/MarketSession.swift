@@ -99,10 +99,16 @@ final class MarketSession {
     // MARK: 등락·자산
 
     var startPrice: Int { startPrices[activeSymbolCode] ?? engine.lastPrice }
-    var change: Int { engine.lastPrice - startPrice }
+    /// 등락 기준 — 전일 종가(기준가). 차트 선 색·현재가 배지와 같은 기준이라
+    /// 화면 전체가 한 목소리를 낸다 (실제 증권앱과 동일).
+    /// 크립토(거래일 없음)는 기준가가 갱신되지 않으므로 세션 시작가 기준을 유지한다.
+    private var changeBasis: Int {
+        engine.config.candlesPerDay > 0 ? engine.referencePrice : startPrice
+    }
+    var change: Int { engine.lastPrice - changeBasis }
     var changePercent: Double {
-        guard startPrice > 0 else { return 0 }
-        return Double(change) / Double(startPrice) * 100
+        guard changeBasis > 0 else { return 0 }
+        return Double(change) / Double(changeBasis) * 100
     }
 
     var currentPrices: [String: Int] {

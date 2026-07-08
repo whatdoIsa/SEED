@@ -128,6 +128,8 @@ final class EngineTests: XCTestCase {
         engine.advance(ticks: 2_000)
         XCTAssertGreaterThan(engine.lastPrice, 0)
         XCTAssertEqual(engine.candles.count, 100)
+        // 종착점이 동시호가(장 개시 수집 구간)면 지나간다 — 수집 중엔 호가가 비는 게 정상
+        if engine.isInAuction { engine.advance(ticks: engine.auctionTicksRemaining) }
         // 마켓메이커 덕에 양쪽 호가가 살아 있어야 한다
         XCTAssertNotNil(engine.book.bestBid)
         XCTAssertNotNil(engine.book.bestAsk)

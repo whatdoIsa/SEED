@@ -16,6 +16,7 @@ final class RealismTests: XCTestCase {
         }
         XCTAssertNotEqual(engine.fairAnchor, anchorBefore, "뉴스가 앵커를 움직여야 한다")
         XCTAssertGreaterThan(engine.lastPrice, 0)
+        if engine.isInAuction { engine.advance(ticks: engine.auctionTicksRemaining) }
         XCTAssertNotNil(engine.book.bestBid, "뉴스 폭풍 속에서도 시장은 살아 있어야 한다")
     }
 

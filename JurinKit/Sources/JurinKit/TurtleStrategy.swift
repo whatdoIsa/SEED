@@ -69,10 +69,11 @@ public struct TurtleStrategy {
         case sellAll(qty: Int)
     }
 
-    /// 캔들이 하나 마감될 때마다 호출. 규칙에 따라 행동을 돌려준다.
+    /// 캔들이 하나 마감될 때마다 호출. 규칙에 따라 행동과 그 이유를 돌려준다.
+    /// 이유는 봇 매매 일지에 그대로 실린다 — 규칙이 추상이 아니라 행동이 되도록.
     /// - Parameter candles: 방금 마감된 캔들을 포함한 전체 이력
     /// - Parameter avgCost: 현재 평단 (포지션 없으면 0)
-    public mutating func onCandleClose(candles: [Candle], avgCost: Double) -> Action? {
+    public mutating func onCandleClose(candles: [Candle], avgCost: Double) -> (action: Action, reason: String)? {
         guard let closed = candles.last else { return nil }
         // 채널은 '직전까지'의 캔들로 계산한다 — 자기 자신 돌파 방지
         let history = Array(candles.dropLast())
@@ -83,17 +84,20 @@ public struct TurtleStrategy {
             if closed.close > channelHigh {
                 units = 1
                 lastEntryPrice = Double(closed.close)
-                return .buyUnit(qty: unitQty)
+                return (.buyUnit(qty: unitQty),
+                        "최근 \(entryLookback)캔들 최고가 \(channelHigh.formatted())원 돌파 — 추세 시작 신호, 진입")
             }
             return nil
         }
 
         // 청산 1: 손절선 (평단 − 2N)
-        if Double(closed.close) < avgCost - stopATRMultiple * atr {
+        let stopLine = avgCost - stopATRMultiple * atr
+        if Double(closed.close) < stopLine {
             let qty = units * unitQty
             units = 0
             lastEntryPrice = 0
-            return .sellAll(qty: qty)
+            return (.sellAll(qty: qty),
+                    "손절선 \(Int(stopLine).formatted())원(평단−\(stopATRMultiple.formatted())×변동폭) 이탈 — 작게 지고 나온다")
         }
         // 청산 2: 채널 하단 이탈
         if let channelLow = history.lowestLow(period: exitLookback),
@@ -101,20 +105,31 @@ public struct TurtleStrategy {
             let qty = units * unitQty
             units = 0
             lastEntryPrice = 0
-            return .sellAll(qty: qty)
+            return (.sellAll(qty: qty),
+                    "최근 \(exitLookback)캔들 최저가 \(channelLow.formatted())원 이탈 — 추세 종료로 판단, 전량 청산")
         }
         // 피라미딩: 0.5N 유리하게 갈 때마다 +1유닛
         if units < maxUnits,
            Double(closed.close) > lastEntryPrice + addATRMultiple * atr {
             units += 1
             lastEntryPrice = Double(closed.close)
-            return .buyUnit(qty: unitQty)
+            return (.buyUnit(qty: unitQty),
+                    "진입 후 \(addATRMultiple.formatted())×변동폭만큼 유리 — 이기는 포지션에 1유닛 추가 (\(units)/\(maxUnits))")
         }
         return nil
     }
 }
 
 // MARK: - 나 vs 봇 하니스 (§15.2 BotComparison)
+
+/// 봇의 매매 한 건 — 언제, 얼마에, 왜.
+public struct BotAction {
+    public let candleIndex: Int
+    public let price: Double
+    public let side: Side
+    /// 이 매매를 한 규칙적 이유 (매매 일지에 표시)
+    public let reason: String
+}
 
 public struct BotRun {
     public let botName: String
@@ -125,8 +140,8 @@ public struct BotRun {
     public let startCash: Int
     public let tradeCount: Int
     public let maxDrawdownPct: Double
-    /// 매매 타임라인 (매매 지도에 그대로 얹는다)
-    public let actions: [(candleIndex: Int, price: Double, side: Side)]
+    /// 매매 타임라인 (매매 지도 + 매매 일지)
+    public let actions: [BotAction]
 
     public var returnPct: Double {
         Double(finalEquity - startCash) / Double(startCash) * 100
@@ -167,12 +182,17 @@ public enum BotComparison {
             intrinsic = intrinsic == 0 ? ctx.fairValue
                 : intrinsic * (1 - emaAlpha) + ctx.fairValue * emaAlpha
             let price = Double(ctx.lastPrice)
+            let gapPct = (price / intrinsic - 1) * 100
             if ctx.holdingQty == 0 {
                 // 내재가치 추정보다 안전마진만큼 쌀 때만 산다
-                return price <= intrinsic * (1 - marginOfSafety) ? .buyUnit(qty: unitQty) : nil
+                guard price <= intrinsic * (1 - marginOfSafety) else { return nil }
+                return (.buyUnit(qty: unitQty),
+                        "내 가치 추정 \(Int(intrinsic).formatted())원보다 \(abs(gapPct).formatted(.number.precision(.fractionLength(1))))% 싸다 — 안전마진 확보, 매수")
             } else {
                 // 내재가치 추정보다 프리미엄만큼 비싸지면 전량 매도
-                return price >= intrinsic * (1 + premium) ? .sellAll(qty: ctx.holdingQty) : nil
+                guard price >= intrinsic * (1 + premium) else { return nil }
+                return (.sellAll(qty: ctx.holdingQty),
+                        "내 가치 추정보다 \(gapPct.formatted(.number.precision(.fractionLength(1))))% 비싸다 — 열광에 판다, 전량 매도")
             }
         }
     }

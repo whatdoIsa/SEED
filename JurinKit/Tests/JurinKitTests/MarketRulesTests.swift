@@ -58,7 +58,9 @@ final class MarketRulesTests: XCTestCase {
         XCTAssertEqual(engine.tradingDay, 2, "거래일이 넘어가야 한다")
         XCTAssertEqual(engine.referencePrice, engine.candles.last!.close,
                        "기준가는 전일 종가")
-        XCTAssertNotNil(engine.book.bestBid, "장 개시 후에도 호가는 살아 있다")
+        XCTAssertTrue(engine.isInAuction, "장 개시 직후엔 동시호가가 돈다")
+        engine.advance(ticks: engine.auctionTicksRemaining)
+        XCTAssertNotNil(engine.book.bestBid, "동시호가 청산 후 호가가 살아난다")
     }
 
     func testUserLimitOutsideBandRejected() {

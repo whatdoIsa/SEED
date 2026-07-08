@@ -13,6 +13,16 @@ struct OrderBookView: View {
         let asks = engine.book.depth(side: .sell, levels: levels)
         let bids = engine.book.depth(side: .buy, levels: levels)
         let maxQty = max((asks + bids).map(\.qty).max() ?? 1, 1)
+        let a11ySummary = "호가창. " + (engine.book.bestAsk.map { "최우선 매도 \($0.formatted())원" } ?? "매도 호가 없음")
+            + ", " + (engine.book.bestBid.map { "최우선 매수 \($0.formatted())원" } ?? "매수 호가 없음")
+
+
+        // VoiceOver: 시각 사다리 대신 한 문장 요약
+        Text(a11ySummary)
+            .accessibilityHidden(false)
+            .frame(width: 0, height: 0)
+            .clipped()
+            .accessibilityLabel(a11ySummary)
 
         HStack(alignment: .top, spacing: 12) {
             tapeColumn

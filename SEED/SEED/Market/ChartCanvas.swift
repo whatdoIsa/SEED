@@ -105,6 +105,22 @@ struct ChartCanvas: View {
                 drawCurrentPriceBadge(context, m)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("가격 차트")
+        .accessibilityValue(accessibilitySummary)
+    }
+
+    /// VoiceOver: 시각 차트를 한 문장으로.
+    private var accessibilitySummary: String {
+        let last = current.volume > 0 ? current.close : (candles.last?.close ?? 0)
+        guard last > 0 else { return "데이터 없음" }
+        var parts = ["현재가 \(last.formatted())원"]
+        if let reference = referencePrice, reference > 0 {
+            let pct = Double(last - reference) / Double(reference) * 100
+            parts.append("기준가 대비 \(pct >= 0 ? "상승" : "하락") \(abs(pct).formatted(.number.precision(.fractionLength(1))))퍼센트")
+        }
+        parts.append("캔들 \(candles.count)개")
+        return parts.joined(separator: ", ")
     }
 
     // MARK: 가격·캔들·선

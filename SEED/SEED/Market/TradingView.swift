@@ -308,6 +308,7 @@ struct TradingView: View {
                 #endif
             }
             Text("\(session.engine.lastPrice.formatted())원")
+                .accessibilityLabel("\(session.activeSpec.name) 현재가 \(session.engine.lastPrice.formatted())원, 전일 대비 \(session.change >= 0 ? "상승" : "하락") \(abs(session.changePercent).formatted(.number.precision(.fractionLength(1))))퍼센트")
                 .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(SeedTheme.textPrimary)
                 .contentTransition(.numericText())

@@ -107,6 +107,20 @@ struct TradingView: View {
                 .padding(.horizontal, 16).padding(.bottom, 6)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            if session.engine.isInAuction {
+                HStack(spacing: 7) {
+                    Image(systemName: "hourglass")
+                        .font(.system(size: 12))
+                    Text("동시호가 · 주문을 모아 하나의 가격으로 체결해요 (지정가만 접수)")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                }
+                .foregroundStyle(SeedTheme.violetDeep)
+                .padding(.horizontal, 13).padding(.vertical, 9)
+                .background(SeedTheme.violetTint, in: RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 16).padding(.bottom, 6)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
             if let news = newsBanner {
                 HStack(spacing: 7) {
                     Image(systemName: news.marketWide
@@ -540,6 +554,8 @@ struct TradingView: View {
             return "수량을 확인해 주세요."
         case .priceOutOfBand(let lower, let upper):
             return "오늘 주문 가능한 범위는 \(lower.formatted())원(하한가) ~ \(upper.formatted())원(상한가)이에요."
+        case .auctionInProgress:
+            return "지금은 동시호가 시간이에요 — 주문을 모아 하나의 가격으로 체결해요. 지정가로 참여하거나 잠시 기다려주세요."
         }
     }
 }

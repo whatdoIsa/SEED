@@ -10,6 +10,8 @@ public enum OrderError: Error, Equatable {
     case invalidQuantity
     /// 상·하한가 밖의 지정가 (제도 팩)
     case priceOutOfBand(lower: Int, upper: Int)
+    /// 동시호가 중 — 시장가 불가, 지정가만 접수
+    case auctionInProgress
 }
 
 // MARK: - 엔진 설정
@@ -37,6 +39,8 @@ public struct EngineConfig {
     public var sellTaxRate: Double
     /// 거래일 = 이 캔들 수. 경계에서 기준가 갱신·시가 갭·봇 호가 리셋.
     public var candlesPerDay: Int
+    /// 거래일 시작 시 동시호가 길이(틱). 0이면 비활성. 크립토(candlesPerDay=0)는 발동 없음.
+    public var auctionTicks: Int = 6
     /// 상·하한가 폭 (기준가 대비 비율). 0이면 비활성 (크립토 등).
     public var priceBandRate: Double
     /// 거래일 시작 시 fairAnchor에 적용되는 시가 갭 범위 (시나리오 중 비활성)
@@ -155,6 +159,10 @@ public final class MarketEngine {
     // MARK: 거래일·가격제한 상태 (제도 팩)
 
     public private(set) var tradingDay: Int = 1
+    /// 동시호가 남은 틱 (0이면 연속 매매 중)
+    public private(set) var auctionTicksRemaining = 0
+    public var isInAuction: Bool { auctionTicksRemaining > 0 }
+    private var auctionBuffer: [(side: Side, price: Int, qty: Int)] = []
     /// 기준가 (전일 종가) — 상·하한가의 기준.
     public private(set) var referencePrice: Int
 
@@ -256,7 +264,42 @@ public final class MarketEngine {
             fairAnchor *= (1 + rng.double(in: config.openingGapRange))
         }
         book.cancelAllExcept(agentId: Self.userAgentId)
-        seedInitialBook()
+        if scenario == nil && config.auctionTicks > 0 {
+            // 동시호가: 호가를 깔지 않고 주문을 모은다. 끝나면 단일가로 일괄 체결.
+            auctionTicksRemaining = config.auctionTicks
+            auctionBuffer.removeAll()
+        } else {
+            seedInitialBook()
+        }
+    }
+
+    /// 동시호가 청산: 체결량을 최대화하는 단일가를 찾아 한 번에 체결한다.
+    /// 동률이면 기준가에 가까운 가격 — 실제 KRX 단일가 원칙의 단순화.
+    private func runAuctionClearing() {
+        defer {
+            auctionBuffer.removeAll()
+            seedInitialBook() // 청산가 주변으로 호가 재구축 → 연속 매매 재개
+        }
+        let candidates = Set(auctionBuffer.map(\.price)).sorted()
+        guard !candidates.isEmpty else { return }
+
+        var best: (price: Int, volume: Int)?
+        for price in candidates {
+            let demand = auctionBuffer.filter { $0.side == .buy && $0.price >= price }
+                .reduce(0) { $0 + $1.qty }
+            let supply = auctionBuffer.filter { $0.side == .sell && $0.price <= price }
+                .reduce(0) { $0 + $1.qty }
+            let volume = min(demand, supply)
+            if volume > (best?.volume ?? 0) {
+                best = (price, volume)
+            } else if let current = best, volume == current.volume, volume > 0,
+                      abs(price - referencePrice) < abs(current.price - referencePrice) {
+                best = (price, volume)
+            }
+        }
+        guard let clearing = best, clearing.volume > 0 else { return }
+        record([Trade(price: clampToBand(clearing.price), qty: clearing.volume,
+                      tick: tick, aggressor: .buy)])
     }
 
     // MARK: 틱 루프
@@ -273,10 +316,31 @@ public final class MarketEngine {
                                 bestBid: book.bestBid, bestAsk: book.bestAsk,
                                 candles: candles, tickSize: config.tickSize(at: lastPrice))
 
-        for agent in agents.shuffled(using: &rng) {
-            if agent.refreshesQuotes { book.cancelAll(agentId: agent.id) }
-            for intent in agent.act(ctx, rng: &rng) {
-                apply(intent, from: agent.id)
+        if isInAuction {
+            // 주문 수집 구간: 체결 없이 의향만 쌓인다
+            for agent in agents.shuffled(using: &rng) {
+                for intent in agent.act(ctx, rng: &rng) {
+                    switch intent.kind {
+                    case .limit(let price, let qty) where qty > 0 && price > 0:
+                        auctionBuffer.append((intent.side, clampToBand(price), qty))
+                    case .market(let qty) where qty > 0:
+                        // 시장가 의향은 현재가 지정가로 간주 (단일가 수요/공급에 포함)
+                        auctionBuffer.append((intent.side, lastPrice, qty))
+                    default:
+                        break
+                    }
+                }
+            }
+            auctionTicksRemaining -= 1
+            if auctionTicksRemaining == 0 {
+                runAuctionClearing()
+            }
+        } else {
+            for agent in agents.shuffled(using: &rng) {
+                if agent.refreshesQuotes { book.cancelAll(agentId: agent.id) }
+                for intent in agent.act(ctx, rng: &rng) {
+                    apply(intent, from: agent.id)
+                }
             }
         }
 
@@ -439,6 +503,7 @@ public final class MarketEngine {
     /// 이 반환값이 슬리피지 튜토리얼(레슨 2)의 원료다.
     public func placeMarketOrder(side: Side, qty: Int) throws -> FillResult {
         guard qty > 0 else { throw OrderError.invalidQuantity }
+        guard !isInAuction else { throw OrderError.auctionInProgress }
         guard let displayed = displayedPrice(for: side) else { throw OrderError.noLiquidity }
 
         // 실행 전에 정확한 비용을 미리 계산해 잔고를 검증한다 (드라이런).

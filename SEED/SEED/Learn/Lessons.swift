@@ -25,6 +25,7 @@ enum MissionKind {
     case valueTrap
     case supportBounce
     case stopLoss
+    case patience
 }
 
 struct LessonDef: Identifiable {
@@ -230,8 +231,29 @@ enum LessonCatalog {
         mission: .stopLoss
     )
 
+    static let patience = LessonDef(
+        id: "lesson.patience",
+        order: 10,
+        title: "지루함과 싸우기",
+        subtitle: "아무 일도 없는 장에서 살아남기",
+        duration: "약 2분",
+        unlocksLevel: nil,
+        unlockLabel: "기다림의 근육",
+        concept: [
+            ConceptPage(
+                text: "시장의 대부분은 급등도 급락도 아니에요 — **방향 없는 횡보**죠. 그런데 이상하게, 이런 장에서 계좌가 갉려요.\n\n범인은 **지루함**이에요. 뭐라도 해야 할 것 같아서 사고, 조금 오르면 팔고, 다시 사고… 매매마다 수수료가 나가고, 방향이 없으니 벌 것도 없어요.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "프로들은 말해요 — **\"가만히 있는 것도 포지션\"** 이라고. 조건이 안 맞으면 안 하는 것, 그게 훈련된 인내예요.\n\n봇 매매 일지에서 봤죠? 조건이 없으면 봇은 그냥 기다려요.\n\n이제 아무 일도 없는 장을 드릴게요. 유혹을 견뎌보세요.",
+                visual: .none
+            )
+        ],
+        mission: .patience
+    )
+
     static var all: [LessonDef] { registered }
-    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify, valueTrap, supportBounce, stopLoss]
+    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify, valueTrap, supportBounce, stopLoss, patience]
 }
 
 // MARK: - 미션 1용 손수 만든 캔들 (교육 목적으로 모양을 통제)

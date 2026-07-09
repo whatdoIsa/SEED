@@ -104,7 +104,7 @@ struct LessonListView: View {
                         .foregroundStyle(SeedTheme.violetOnDark)
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("나 vs 터틀 봇")
+                    Text("거장 도장 · 나 vs 거장들")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(SeedTheme.textPrimary)
                     Text("같은 급등장, 감정 없는 규칙은 어떻게 매매했을까")

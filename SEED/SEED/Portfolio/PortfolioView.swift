@@ -37,6 +37,21 @@ struct PortfolioView: View {
                     }
                 }
 
+                // 부검에서 가져온 이번 시즌 규칙 — 매일 눈에 밟히게
+                if let rule = store.currentSeason.carriedRule, !rule.isEmpty {
+                    HStack(spacing: 8) {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(SeedTheme.violetDeep)
+                        Text("이번 시즌 규칙 · \(rule)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(SeedTheme.violetDeep)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 13).padding(.vertical, 10)
+                    .background(SeedTheme.violetTint, in: RoundedRectangle(cornerRadius: 12))
+                }
+
                 VStack(spacing: 10) {
                     HStack {
                         Text("총 평가")

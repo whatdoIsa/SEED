@@ -347,6 +347,7 @@ final class SeedStore {
             }
         }
         try? context.save()
+        WidgetBridge.sync(completed: completedLessonIds)
     }
 
     /// 전체 초기화 (설정): 모든 매매·시즌·레슨·진행을 지우고 첫 실행 상태로.
@@ -421,5 +422,6 @@ final class SeedStore {
         }
         try? context.save()
         Analytics.log(.lessonComplete, ["lessonId": lessonId])
+        WidgetBridge.sync(completed: completedLessonIds)
     }
 }

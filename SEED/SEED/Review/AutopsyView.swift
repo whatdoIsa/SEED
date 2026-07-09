@@ -224,7 +224,32 @@ struct AutopsyView: View {
     // MARK: 확인 — 여기까지 스크롤해야 리셋된다
 
     private func confirmButton(equity: Int) -> some View {
-        VStack(spacing: 8) {
+        let startCash = store.currentSeason.startCash
+        let returnPct = startCash > 0
+            ? Double(equity - startCash) / Double(startCash) * 100 : 0
+        return VStack(spacing: 8) {
+            // 시즌 결과 공유 — 규칙을 고른 상태 그대로 카드에 실린다
+            if let card = SeasonShareCard.render(
+                seasonNumber: store.currentSeason.number,
+                returnPct: returnPct,
+                tradeCount: store.tradeCount(),
+                carriedRule: selectedRule
+            ) {
+                ShareLink(item: card,
+                          preview: SharePreview("시즌 \(store.currentSeason.number) 마감", image: card)) {
+                    HStack(spacing: 7) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("시즌 결과 공유하기")
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                    .foregroundStyle(SeedTheme.violetDeep)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .overlay(RoundedRectangle(cornerRadius: 12)
+                        .stroke(SeedTheme.violet.opacity(0.5), lineWidth: 1.2))
+                }
+            }
             Button {
                 _ = store.startNextSeason(endEquity: equity, carriedRule: selectedRule)
                 session.resetForNewSeason()

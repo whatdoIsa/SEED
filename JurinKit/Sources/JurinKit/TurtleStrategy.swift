@@ -197,6 +197,80 @@ public enum BotComparison {
         }
     }
 
+    /// 오닐 봇 (모멘텀) — 신고가 돌파 + 거래량 확인 매수, -8% 칼손절.
+    /// "손실은 -8%에서 무조건 자른다"는 오닐의 철칙이 핵심 교육 포인트.
+    public static func runONeil(scenario: ScenarioPreset,
+                                lookback: Int = 7,
+                                stopPct: Double = 0.08,
+                                unitQty: Int = 100) -> BotRun {
+        var entryPrice: Double = 0
+        return runCustom(name: "오닐 봇", scenario: scenario) { ctx in
+            guard let closed = ctx.candles.last else { return nil }
+            let history = Array(ctx.candles.dropLast())
+
+            if ctx.holdingQty == 0 {
+                guard let channelHigh = history.highestHigh(period: lookback),
+                      closed.close > channelHigh else { return nil }
+                // 거래량 확인: 돌파가 진짜인지 — 최근 평균의 1.3배 이상
+                let recent = history.suffix(8)
+                let avgVolume = recent.isEmpty ? 0
+                    : recent.map(\.volume).reduce(0, +) / recent.count
+                guard avgVolume > 0, closed.volume * 10 >= avgVolume * 13 else { return nil }
+                entryPrice = Double(closed.close)
+                return (.buyUnit(qty: unitQty),
+                        "신고가 \(channelHigh.formatted())원 돌파 + 거래량 평소의 \((Double(closed.volume) / Double(avgVolume)).formatted(.number.precision(.fractionLength(1))))배 — 수요가 진짜다, 매수")
+            }
+
+            // 철칙: -8% 무조건 손절
+            if Double(closed.close) <= entryPrice * (1 - stopPct) {
+                return (.sellAll(qty: ctx.holdingQty),
+                        "매수가 대비 -\(Int(stopPct * 100))% — 오닐의 철칙, 이유를 묻지 않고 손절")
+            }
+            // 이익 보전: 단기 추세 꺾임
+            if QuantCondition.deadCross(short: 3, long: 8).isMet(candles: ctx.candles) {
+                return (.sellAll(qty: ctx.holdingQty),
+                        "단기 이평선이 꺾였다 — 추세 종료, 이익을 지키고 나온다")
+            }
+            return nil
+        }
+    }
+
+    /// 코스톨라니 봇 (소신파) — 초반에 사서 끝까지 잔다.
+    /// 매매 일지가 한 줄뿐인 것 자체가 교훈: 시장의 소음을 무시하는 힘.
+    public static func runKostolany(scenario: ScenarioPreset,
+                                    unitQty: Int = 160) -> BotRun {
+        runCustom(name: "코스톨라니 봇", scenario: scenario) { ctx in
+            guard ctx.holdingQty == 0, ctx.candles.count >= 1, ctx.candles.count <= 3 else { return nil }
+            return (.buyUnit(qty: unitQty),
+                    "우량한 것을 사서, 수면제를 먹고, 잔다 — 흔들림은 계획에 없다")
+        }
+    }
+
+    /// 템플턴 봇 (역발상) — 비관이 최고조일 때 사서, 낙관이 돌아오면 판다.
+    /// 급락장에서 진가, 꾸준한 상승장에선 살 기회 자체가 없다.
+    public static func runTempleton(scenario: ScenarioPreset,
+                                    panicDrawdownPct: Double = 8,
+                                    calmDrawdownPct: Double = 2,
+                                    lookback: Int = 15,
+                                    unitQty: Int = 120) -> BotRun {
+        runCustom(name: "템플턴 봇", scenario: scenario) { ctx in
+            guard let closed = ctx.candles.last, ctx.candles.count > 3 else { return nil }
+            let window = min(ctx.candles.count, lookback)
+            guard let recentHigh = ctx.candles.highestHigh(period: window),
+                  recentHigh > 0 else { return nil }
+            let drawdown = (1 - Double(closed.close) / Double(recentHigh)) * 100
+
+            if ctx.holdingQty == 0 {
+                guard drawdown >= panicDrawdownPct else { return nil }
+                return (.buyUnit(qty: unitQty),
+                        "고점 대비 -\(drawdown.formatted(.number.precision(.fractionLength(1))))% — 비관이 최고조일 때가 사는 날이다")
+            }
+            guard drawdown <= calmDrawdownPct else { return nil }
+            return (.sellAll(qty: ctx.holdingQty),
+                    "비관이 걷히고 낙관이 돌아왔다 — 남들이 살 때 판다")
+        }
+    }
+
     /// 최대 낙폭(MDD) — 고점 대비 최대 하락률(%).
     static func maxDrawdown(of curve: [Int]) -> Double {
         var peak = curve.first ?? 1

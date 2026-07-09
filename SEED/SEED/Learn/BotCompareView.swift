@@ -1,61 +1,24 @@
 import SwiftUI
 import JurinKit
 
-/// 나 vs 거장 봇 (⑫, §15) — 같은 급등 시나리오를 서로 다른 철학의 봇이 매매하면 어떻게 되는가.
-/// 추세추종(터틀)과 가치투자(반대 철학)를 골라 비교한다.
+/// 거장 도장 (⑫, §15) — 거장 5인의 철학·역사·규칙을 배우고,
+/// 같은 장에 세워 "전략은 장을 탄다"를 눈으로 확인한다.
 struct BotCompareView: View {
     let store: SeedStore
     @Environment(\.dismiss) private var dismiss
-    @State private var archetype: BotArchetype = .turtle
+    @State private var masterIndex = 0
+    @State private var scenario: DojoScenario = .chase
     @State private var run: BotRun?
+    @State private var showsProfile = false
     @State private var showsRematch = false
 
-    /// 봇 아키타입 — 철학·시간지평·규칙·아이콘을 한 곳에.
-    enum BotArchetype: String, CaseIterable, Identifiable {
-        case turtle, value
-        var id: String { rawValue }
-
-        var pickerLabel: String { self == .turtle ? "추세추종" : "가치투자" }
-        var name: String { self == .turtle ? "터틀 봇 · 추세추종형" : "그레이엄 봇 · 가치투자형" }
-        var icon: String { self == .turtle ? "tortoise.fill" : "building.columns.fill" }
-        var philosophy: String {
-            self == .turtle ? "\"예측하지 않는다. 추세를 따라간다.\""
-                            : "\"남들이 던질 때 줍고, 열광할 때 판다.\""
-        }
-        var horizon: String { self == .turtle ? "단기" : "장기" }
-        var rules: [(String, String)] {
-            self == .turtle
-                ? [("진입", "최근 5캔들 최고가 돌파 시 매수"),
-                   ("추가", "0.5×변동폭(ATR) 유리해질 때마다 +1유닛, 최대 4"),
-                   ("청산", "3캔들 최저가 이탈 또는 평단 −2×ATR 손절")]
-                : [("진입", "내재가치 추정보다 3.5% 이상 쌀 때 매수"),
-                   ("보유", "가치가 회복될 때까지 버틴다"),
-                   ("청산", "내재가치보다 4% 이상 비싸지면 전량 매도")]
-        }
-        var ruleShort: String { self == .turtle ? "돌파 규칙" : "저평가 진입" }
-        var compareInsight: (_ botCheaper: Bool) -> String {
-            switch self {
-            case .turtle:
-                return { $0
-                    ? "봇이 먼저(싸게) 탔어요. 공정하게 말하면 — 레슨 3에서 당신에게 주어진 선택지는 급등이 이미 다 보인 고점뿐이었어요. 그게 현실에서 초보가 급등주를 만나는 시점이거든요. 봇은 그보다 앞선 돌파 순간에 기계적으로 반응했고요. 아래 리매치로 같은 조건에서 직접 겨뤄보세요."
-                    : "이번엔 당신의 진입이 봇보다 낫거나 비슷했어요. 다만 봇은 백 번 반복해도 똑같이 해냅니다 — 그게 규칙의 힘이에요." }
-            case .value:
-                return { _ in
-                    "가치투자 봇은 급등을 아예 쫓지 않아요. 가격이 내재가치 밑으로 빠지는 순간만 기다렸다 줍죠. 추세추종과 정반대 시점에 움직이는 걸 보세요." }
-            }
-        }
-        func run() -> BotRun {
-            self == .turtle
-                ? BotComparison.runTurtle(scenario: .chaseRally())
-                : BotComparison.runValue(scenario: .chaseRally())
-        }
-    }
+    private var master: MasterProfile { MasterCatalog.all[masterIndex] }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text("나 vs 거장 봇")
+                    Text("거장 도장")
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(SeedTheme.textPrimary)
                     Spacer()
@@ -68,16 +31,13 @@ struct BotCompareView: View {
                     }
                 }
 
-                Picker("봇", selection: $archetype) {
-                    ForEach(BotArchetype.allCases) { Text($0.pickerLabel).tag($0) }
-                }
-                .pickerStyle(.segmented)
-
+                masterChips
                 identityCard
+                scenarioChips
 
                 if let run {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("레슨 3과 같은 급등 시나리오를 봇이 매매한 기록이에요.")
+                        Text("\(scenario.label)을 \(master.shortName) 봇이 매매한 기록이에요.")
                             .font(.system(size: 13))
                             .foregroundStyle(SeedTheme.textSecondary)
                         TradeMapCanvas(
@@ -98,24 +58,27 @@ struct BotCompareView: View {
                     }
 
                     buyAndHoldLine(run: run)
-
                     journalSection(run: run)
 
-                    comparisonCard(run: run)
+                    if scenario == .chase && master.id == "turtle" {
+                        comparisonCard(run: run)
+                    }
 
-                    Button {
-                        showsRematch = true
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "arrow.trianglehead.counterclockwise")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text("같은 장, 직접 다시 겪기")
-                                .font(.system(size: 15, weight: .semibold))
+                    if scenario == .chase {
+                        Button {
+                            showsRematch = true
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "arrow.trianglehead.counterclockwise")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("같은 장, 직접 다시 겪기")
+                                    .font(.system(size: 15, weight: .semibold))
+                            }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(SeedTheme.violet, in: RoundedRectangle(cornerRadius: 13))
                         }
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(SeedTheme.violet, in: RoundedRectangle(cornerRadius: 13))
                     }
                 } else {
                     HStack(spacing: 8) {
@@ -128,7 +91,7 @@ struct BotCompareView: View {
                     .padding(.vertical, 30)
                 }
 
-                Text("교육용 전략 · 수익 보장 아님 · 백테스트 우수 ≠ 실전 수익")
+                Text("실존 인물의 철학을 단순화해 재현한 교육용 봇 · 수익 보장 아님 · 투자 권유 아님")
                     .font(.system(size: 10))
                     .foregroundStyle(SeedTheme.textSecondary.opacity(0.6))
                     .frame(maxWidth: .infinity)
@@ -136,45 +99,110 @@ struct BotCompareView: View {
             .padding(16)
         }
         .background(SeedTheme.background)
-        .task(id: archetype) {
+        .task(id: "\(masterIndex)-\(scenario.rawValue)") {
             // 결정론 덕분에 언제 돌려도 같은 결과 — 캐시가 필요 없다
-            run = archetype.run()
+            run = master.run(scenario.preset)
+        }
+        .sheet(isPresented: $showsProfile) {
+            MasterProfileSheet(master: master)
         }
         .fullScreenCover(isPresented: $showsRematch) {
             ChaseRematchView()
         }
     }
 
-    // MARK: 봇 아이덴티티 카드 (§15.3 — 아키타입 + 시간지평 배지 + 규칙)
+    // MARK: 거장 선택
+
+    private var masterChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                ForEach(Array(MasterCatalog.all.enumerated()), id: \.element.id) { index, profile in
+                    Button {
+                        masterIndex = index
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: profile.icon).font(.system(size: 11))
+                            Text(profile.shortName).font(.system(size: 13, weight: .semibold))
+                        }
+                        .foregroundStyle(masterIndex == index ? SeedTheme.inverse : SeedTheme.textPrimary)
+                        .padding(.horizontal, 13).padding(.vertical, 8)
+                        .background(masterIndex == index ? SeedTheme.textPrimary : SeedTheme.card,
+                                    in: Capsule())
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: 어느 장에 세울까
+
+    private var scenarioChips: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text("어느 장에 세워볼까요? — 전략은 장을 타요")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(SeedTheme.textSecondary)
+            HStack(spacing: 6) {
+                ForEach(DojoScenario.allCases) { item in
+                    Button {
+                        scenario = item
+                    } label: {
+                        Text(item.label)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(scenario == item ? SeedTheme.inverse : SeedTheme.textPrimary)
+                            .padding(.horizontal, 12).padding(.vertical, 8)
+                            .background(scenario == item ? SeedTheme.textPrimary : SeedTheme.card,
+                                        in: Capsule())
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: 거장 아이덴티티 카드
 
     private var identityCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 9).fill(SeedTheme.violet).frame(width: 36, height: 36)
-                    Image(systemName: archetype.icon)
+                    Image(systemName: master.icon)
                         .font(.system(size: 15))
                         .foregroundStyle(.white)
                 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(archetype.name)
+                    Text(master.title)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(SeedTheme.inkText)
-                    Text(archetype.philosophy)
+                    Text(master.quote)
                         .font(.system(size: 12))
                         .foregroundStyle(SeedTheme.inkText.opacity(0.7))
+                        .lineLimit(2)
                 }
                 Spacer()
-                Text(archetype.horizon)
+                Text(master.horizon)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(SeedTheme.violetOnDark)
                     .padding(.horizontal, 8).padding(.vertical, 3)
                     .overlay(Capsule().stroke(SeedTheme.violetOnDark.opacity(0.6), lineWidth: 1))
             }
             VStack(alignment: .leading, spacing: 4) {
-                ForEach(Array(archetype.rules.enumerated()), id: \.offset) { _, rule in
+                ForEach(Array(master.rules.enumerated()), id: \.offset) { _, rule in
                     ruleRow(rule.0, rule.1)
                 }
+            }
+            Button {
+                showsProfile = true
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "book.fill").font(.system(size: 11))
+                    Text("\(master.shortName)의 이야기 읽기")
+                        .font(.system(size: 13, weight: .semibold))
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.system(size: 11))
+                }
+                .foregroundStyle(SeedTheme.violetOnDark)
+                .padding(.vertical, 9).padding(.horizontal, 12)
+                .background(SeedTheme.violetOnDark.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
             }
         }
         .padding(15)
@@ -193,7 +221,7 @@ struct BotCompareView: View {
         }
     }
 
-    // MARK: 존버 기준선 — 봇이 항상 이기는 건 아니라는 정직한 비교
+    // MARK: 존버 기준선
 
     @ViewBuilder
     private func buyAndHoldLine(run: BotRun) -> some View {
@@ -202,7 +230,7 @@ struct BotCompareView: View {
             let botWins = run.returnPct > holdPct
             HStack(spacing: 7) {
                 Image(systemName: "hand.raised.fill").font(.system(size: 11))
-                Text("그냥 들고만 있었다면 \(holdPct >= 0 ? "+" : "")\(holdPct.formatted(.number.precision(.fractionLength(2))))% — \(botWins ? "이번엔 봇의 규칙이 나았어요" : "이번엔 존버가 나았어요. 봇이 항상 이기는 건 아니에요")")
+                Text("그냥 들고만 있었다면 \(holdPct >= 0 ? "+" : "")\(holdPct.formatted(.number.precision(.fractionLength(2))))% — \(botWins ? "이번 장은 \(master.shortName)의 규칙이 나았어요" : "이번 장은 존버가 나았어요. 어떤 전략도 모든 장을 이기진 못해요")")
                     .font(.system(size: 12))
                 Spacer()
             }
@@ -212,16 +240,18 @@ struct BotCompareView: View {
         }
     }
 
-    // MARK: 매매 일지 — 왜 그때 샀는가
+    // MARK: 매매 일지
 
     @ViewBuilder
     private func journalSection(run: BotRun) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("봇의 매매 일지")
+            Text("\(master.shortName)의 매매 일지")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(SeedTheme.textPrimary)
             if run.actions.isEmpty {
-                Text("이번 장에선 한 번도 매매하지 않았어요 — 조건에 맞는 순간이 없으면 봇은 그냥 기다려요. 그것도 규칙이에요.")
+                Text(master.id == "templeton"
+                     ? "이 장에선 '비관의 극점'이 오지 않아 한 번도 사지 않았어요 — 기준에 맞는 날만 움직이는 게 역발상이에요."
+                     : "이번 장에선 한 번도 매매하지 않았어요 — 조건에 맞는 순간이 없으면 거장은 그냥 기다려요. 그것도 규칙이에요.")
                     .font(.system(size: 12))
                     .foregroundStyle(SeedTheme.textSecondary)
                     .lineSpacing(4)
@@ -256,7 +286,7 @@ struct BotCompareView: View {
         }
     }
 
-    // MARK: 나 vs 봇 비교
+    // MARK: 나 vs 봇 (레슨 3 기록 — 급등장 × 터틀에서만)
 
     private func comparisonCard(run: BotRun) -> some View {
         let myLogs = store.scenarioLogs(scenarioId: "scenario.chase-rally")
@@ -264,7 +294,7 @@ struct BotCompareView: View {
         let botFirstBuy = run.actions.first { $0.side == .buy }
 
         return VStack(alignment: .leading, spacing: 10) {
-            Text("첫 진입 비교")
+            Text("첫 진입 비교 (레슨 3)")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(SeedTheme.textPrimary)
             if let mine = myFirstBuy {
@@ -277,16 +307,14 @@ struct BotCompareView: View {
                     .foregroundStyle(SeedTheme.textSecondary)
             }
             if let bot = botFirstBuy {
-                compareRow(name: archetype.pickerLabel + " 봇",
-                           detail: "\(Int(bot.price).formatted())원 · \(archetype.ruleShort)",
+                compareRow(name: "터틀 봇",
+                           detail: "\(Int(bot.price).formatted())원 · 돌파 규칙",
                            highlight: true)
-            } else {
-                Text("이 봇은 이번 시나리오에서 한 번도 진입하지 않았어요 — 조건에 맞는 순간이 없었던 거예요.")
-                    .font(.system(size: 12))
-                    .foregroundStyle(SeedTheme.textSecondary)
             }
             if let mine = myFirstBuy, let bot = botFirstBuy {
-                Text(archetype.compareInsight(mine.avgFillPrice > bot.price))
+                Text(mine.avgFillPrice > bot.price
+                     ? "봇이 먼저(싸게) 탔어요. 공정하게 말하면 — 레슨 3에서 당신에게 주어진 선택지는 급등이 이미 다 보인 고점뿐이었어요. 그게 현실에서 초보가 급등주를 만나는 시점이거든요. 봇은 그보다 앞선 돌파 순간에 기계적으로 반응했고요. 아래 리매치로 같은 조건에서 직접 겨뤄보세요."
+                     : "이번엔 당신의 진입이 봇보다 낫거나 비슷했어요. 다만 봇은 백 번 반복해도 똑같이 해냅니다 — 그게 규칙의 힘이에요.")
                     .font(.system(size: 13))
                     .foregroundStyle(SeedTheme.violetDeep)
                     .lineSpacing(4)
@@ -320,5 +348,84 @@ struct BotCompareView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(SeedTheme.background, in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+// MARK: - 거장 프로필 시트 (이야기·강한 장·죽는 장·심리 함정)
+
+struct MasterProfileSheet: View {
+    let master: MasterProfile
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 11).fill(SeedTheme.violet).frame(width: 44, height: 44)
+                        Image(systemName: master.icon)
+                            .font(.system(size: 18))
+                            .foregroundStyle(.white)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(master.title)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(SeedTheme.textPrimary)
+                        Text(master.quote)
+                            .font(.system(size: 12))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                    }
+                    Spacer()
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                    }
+                }
+
+                Text(master.story)
+                    .font(.system(size: 14))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                    .lineSpacing(6)
+
+                infoCard(icon: "sun.max.fill", tint: SeedTheme.up,
+                         title: "강한 장", text: master.strongMarkets)
+                infoCard(icon: "cloud.rain.fill", tint: SeedTheme.down,
+                         title: "죽는 장", text: master.weakMarkets)
+                infoCard(icon: "brain.head.profile", tint: SeedTheme.violetDeep,
+                         title: "사람이 무너지는 지점", text: master.mentalTrap)
+
+                Text("이야기는 역사적 사실을 바탕으로 하며, 봇은 해당 철학을 교육용으로 단순화한 재현입니다. 특정 전략의 수익을 보장하지 않아요.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(SeedTheme.textSecondary.opacity(0.7))
+                    .lineSpacing(4)
+            }
+            .padding(20)
+        }
+        .background(SeedTheme.background)
+        .presentationDetents([.large])
+    }
+
+    private func infoCard(icon: String, tint: Color, title: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+                .foregroundStyle(tint)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Text(text)
+                    .font(.system(size: 13))
+                    .foregroundStyle(SeedTheme.textSecondary)
+                    .lineSpacing(4)
+            }
+            Spacer()
+        }
+        .padding(13)
+        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 13))
     }
 }

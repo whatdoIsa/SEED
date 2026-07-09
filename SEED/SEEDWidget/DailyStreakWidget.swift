@@ -73,8 +73,51 @@ struct DailyStreakWidgetView: View {
     private var content: some View {
         switch family {
         case .systemMedium: medium
+        case .accessoryCircular: circular
+        case .accessoryRectangular: rectangular
         default: small
         }
+    }
+
+    // MARK: 잠금화면
+
+    /// 원형: 완료 체크 또는 연속 일수 — 한 글자 정보
+    private var circular: some View {
+        ZStack {
+            AccessoryWidgetBackground()
+            if entry.doneToday {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 20, weight: .bold))
+            } else if entry.streak >= 2 {
+                VStack(spacing: 0) {
+                    Text("🔥").font(.system(size: 14))
+                    Text("\(entry.streak)일")
+                        .font(.system(size: 11, weight: .bold))
+                }
+            } else {
+                Image(systemName: "sunrise.fill")
+                    .font(.system(size: 18))
+            }
+        }
+    }
+
+    /// 직사각형: 상태 + 스트릭 한 줄
+    private var rectangular: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Image(systemName: entry.doneToday ? "checkmark.circle.fill" : "sunrise.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("오늘의 장")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            Text(entry.doneToday ? "오늘 완료" : "오늘 판이 열렸어요")
+                .font(.system(size: 11))
+            if entry.streak >= 2 {
+                Text("🔥 \(entry.streak)일 연속")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var small: some View {
@@ -139,6 +182,7 @@ struct DailyStreakWidget: Widget {
         }
         .configurationDisplayName("오늘의 장")
         .description("연속 기록과 오늘의 장 완료 여부를 보여줘요.")
-        .supportedFamilies([.systemSmall, .systemMedium])
+        .supportedFamilies([.systemSmall, .systemMedium,
+                            .accessoryCircular, .accessoryRectangular])
     }
 }

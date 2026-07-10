@@ -88,6 +88,8 @@ struct QuantBuilderView: View {
         }
         .pickerStyle(.segmented)
 
+        templateExplainer
+
         parameterCard
 
         VStack(alignment: .leading, spacing: 8) {
@@ -397,6 +399,51 @@ struct QuantBuilderView: View {
     // MARK: 파라미터 (템플릿별)
 
     @ViewBuilder
+    /// 이 전략이 무슨 아이디어인지 — 통하는 장과 죽는 장까지 정직하게.
+    private var templateExplainer: some View {
+        let info: (idea: String, works: String, fails: String) = {
+            switch template {
+            case 0:
+                return ("\"떨어질 만큼 떨어졌다\"에 베팅해요. RSI는 최근 오른 힘과 내린 힘의 비율(0~100) — 30 아래면 팔 사람은 이미 판 과매도, 70 위면 과열로 봐요. 내려간 게 제자리로 돌아온다는 평균회귀 아이디어예요.",
+                        "횡보장 — 박스 안에서 내려가면 사고 올라가면 파는 게 반복돼요",
+                        "강한 하락 추세 — '과매도'가 며칠씩 계속되며 사자마자 더 빠져요")
+            case 1:
+                return ("추세의 방향 전환을 이평선 두 개로 감지해요. 짧은 선(최근 분위기)이 긴 선(큰 흐름)을 위로 뚫으면 골든크로스(상승 전환), 아래로 뚫으면 데드크로스(하락 전환)예요.",
+                        "방향이 분명한 추세장 — 전환을 한 번 잡으면 길게 먹어요",
+                        "횡보장 — 두 선이 계속 얽히며 가짜 신호에 사고팔기를 반복해요")
+            default:
+                return ("\"강한 것은 더 강해진다\"에 베팅해요. 최근 N캔들의 최고가를 뚫는 건 새 수요가 들어왔다는 신호 — 터틀·오닐이 쓰는 돌파 매매의 뼈대예요.",
+                        "급등 초입 — 돌파 순간 올라타 추세를 끝까지 타요",
+                        "데드캣·횡보 — 가짜 돌파에 타서 손절을 반복해요 (whipsaw)")
+            }
+        }()
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(info.idea)
+                .font(.system(size: 13))
+                .foregroundStyle(SeedTheme.textPrimary)
+                .lineSpacing(5)
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "sun.max.fill").font(.system(size: 10))
+                    .foregroundStyle(SeedTheme.up)
+                    .padding(.top, 2)
+                Text(info.works)
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "cloud.rain.fill").font(.system(size: 10))
+                    .foregroundStyle(SeedTheme.down)
+                    .padding(.top, 2)
+                Text(info.fails)
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+        }
+        .padding(13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(SeedTheme.violetTint.opacity(0.6), in: RoundedRectangle(cornerRadius: 13))
+    }
+
     private var parameterCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             switch template {
@@ -416,6 +463,9 @@ struct QuantBuilderView: View {
             default:
                 stepperRow("N캔들 최고가 돌파 시 매수", value: $breakoutLookback, range: 3...10)
                 stepperRow("N캔들 최저가 이탈 시 매도", value: $breakdownLookback, range: 2...8)
+                Text("N이 크면 신호가 드물지만 확실하고, 작으면 잦지만 가짜가 늘어요 — 이 균형이 파라미터 튜닝의 본질이에요.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
             }
         }
         .padding(14)
@@ -497,6 +547,11 @@ struct QuantBuilderView: View {
                 statCard("최대 낙폭", "-\(run.maxDrawdownPct.formatted(.number.precision(.fractionLength(1))))%")
                 statCard("매매", "\(run.tradeCount)회")
             }
+
+            Text("최대 낙폭은 도중 고점에서 가장 깊이 빠졌던 정도 — 이 전략을 따르며 견뎌야 했을 고통의 크기예요. 수익률이 같다면 낙폭이 작은 쪽이 좋은 전략이에요.")
+                .font(.system(size: 11))
+                .foregroundStyle(SeedTheme.textSecondary.opacity(0.8))
+                .lineSpacing(4)
 
             if run.tradeCount == 0 {
                 Text("이 조건은 이 장에서 한 번도 발동하지 않았어요. 조건을 느슨하게 바꿔볼까요?")

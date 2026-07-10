@@ -226,6 +226,8 @@ struct ChaseScenarioMissionView: View {
 
     private func startLoop() {
         guard loop == nil else { return }
+        // 워밍업: 과거 캔들을 그린 상태로 시작
+        if engine.tick == 0 { engine.advance(ticks: 120) }
         loop = Task {
             while !Task.isCancelled {
                 if phase == .running {

@@ -182,6 +182,8 @@ struct SupportBounceMissionView: View {
 
     private func startLoop() {
         guard loop == nil else { return }
+        // 워밍업: 과거 캔들을 그린 상태로 시작 — 빈 차트에 거대 막대가 쌓이는 혼란 방지
+        if engine.tick == 0 { engine.advance(ticks: 60) }
         loop = Task {
             while !Task.isCancelled {
                 if phase == .running {

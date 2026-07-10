@@ -22,6 +22,8 @@ struct OrderSheet: View {
     private var accent: Color { side == .buy ? SeedTheme.up : SeedTheme.down }
     private var title: String { side == .buy ? "사기" : "팔기" }
     private var isLimit: Bool { orderType == 1 }
+    /// 내용 실측 높이 — 시트가 내용만큼만 뜬다 (빈 공간 제거)
+    @State private var measuredHeight: CGFloat = 470
 
     var body: some View {
         VStack(spacing: 14) {
@@ -142,6 +144,14 @@ struct OrderSheet: View {
             .disabled(selectedTag == nil)
         }
         .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { height in
+            measuredHeight = height
+        }
+        .presentationDetents([.height(measuredHeight + 14)]) // 그랩바 여유
+        .animation(.snappy(duration: 0.25), value: measuredHeight)
         .onAppear {
             limitPrice = session.engine.displayedPrice(for: side) ?? session.engine.lastPrice
         }
@@ -152,6 +162,7 @@ struct OrderSheet: View {
 // MARK: - 체결 결과 시트 (슬리피지가 보이는 순간 — 튜토리얼의 씨앗)
 
 struct FillResultSheet: View {
+    @State private var measuredHeight: CGFloat = 340
     let fill: FillResult
     var fee: Int = 0
     @Environment(\.dismiss) private var dismiss
@@ -209,6 +220,14 @@ struct FillResultSheet: View {
             }
         }
         .padding(.horizontal, 20)
+        .padding(.vertical, 18)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.size.height
+        } action: { height in
+            measuredHeight = height
+        }
+        .presentationDetents([.height(measuredHeight + 14)]) // 그랩바 여유
+        .animation(.snappy(duration: 0.25), value: measuredHeight)
     }
 
     private func row(_ label: String, _ value: String) -> some View {

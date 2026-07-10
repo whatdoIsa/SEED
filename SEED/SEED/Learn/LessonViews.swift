@@ -8,6 +8,7 @@ struct LessonListView: View {
     @State private var showsDailyMarket = false
     @State private var showsGlossary = false
     @State private var summaryLesson: LessonDef?
+    @State private var quiz: QuizQuestion?
     @State private var showsBotCompare = false
     @State private var showsQuantBuilder = false
 
@@ -21,6 +22,7 @@ struct LessonListView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(SeedTheme.textSecondary)
 
+                morningQuizCard
                 dailyMarketCard
                 deepLinkListener
 
@@ -95,6 +97,9 @@ struct LessonListView: View {
         }
         .sheet(isPresented: $showsGlossary) {
             GlossaryView()
+        }
+        .sheet(item: $quiz) { question in
+            MorningQuizSheet(quiz: question)
         }
         .sheet(item: $summaryLesson) { lesson in
             LessonSummarySheet(lesson: lesson) {
@@ -190,6 +195,42 @@ struct LessonListView: View {
                     showsDailyMarket = true
                 }
             }
+    }
+
+    /// 아침 복습 — 어제 배운 레슨 1문제 (하루 한 번, 간격 반복)
+    @ViewBuilder
+    private var morningQuizCard: some View {
+        if !QuizRecord.doneToday, let question = QuizCatalog.todaysQuiz(store: store) {
+            Button {
+                quiz = question
+            } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(SeedTheme.up.opacity(0.12))
+                            .frame(width: 38, height: 38)
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(SeedTheme.up)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("아침 복습 · 1문제")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(SeedTheme.textPrimary)
+                        Text("배운 건 다음날 꺼내야 진짜 내 것이 돼요")
+                            .font(.system(size: 12))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13))
+                        .foregroundStyle(SeedTheme.up)
+                }
+                .padding(14)
+                .background(SeedTheme.up.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var dailyMarketCard: some View {

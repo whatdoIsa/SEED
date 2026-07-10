@@ -301,6 +301,20 @@ final class SeedStore {
         }.count
     }
 
+    /// 오늘 이전에 완료한 가장 최근 본편 레슨 — 아침 복습 퀴즈의 대상.
+    func latestMainLessonCompletedBeforeToday() -> String? {
+        let mainIds = Set(LessonCatalog.registered.map(\.id))
+        let calendar = Calendar.current
+        let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
+        return lessons
+            .filter { record in
+                guard let done = record.completedAt else { return false }
+                return mainIds.contains(record.lessonId) && !calendar.isDateInToday(done)
+            }
+            .max { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }?
+            .lessonId
+    }
+
     func isLessonDone(_ lessonId: String) -> Bool {
         // 관찰 property를 읽어 잠금 화면들이 즉시 반응하게 한다.
         completedLessonIds.contains(lessonId)

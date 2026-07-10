@@ -67,6 +67,14 @@ struct ChartCanvas: View {
             low = min(low, Int(avgCost))
             high = max(high, Int(avgCost))
         }
+        // 캔들이 적을 때 Y축 최소 범위 보장 — 초반 캔들 몇 개가 화면 전체 높이의
+        // '거대 막대'로 늘어나는 것을 막는다 (가격의 ±1.5% 아래로는 안 좁힌다)
+        let mid = (low + high) / 2
+        let minimumRange = max(Int(Double(mid) * 0.03), 4)
+        if high - low < minimumRange {
+            low = mid - minimumRange / 2
+            high = mid + minimumRange / 2
+        }
         let slot = plotWidth / CGFloat(max(visibleCount, 1))
         return Metrics(
             all: all, plotWidth: plotWidth, axisX: plotWidth,

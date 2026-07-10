@@ -319,6 +319,16 @@ struct ArenaView: View {
         guard loop == nil else { return }
         // 거장 5인은 같은 시드 시장을 결정론으로 미리 완주 (즉시)
         botRuns = MasterCatalog.all.map { ($0, $0.run(preset)) }
+        // 내가 만든 전략도 출전 (퀀트 빌더에서 저장한 슬롯)
+        if let mine = StrategyStore.load() {
+            let profile = MasterProfile(
+                id: "myStrategy", shortName: mine.name,
+                title: "\(mine.name) · 내 전략", icon: "wrench.and.screwdriver.fill",
+                horizon: "규칙", quote: "", story: "", rules: [],
+                strongMarkets: "", weakMarkets: "", mentalTrap: "",
+                run: { BotComparison.run(strategy: mine, scenario: $0) })
+            botRuns.append((profile, BotComparison.run(strategy: mine, scenario: preset)))
+        }
         // 워밍업: 흘러온 시장에 들어간다
         if engine.tick == 0 { engine.advance(ticks: 160) }
         loop = Task {

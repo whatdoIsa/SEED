@@ -21,6 +21,9 @@ struct QuantBuilderView: View {
     @State private var scenarioIndex = 0
     @State private var run: BotRun?
     @State private var isRunning = false
+    @State private var matrix: [(label: String, run: BotRun)]?
+    @State private var strategyName = ""
+    @State private var savedNotice = false
 
     private let templates = ["RSI 역추세", "이평선 교차", "돌파 추세"]
     private let scenarios: [(name: String, make: () -> ScenarioPreset)] = [
@@ -125,6 +128,134 @@ struct QuantBuilderView: View {
         if let run {
             resultSection(run)
         }
+
+        // 강건성 검증: 버튼 한 번에 네 개 장 전부
+        Button {
+            runMatrix()
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "square.grid.2x2.fill").font(.system(size: 13, weight: .semibold))
+                Text("모든 장에서 시험 — 장별 성적표")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .foregroundStyle(SeedTheme.violetDeep)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .stroke(SeedTheme.violet.opacity(0.5), lineWidth: 1.2))
+        }
+
+        if let matrix {
+            matrixSection(matrix)
+        }
+
+        arenaEntrySection
+    }
+
+    // MARK: 장별 성적표 — 전략의 강건성이 한 눈에
+
+    private func runMatrix() {
+        let strategy = currentStrategy
+        matrix = DojoScenario.allCases.map { item in
+            (item.label, BotComparison.run(strategy: strategy, scenario: item.preset))
+        }
+    }
+
+    private func matrixSection(_ rows: [(label: String, run: BotRun)]) -> some View {
+        let best = rows.max { $0.run.returnPct < $1.run.returnPct }
+        let worst = rows.min { $0.run.returnPct < $1.run.returnPct }
+        return VStack(alignment: .leading, spacing: 9) {
+            Text("장별 성적표")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(SeedTheme.textPrimary)
+            HStack {
+                Text("장").frame(width: 64, alignment: .leading)
+                Spacer()
+                Text("수익률").frame(width: 72, alignment: .trailing)
+                Text("최대 낙폭").frame(width: 72, alignment: .trailing)
+                Text("매매").frame(width: 44, alignment: .trailing)
+            }
+            .font(.system(size: 11))
+            .foregroundStyle(SeedTheme.textSecondary)
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack {
+                    Text(row.label)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                        .frame(width: 64, alignment: .leading)
+                    Spacer()
+                    Text("\(row.run.returnPct >= 0 ? "+" : "")\(row.run.returnPct.formatted(.number.precision(.fractionLength(2))))%")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(SeedTheme.pnl(row.run.returnPct))
+                        .frame(width: 72, alignment: .trailing)
+                        .monospacedDigit()
+                    Text("-\(row.run.maxDrawdownPct.formatted(.number.precision(.fractionLength(1))))%")
+                        .font(.system(size: 13))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                        .frame(width: 72, alignment: .trailing)
+                        .monospacedDigit()
+                    Text("\(row.run.tradeCount)회")
+                        .font(.system(size: 13))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                        .frame(width: 44, alignment: .trailing)
+                }
+                .padding(.vertical, 3)
+            }
+            if let best, let worst, best.label != worst.label {
+                Text("\(best.label)에 강하고 \(worst.label)에서 약해요 — 전략은 장을 타요. 어느 장이 올지 모른다는 게 실전의 조건이에요.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.violetDeep)
+                    .lineSpacing(4)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(SeedTheme.violetTint, in: RoundedRectangle(cornerRadius: 10))
+            }
+        }
+        .padding(14)
+        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    // MARK: 아레나 출전 — 이 전략을 7번째 선수로
+
+    private var arenaEntrySection: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("아레나 출전")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(SeedTheme.textPrimary)
+            Text(StrategyStore.load().map { "현재 출전 전략: '\($0.name)' — 새로 저장하면 교체돼요." }
+                 ?? "전략에 이름을 붙여 저장하면 아레나에서 거장들과 함께 뜁니다.")
+                .font(.system(size: 12))
+                .foregroundStyle(SeedTheme.textSecondary)
+            HStack(spacing: 8) {
+                TextField("전략 이름 (예: 나의 RSI 역추세)", text: $strategyName)
+                    .font(.system(size: 14))
+                    .padding(.horizontal, 12).padding(.vertical, 10)
+                    .background(SeedTheme.background, in: RoundedRectangle(cornerRadius: 10))
+                Button {
+                    var strategy = currentStrategy
+                    let trimmed = strategyName.trimmingCharacters(in: .whitespaces)
+                    strategy.name = trimmed.isEmpty ? strategy.name : trimmed
+                    StrategyStore.save(strategy)
+                    savedNotice = true
+                } label: {
+                    Text("저장")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16).padding(.vertical, 10)
+                        .background(SeedTheme.violet, in: RoundedRectangle(cornerRadius: 10))
+                }
+            }
+            if savedNotice {
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark.circle.fill").font(.system(size: 11))
+                    Text("저장 완료 — 다음 아레나부터 함께 뜁니다")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundStyle(SeedTheme.violetDeep)
+            }
+        }
+        .padding(14)
+        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
     }
 
     // MARK: 가치 스크리너 패널 (신규 — 6종목 카탈로그를 재무 지표로 필터)

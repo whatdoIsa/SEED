@@ -11,6 +11,7 @@ struct BotCompareView: View {
     @State private var run: BotRun?
     @State private var showsProfile = false
     @State private var showsRematch = false
+    @State private var showsArena = false
 
     private var master: MasterProfile { MasterCatalog.all[masterIndex] }
 
@@ -33,6 +34,32 @@ struct BotCompareView: View {
 
                 masterChips
                 identityCard
+
+                // 아레나 — 배운 것을 시험하는 곳
+                Button {
+                    showsArena = true
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "trophy.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text("아레나 입장")
+                                .font(.system(size: 15, weight: .bold))
+                            Text("아무도 본 적 없는 장에서 거장 5인과 겨루기 · \(ArenaRecord.summary)")
+                                .font(.system(size: 11))
+                                .opacity(0.85)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 15).padding(.vertical, 12)
+                    .background(
+                        LinearGradient(colors: [SeedTheme.violet, Color(hex: 0x8B5CF6)],
+                                       startPoint: .leading, endPoint: .trailing),
+                        in: RoundedRectangle(cornerRadius: 14))
+                }
+
                 scenarioChips
 
                 if let run {
@@ -108,6 +135,9 @@ struct BotCompareView: View {
         }
         .fullScreenCover(isPresented: $showsRematch) {
             ChaseRematchView()
+        }
+        .fullScreenCover(isPresented: $showsArena) {
+            ArenaView()
         }
     }
 

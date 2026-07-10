@@ -289,6 +289,18 @@ final class SeedStore {
                       ["choice": startLevel == 0 ? "beginner" : "experienced"])
     }
 
+    /// 오늘 완료한 본편 레슨 수 — 하루 1레슨 페이스의 기준.
+    /// (심화 시리즈·오늘의 장은 세지 않는다)
+    func mainLessonsCompletedToday() -> Int {
+        let mainIds = Set(LessonCatalog.registered.map(\.id))
+        let calendar = Calendar.current
+        let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
+        return lessons.filter { record in
+            guard let done = record.completedAt else { return false }
+            return mainIds.contains(record.lessonId) && calendar.isDateInToday(done)
+        }.count
+    }
+
     func isLessonDone(_ lessonId: String) -> Bool {
         // 관찰 property를 읽어 잠금 화면들이 즉시 반응하게 한다.
         completedLessonIds.contains(lessonId)

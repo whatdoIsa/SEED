@@ -22,8 +22,11 @@ struct LessonListView: View {
                 dailyMarketCard
                 deepLinkListener
 
+                // 하루 1레슨 페이스: 처음 3개는 자유, 이후 본편은 하루 1개
+                let mainDoneCount = LessonCatalog.all.filter { store.isLessonDone($0.id) }.count
+                let paceExhausted = mainDoneCount >= 3 && store.mainLessonsCompletedToday() >= 1
                 ForEach(LessonCatalog.all) { lesson in
-                    lessonRow(lesson)
+                    lessonRow(lesson, paceExhausted: paceExhausted)
                 }
 
                 // 심화 시리즈 — 책에서 배우는 것들. 잠금 없음, 읽기형.
@@ -228,9 +231,12 @@ struct LessonListView: View {
         .buttonStyle(.plain)
     }
 
-    private func lessonRow(_ lesson: LessonDef) -> some View {
+    private func lessonRow(_ lesson: LessonDef, paceExhausted: Bool = false) -> some View {
         let done = store.isLessonDone(lesson.id)
-        let available = isAvailable(lesson)
+        let sequenceOpen = isAvailable(lesson)
+        // 순서상 다음 차례지만 오늘 몫(1개)을 이미 쓴 경우 — 내일 예고
+        let waitsForTomorrow = sequenceOpen && !done && paceExhausted
+        let available = sequenceOpen && !waitsForTomorrow
         return Button {
             if available && !done { activeLesson = lesson }
         } label: {
@@ -243,6 +249,10 @@ struct LessonListView: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(.white)
+                    } else if waitsForTomorrow {
+                        Image(systemName: "moon.stars.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(SeedTheme.violetDeep.opacity(0.7))
                     } else if available {
                         Text("\(lesson.order)")
                             .font(.system(size: 15, weight: .semibold))
@@ -257,12 +267,15 @@ struct LessonListView: View {
                     Text(lesson.title)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(available ? SeedTheme.textPrimary : SeedTheme.textSecondary)
-                    Text(done ? lesson.unlockLabel + " 완료" : lesson.subtitle)
+                    Text(done ? lesson.unlockLabel + " 완료"
+                         : (waitsForTomorrow
+                            ? "내일 열려요 — 오늘 배운 걸 오늘의 장에서 먼저 써보세요"
+                            : lesson.subtitle))
                         .font(.system(size: 12))
-                        .foregroundStyle(SeedTheme.textSecondary)
+                        .foregroundStyle(waitsForTomorrow ? SeedTheme.violetDeep : SeedTheme.textSecondary)
                 }
                 Spacer()
-                if !done {
+                if !done && !waitsForTomorrow {
                     Text(lesson.duration)
                         .font(.system(size: 11))
                         .foregroundStyle(SeedTheme.textSecondary.opacity(0.8))
@@ -270,7 +283,7 @@ struct LessonListView: View {
             }
             .padding(14)
             .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
-            .opacity(available || done ? 1 : 0.65)
+            .opacity(available || done || waitsForTomorrow ? 1 : 0.65)
         }
         .buttonStyle(.plain)
     }

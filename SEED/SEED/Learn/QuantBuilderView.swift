@@ -25,6 +25,7 @@ struct QuantBuilderView: View {
     @State private var strategyName = ""
     @State private var savedNotice = false
     @State private var removedNotice = false
+    @State private var deepDive: LessonDef?
 
     private let templates = ["RSI 역추세", "이평선 교차", "돌파 추세"]
     private let scenarios: [(name: String, make: () -> ScenarioPreset)] = [
@@ -75,6 +76,9 @@ struct QuantBuilderView: View {
             .padding(16)
         }
         .background(SeedTheme.background)
+        .fullScreenCover(item: $deepDive) { lesson in
+            LessonFlowView(lesson: lesson, store: store)
+        }
     }
 
     // MARK: 기술적 백테스트 패널 (기존)
@@ -437,6 +441,17 @@ struct QuantBuilderView: View {
                 Text(info.fails)
                     .font(.system(size: 12))
                     .foregroundStyle(SeedTheme.textSecondary)
+            }
+            Button {
+                // 템플릿에 맞는 심화 편으로: 돌파 → 터틀 규칙, 나머지 → 지표 정복
+                deepDive = template == 2 ? DeepDiveCatalog.turtle2 : DeepDiveCatalog.quant2
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "book.pages.fill").font(.system(size: 10))
+                    Text("더 깊이 배우기 — 심화 시리즈")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundStyle(SeedTheme.violetDeep)
             }
         }
         .padding(13)

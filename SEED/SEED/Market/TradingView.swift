@@ -226,7 +226,7 @@ struct TradingView: View {
                     orderErrorMessage = message(for: error)
                 }
             }
-            .presentationDetents([.height(470)])
+
         }
         .sensoryFeedback(.success, trigger: lastFill?.id)
         .sensoryFeedback(.success, trigger: session.limitFillNotice)
@@ -237,7 +237,7 @@ struct TradingView: View {
                     ? session.engine.config.buyFee(on: fill.notional)
                     : session.engine.config.sellFee(on: fill.notional)
             )
-                .presentationDetents([.height(340)])
+
         }
         .alert("주문이 안 됐어요", isPresented: .init(
             get: { orderErrorMessage != nil },

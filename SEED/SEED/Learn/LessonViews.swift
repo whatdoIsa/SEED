@@ -7,6 +7,7 @@ struct LessonListView: View {
     @State private var activeLesson: LessonDef?
     @State private var showsDailyMarket = false
     @State private var showsGlossary = false
+    @State private var summaryLesson: LessonDef?
     @State private var showsBotCompare = false
     @State private var showsQuantBuilder = false
 
@@ -94,6 +95,11 @@ struct LessonListView: View {
         }
         .sheet(isPresented: $showsGlossary) {
             GlossaryView()
+        }
+        .sheet(item: $summaryLesson) { lesson in
+            LessonSummarySheet(lesson: lesson) {
+                activeLesson = lesson
+            }
         }
         .fullScreenCover(isPresented: $showsDailyMarket) {
             DailyMarketView(store: store)
@@ -273,7 +279,11 @@ struct LessonListView: View {
         let waitsForTomorrow = sequenceOpen && !done && paceExhausted
         let available = sequenceOpen && !waitsForTomorrow
         return Button {
-            if available && !done { activeLesson = lesson }
+            if done {
+                summaryLesson = lesson
+            } else if available {
+                activeLesson = lesson
+            }
         } label: {
             HStack(spacing: 12) {
                 ZStack {
@@ -327,7 +337,7 @@ struct LessonListView: View {
     private func deepDiveRow(_ lesson: LessonDef) -> some View {
         let done = store.isLessonDone(lesson.id)
         return Button {
-            activeLesson = lesson
+            if done { summaryLesson = lesson } else { activeLesson = lesson }
         } label: {
             HStack(spacing: 12) {
                 ZStack {

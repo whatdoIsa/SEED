@@ -38,7 +38,8 @@ struct LessonDef: Identifiable {
     let unlocksLevel: Int?
     let unlockLabel: String
     let concept: [ConceptPage]
-    let mission: MissionKind
+    /// nil이면 읽기형 레슨 — 개념 페이지만으로 완료된다 (심화 시리즈)
+    let mission: MissionKind?
 }
 
 enum LessonCatalog {

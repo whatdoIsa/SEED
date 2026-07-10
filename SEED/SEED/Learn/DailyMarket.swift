@@ -43,7 +43,11 @@ enum DailyMarket {
     static func id(for date: Date = .now) -> String { "daily.\(dayStamp(date))" }
 
     static func pattern(for date: Date = .now) -> Pattern {
-        var rng = SeededRNG(seed: UInt64(dayStamp(date)))
+        pattern(stamp: dayStamp(date))
+    }
+
+    static func pattern(stamp: Int) -> Pattern {
+        var rng = SeededRNG(seed: UInt64(stamp))
         return Pattern(rawValue: rng.int(in: 0...Pattern.allCases.count - 1)) ?? .sideways
     }
 
@@ -90,7 +94,11 @@ enum DailyMarket {
 
     /// 날짜 시드로 프리셋 생성 — 패턴 골격은 같고 크기·타이밍은 매일 다르다.
     static func scenario(for date: Date = .now) -> ScenarioPreset {
-        let stamp = dayStamp(date)
+        scenario(stamp: dayStamp(date), id: id(for: date))
+    }
+
+    /// 임의 스탬프로 생성 (아레나: 무작위 대결장). 같은 스탬프 = 같은 장.
+    static func scenario(stamp: Int, id: String) -> ScenarioPreset {
         var rng = SeededRNG(seed: UInt64(stamp))
         let dailyPattern = Pattern(rawValue: rng.int(in: 0...Pattern.allCases.count - 1)) ?? .sideways
         let base = Double(rng.int(in: 24...96) * 1_000)
@@ -167,7 +175,7 @@ enum DailyMarket {
         }
 
         return ScenarioPreset(
-            id: id(for: date),
+            id: id,
             seed: UInt64(stamp) &* 0x9E37_79B9,
             initialPrice: Int(base),
             durationTicks: duration,

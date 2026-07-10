@@ -1,0 +1,208 @@
+import SwiftUI
+
+/// 아침 복습 퀴즈 — 어제(또는 그 전) 배운 레슨을 다음날 1문제로 되새긴다.
+/// 간격을 두고 꺼내야 기억이 굳는다 (간격 반복). 하루 1레슨 페이스와 맞물린다.
+
+struct QuizQuestion: Identifiable {
+    var id: String { lessonId }
+    let lessonId: String
+    let question: String
+    let choices: [String]
+    let answerIndex: Int
+    let explanation: String
+}
+
+enum QuizCatalog {
+    static let all: [String: QuizQuestion] = [
+        "lesson.candle": QuizQuestion(
+            lessonId: "lesson.candle",
+            question: "파란색(음봉) 캔들의 뜻은?",
+            choices: ["시가보다 종가가 낮다 — 그 시간엔 내렸다",
+                      "거래량이 적었다",
+                      "하한가에 닿았다"],
+            answerIndex: 0,
+            explanation: "캔들 색은 시가 대비 종가의 방향이에요. 몸통이 길수록 그 방향의 힘이 셌다는 뜻이고요."),
+        "lesson.orderbook": QuizQuestion(
+            lessonId: "lesson.orderbook",
+            question: "화면에 보이는 '현재가'로 내가 살 수 있을까?",
+            choices: ["항상 그 가격에 살 수 있다",
+                      "아니다 — 그건 마지막 체결가일 뿐, 나는 매도 호가 줄을 먹으며 산다",
+                      "지정가 주문이면 무조건 그 가격에 체결된다"],
+            answerIndex: 1,
+            explanation: "시장가 주문은 팔겠다고 줄 선 물량을 순서대로 먹어요. 그 차이가 슬리피지예요."),
+        "lesson.chase": QuizQuestion(
+            lessonId: "lesson.chase",
+            question: "급등이 '확실해 보이는' 순간, 확률적으로 나는 어디쯤에 있나?",
+            choices: ["추세의 초입 — 지금 타면 싸게 탄다",
+                      "이미 고점 근처 — 초입에 산 사람들의 물량을 받는 자리",
+                      "알 수 없으므로 절반만 산다"],
+            answerIndex: 1,
+            explanation: "누구나 알아볼 만큼 급등이 진행됐다면, 초입에 산 사람들이 팔 준비를 하는 시점이에요."),
+        "lesson.volume": QuizQuestion(
+            lessonId: "lesson.volume",
+            question: "거래량 없이 가격만 오르는 상승은 어떻게 읽어야 하나?",
+            choices: ["조용히 오르니 더 좋다",
+                      "참여자가 적다는 뜻 — 진심이 얕은 움직임이라 의심한다",
+                      "거래량과 가격은 관계없다"],
+            answerIndex: 1,
+            explanation: "가격은 소수가 움직일 수 있지만 거래량은 못 속여요. 거래량이 실린 움직임이 무게가 달라요."),
+        "lesson.crash": QuizQuestion(
+            lessonId: "lesson.crash",
+            question: "급락 한가운데서 가장 위험한 행동은?",
+            choices: ["미리 정한 손절선대로 파는 것",
+                      "계획 없이 공포에 투매하는 것",
+                      "관망하는 것"],
+            answerIndex: 1,
+            explanation: "공포 투매는 대부분 바닥 근처에서 나와요. 파는 것 자체가 아니라 '계획 없이' 파는 게 문제예요."),
+        "lesson.diversify": QuizQuestion(
+            lessonId: "lesson.diversify",
+            question: "β(베타)가 1.4인 종목의 뜻은?",
+            choices: ["시장이 1% 빠질 때 이 종목은 1.4%쯤 빠지는 경향",
+                      "1.4년에 한 번 배당한다",
+                      "PER이 1.4배라는 뜻"],
+            answerIndex: 0,
+            explanation: "β는 시장 전체 대비 반응 크기예요. 시장이 빠지는 날 테마주가 더 아픈 이유죠."),
+        "lesson.valuetrap": QuizQuestion(
+            lessonId: "lesson.valuetrap",
+            question: "PER 3배로 아주 '싼' 회사를 발견했다. 첫 질문은?",
+            choices: ["당장 사자 — 싸니까",
+                      "왜 이렇게 싼가? 시장이 뭘 알고 있나?",
+                      "PER이 낮으니 안전하다"],
+            answerIndex: 1,
+            explanation: "시장이 미래 이익 급감을 미리 반영해 가격을 낮춘 것일 수 있어요 — 가치 함정이에요."),
+        "lesson.support": QuizQuestion(
+            lessonId: "lesson.support",
+            question: "오르던 가격이 20일 이평선까지 눌렸다. 지지 매수의 짝이 되는 규칙은?",
+            choices: ["선이 깨지면 손절",
+                      "떨어질 때마다 물타기",
+                      "무조건 3일 보유"],
+            answerIndex: 0,
+            explanation: "지지는 항상 통하지 않아요. 선을 뚫고 내려가면 흐름이 바뀐 신호 — 그래서 손절이 짝이에요."),
+        "lesson.stoploss": QuizQuestion(
+            lessonId: "lesson.stoploss",
+            question: "-50% 손실을 원금으로 되돌리려면 몇 %가 필요할까?",
+            choices: ["+50%", "+75%", "+100%"],
+            answerIndex: 2,
+            explanation: "100원이 50원이 되면, 다시 100원이 되기 위해 50원이 두 배가 돼야 해요. 크게 잃지 않는 게 이기는 길인 이유예요."),
+        "lesson.patience": QuizQuestion(
+            lessonId: "lesson.patience",
+            question: "방향 없는 횡보장에서 확실하게 쌓이는 것 하나는?",
+            choices: ["수익", "수수료", "배당"],
+            answerIndex: 1,
+            explanation: "방향이 없으니 벌 것은 불확실한데, 매매마다 나가는 수수료는 확실해요. 가만히 있는 것도 포지션이에요."),
+    ]
+
+    /// 오늘 복습할 문제: 가장 최근에 완료한 본편 레슨 중 '오늘 이전'에 완료한 것.
+    static func todaysQuiz(store: SeedStore) -> QuizQuestion? {
+        guard let lessonId = store.latestMainLessonCompletedBeforeToday() else { return nil }
+        return all[lessonId]
+    }
+}
+
+/// 하루 한 번 판정 (기기 저장)
+enum QuizRecord {
+    private static let stampKey = "seed.quiz.lastDoneStamp"
+
+    static var doneToday: Bool {
+        UserDefaults.standard.integer(forKey: stampKey) == DailyMarket.dayStamp()
+    }
+
+    static func markDone() {
+        UserDefaults.standard.set(DailyMarket.dayStamp(), forKey: stampKey)
+    }
+}
+
+/// 퀴즈 시트 — 문제 → 선택 → 정답 공개 + 해설
+struct MorningQuizSheet: View {
+    let quiz: QuizQuestion
+    @Environment(\.dismiss) private var dismiss
+    @State private var picked: Int?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("아침 복습")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(SeedTheme.violetDeep)
+                    Text(quiz.question)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                        .lineSpacing(4)
+                }
+                Spacer()
+            }
+
+            VStack(spacing: 8) {
+                ForEach(Array(quiz.choices.enumerated()), id: \.offset) { index, choice in
+                    Button {
+                        guard picked == nil else { return }
+                        picked = index
+                        QuizRecord.markDone()
+                    } label: {
+                        HStack {
+                            Text(choice)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(choiceColor(index))
+                                .multilineTextAlignment(.leading)
+                                .lineSpacing(3)
+                            Spacer()
+                            if picked != nil && index == quiz.answerIndex {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(SeedTheme.up)
+                            } else if picked == index {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(SeedTheme.down)
+                            }
+                        }
+                        .padding(13)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(choiceBackground(index), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            if let picked {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(picked == quiz.answerIndex ? "정확해요! 👏" : "아깝네요 — 정답을 봐요")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                    Text(quiz.explanation)
+                        .font(.system(size: 13))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                        .lineSpacing(4)
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("오늘도 한 판 하러 가기")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(SeedTheme.violet, in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    .padding(.top, 4)
+                }
+                .transition(.opacity)
+            }
+            Spacer()
+        }
+        .animation(.snappy(duration: 0.25), value: picked)
+        .padding(20)
+        .background(SeedTheme.background)
+        .presentationDetents([.medium, .large])
+    }
+
+    private func choiceColor(_ index: Int) -> Color {
+        guard picked != nil else { return SeedTheme.textPrimary }
+        return index == quiz.answerIndex ? SeedTheme.textPrimary : SeedTheme.textSecondary
+    }
+
+    private func choiceBackground(_ index: Int) -> Color {
+        guard picked != nil else { return SeedTheme.card }
+        if index == quiz.answerIndex { return SeedTheme.up.opacity(0.1) }
+        if picked == index { return SeedTheme.down.opacity(0.08) }
+        return SeedTheme.card
+    }
+}

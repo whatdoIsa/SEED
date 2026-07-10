@@ -104,4 +104,53 @@ final class TurtleTests: XCTestCase {
                           value.actions.map(\.candleIndex),
                           "추세추종과 가치투자는 진입 시점이 달라야 한다")
     }
+
+    // MARK: 거장 봇 3인 (오닐·코스톨라니·템플턴)
+
+    func testKostolanyBuysOnceAndSleeps() {
+        let run = BotComparison.runKostolany(scenario: .chaseRally())
+        let buys = run.actions.filter { $0.side == .buy }
+        let sells = run.actions.filter { $0.side == .sell }
+        XCTAssertEqual(buys.count, 1, "코스톨라니는 딱 한 번 산다")
+        XCTAssertTrue(sells.isEmpty, "그리고 끝까지 잔다")
+        XCTAssertLessThanOrEqual(buys[0].candleIndex, 3, "초반에 산다")
+    }
+
+    func testONeilStopLossRespected() throws {
+        // 데드캣: 반등 돌파에 속아 타더라도 -8%에서 반드시 잘린다
+        let run = BotComparison.runONeil(scenario: .deadCatBounce())
+        for (index, action) in run.actions.enumerated() where action.side == .sell {
+            // 직전 매수가 대비 -8%보다 깊게 물린 채 판 적이 없어야 한다 (슬리피지 여유 1.5%)
+            let lastBuy = run.actions[..<index].last { $0.side == .buy }
+            if let buy = lastBuy {
+                let lossPct = (buy.price - action.price) / buy.price * 100
+                XCTAssertLessThan(lossPct, 8 + 1.5,
+                                  "오닐 봇의 손실은 -8% 부근에서 잘려야 한다: \(lossPct)%")
+            }
+        }
+    }
+
+    func testTempletonBuysPanicSellsCalm() throws {
+        let run = BotComparison.runTempleton(scenario: .panicCrash())
+        let firstBuy = try XCTUnwrap(run.actions.first { $0.side == .buy },
+                                     "급락(비관)에서 템플턴은 반드시 산다")
+        XCTAssertTrue(firstBuy.reason.contains("비관"),
+                      "매매 일지에 역발상 이유가 실린다")
+        // 꾸준한 상승만 있는 장에선 살 기회가 없어야 정체성이 산다 — 급등 초반 확인
+        let chase = BotComparison.runTempleton(scenario: .chaseRally())
+        let earlyBuys = chase.actions.filter { $0.side == .buy && $0.candleIndex < 12 }
+        XCTAssertTrue(earlyBuys.isEmpty, "상승 구간에서 템플턴은 사지 않는다")
+    }
+
+    func testAllMastersAreDeterministic() {
+        let runs1 = [BotComparison.runONeil(scenario: .deadCatBounce()),
+                     BotComparison.runKostolany(scenario: .deadCatBounce()),
+                     BotComparison.runTempleton(scenario: .deadCatBounce())]
+        let runs2 = [BotComparison.runONeil(scenario: .deadCatBounce()),
+                     BotComparison.runKostolany(scenario: .deadCatBounce()),
+                     BotComparison.runTempleton(scenario: .deadCatBounce())]
+        for (a, b) in zip(runs1, runs2) {
+            XCTAssertEqual(a.finalEquity, b.finalEquity, "\(a.botName) 결정론")
+        }
+    }
 }

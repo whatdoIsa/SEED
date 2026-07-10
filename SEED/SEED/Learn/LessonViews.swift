@@ -6,6 +6,9 @@ struct LessonListView: View {
     let store: SeedStore
     @State private var activeLesson: LessonDef?
     @State private var showsDailyMarket = false
+    @State private var showsGlossary = false
+    @State private var summaryLesson: LessonDef?
+    @State private var quiz: QuizQuestion?
     @State private var showsBotCompare = false
     @State private var showsQuantBuilder = false
 
@@ -19,12 +22,64 @@ struct LessonListView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(SeedTheme.textSecondary)
 
+                morningQuizCard
                 dailyMarketCard
+                if let practice = PracticeCatalog.todaysTask(store: store) {
+                    PracticeCard(task: practice.task)
+                }
                 deepLinkListener
 
+                // 하루 1레슨 페이스: 처음 3개는 자유, 이후 본편은 하루 1개
+                let mainDoneCount = LessonCatalog.all.filter { store.isLessonDone($0.id) }.count
+                let paceExhausted = mainDoneCount >= 3 && store.mainLessonsCompletedToday() >= 1
                 ForEach(LessonCatalog.all) { lesson in
-                    lessonRow(lesson)
+                    lessonRow(lesson, paceExhausted: paceExhausted)
                 }
+
+                // 심화 시리즈 — 책에서 배우는 것들. 잠금 없음, 읽기형.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("심화 시리즈")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                        .padding(.top, 10)
+                    Text("책 한 권의 핵심을 몇 분 읽기로 — 순서 없이 아무 편이나")
+                        .font(.system(size: 12))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                }
+                ForEach(DeepDiveCatalog.all) { lesson in
+                    deepDiveRow(lesson)
+                }
+
+                // 용어사전 — 막힌 단어만 바로 해소
+                Button {
+                    showsGlossary = true
+                } label: {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(SeedTheme.violetTint)
+                                .frame(width: 38, height: 38)
+                            Image(systemName: "character.book.closed.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(SeedTheme.violetDeep)
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("용어사전")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(SeedTheme.textPrimary)
+                            Text("슬리피지? 평단? — 막힌 단어를 쉬운 말로")
+                                .font(.system(size: 12))
+                                .foregroundStyle(SeedTheme.textSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                    }
+                    .padding(14)
+                    .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
 
                 if store.isLessonDone(LessonCatalog.chase.id) {
                     botCompareCard
@@ -42,6 +97,17 @@ struct LessonListView: View {
         .background(SeedTheme.background)
         .fullScreenCover(item: $activeLesson) { lesson in
             LessonFlowView(lesson: lesson, store: store)
+        }
+        .sheet(isPresented: $showsGlossary) {
+            GlossaryView()
+        }
+        .sheet(item: $quiz) { question in
+            MorningQuizSheet(quiz: question)
+        }
+        .sheet(item: $summaryLesson) { lesson in
+            LessonSummarySheet(lesson: lesson) {
+                activeLesson = lesson
+            }
         }
         .fullScreenCover(isPresented: $showsDailyMarket) {
             DailyMarketView(store: store)
@@ -104,7 +170,7 @@ struct LessonListView: View {
                         .foregroundStyle(SeedTheme.violetOnDark)
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("나 vs 터틀 봇")
+                    Text("거장 도장 · 나 vs 거장들")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(SeedTheme.textPrimary)
                     Text("같은 급등장, 감정 없는 규칙은 어떻게 매매했을까")
@@ -132,6 +198,42 @@ struct LessonListView: View {
                     showsDailyMarket = true
                 }
             }
+    }
+
+    /// 아침 복습 — 어제 배운 레슨 1문제 (하루 한 번, 간격 반복)
+    @ViewBuilder
+    private var morningQuizCard: some View {
+        if !QuizRecord.doneToday, let question = QuizCatalog.todaysQuiz(store: store) {
+            Button {
+                quiz = question
+            } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(SeedTheme.up.opacity(0.12))
+                            .frame(width: 38, height: 38)
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(SeedTheme.up)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("아침 복습 · 1문제")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(SeedTheme.textPrimary)
+                        Text("배운 건 다음날 꺼내야 진짜 내 것이 돼요")
+                            .font(.system(size: 12))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13))
+                        .foregroundStyle(SeedTheme.up)
+                }
+                .padding(14)
+                .background(SeedTheme.up.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     private var dailyMarketCard: some View {
@@ -214,11 +316,18 @@ struct LessonListView: View {
         .buttonStyle(.plain)
     }
 
-    private func lessonRow(_ lesson: LessonDef) -> some View {
+    private func lessonRow(_ lesson: LessonDef, paceExhausted: Bool = false) -> some View {
         let done = store.isLessonDone(lesson.id)
-        let available = isAvailable(lesson)
+        let sequenceOpen = isAvailable(lesson)
+        // 순서상 다음 차례지만 오늘 몫(1개)을 이미 쓴 경우 — 내일 예고
+        let waitsForTomorrow = sequenceOpen && !done && paceExhausted
+        let available = sequenceOpen && !waitsForTomorrow
         return Button {
-            if available && !done { activeLesson = lesson }
+            if done {
+                summaryLesson = lesson
+            } else if available {
+                activeLesson = lesson
+            }
         } label: {
             HStack(spacing: 12) {
                 ZStack {
@@ -229,6 +338,10 @@ struct LessonListView: View {
                         Image(systemName: "checkmark")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundStyle(.white)
+                    } else if waitsForTomorrow {
+                        Image(systemName: "moon.stars.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(SeedTheme.violetDeep.opacity(0.7))
                     } else if available {
                         Text("\(lesson.order)")
                             .font(.system(size: 15, weight: .semibold))
@@ -243,12 +356,15 @@ struct LessonListView: View {
                     Text(lesson.title)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(available ? SeedTheme.textPrimary : SeedTheme.textSecondary)
-                    Text(done ? lesson.unlockLabel + " 완료" : lesson.subtitle)
+                    Text(done ? lesson.unlockLabel + " 완료"
+                         : (waitsForTomorrow
+                            ? "내일 열려요 — 오늘 배운 걸 오늘의 장에서 먼저 써보세요"
+                            : lesson.subtitle))
                         .font(.system(size: 12))
-                        .foregroundStyle(SeedTheme.textSecondary)
+                        .foregroundStyle(waitsForTomorrow ? SeedTheme.violetDeep : SeedTheme.textSecondary)
                 }
                 Spacer()
-                if !done {
+                if !done && !waitsForTomorrow {
                     Text(lesson.duration)
                         .font(.system(size: 11))
                         .foregroundStyle(SeedTheme.textSecondary.opacity(0.8))
@@ -256,7 +372,42 @@ struct LessonListView: View {
             }
             .padding(14)
             .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
-            .opacity(available || done ? 1 : 0.65)
+            .opacity(available || done || waitsForTomorrow ? 1 : 0.65)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 심화 시리즈 행 — 잠금 없음, 완료 체크만
+    private func deepDiveRow(_ lesson: LessonDef) -> some View {
+        let done = store.isLessonDone(lesson.id)
+        return Button {
+            if done { summaryLesson = lesson } else { activeLesson = lesson }
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(done ? SeedTheme.card : SeedTheme.violetTint)
+                        .frame(width: 38, height: 38)
+                    Image(systemName: done ? "checkmark" : "book.pages.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(done ? SeedTheme.textSecondary : SeedTheme.violetDeep)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(lesson.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                    Text(lesson.subtitle)
+                        .font(.system(size: 12))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                }
+                Spacer()
+                Text(lesson.duration)
+                    .font(.system(size: 11))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+            .padding(14)
+            .background(SeedTheme.card.opacity(done ? 0.55 : 1),
+                        in: RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(.plain)
     }
@@ -312,15 +463,17 @@ struct LessonFlowView: View {
                     if index + 1 < lesson.concept.count {
                         stage = .concept(index + 1)
                     } else {
-                        stage = .mission
+                        // 읽기형 레슨(심화 시리즈)은 미션 없이 완료
+                        stage = lesson.mission == nil ? .done : .mission
                     }
                 }
             case .mission:
                 missionView
             case .done:
                 LessonCompletionView(lesson: lesson) {
-                    // 레벨 = 레슨 순번 — 레슨을 마칠 때마다 Lv이 오른다
-                    store.completeLesson(lesson.id, unlocksLevel: lesson.order)
+                    // 레벨 = 레슨 순번 (심화 시리즈 order 100+는 레벨과 무관)
+                    store.completeLesson(lesson.id,
+                                         unlocksLevel: lesson.order < 100 ? lesson.order : nil)
                     dismiss()
                 }
             }
@@ -332,7 +485,7 @@ struct LessonFlowView: View {
 
     @ViewBuilder
     private var missionView: some View {
-        switch lesson.mission {
+        switch lesson.mission ?? .tapBullish {
         case .tapBullish:
             TapBullishMissionView { stage = .done }
         case .slippageTutorial:

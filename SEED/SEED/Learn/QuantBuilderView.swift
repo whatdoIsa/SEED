@@ -24,6 +24,7 @@ struct QuantBuilderView: View {
     @State private var matrix: [(label: String, run: BotRun)]?
     @State private var strategyName = ""
     @State private var savedNotice = false
+    @State private var removedNotice = false
 
     private let templates = ["RSI 역추세", "이평선 교차", "돌파 추세"]
     private let scenarios: [(name: String, make: () -> ScenarioPreset)] = [
@@ -222,10 +223,37 @@ struct QuantBuilderView: View {
             Text("아레나 출전")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(SeedTheme.textPrimary)
-            Text(StrategyStore.load().map { "현재 출전 전략: '\($0.name)' — 새로 저장하면 교체돼요." }
-                 ?? "전략에 이름을 붙여 저장하면 아레나에서 거장들과 함께 뜁니다.")
-                .font(.system(size: 12))
+            if let current = StrategyStore.load() {
+                HStack(spacing: 8) {
+                    Text("현재 출전: '\(current.name)' — 새로 저장하면 교체돼요.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                    Spacer()
+                    Button {
+                        StrategyStore.clear()
+                        savedNotice = false
+                        removedNotice = true
+                    } label: {
+                        Text("출전 해제")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(SeedTheme.down)
+                            .padding(.horizontal, 9).padding(.vertical, 5)
+                            .background(SeedTheme.down.opacity(0.1), in: Capsule())
+                    }
+                }
+            } else {
+                Text("전략에 이름을 붙여 저장하면 아레나에서 거장들과 함께 뜁니다.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+            if removedNotice {
+                HStack(spacing: 5) {
+                    Image(systemName: "minus.circle.fill").font(.system(size: 11))
+                    Text("출전 해제 완료 — 다음 아레나부터 빠집니다")
+                        .font(.system(size: 12, weight: .medium))
+                }
                 .foregroundStyle(SeedTheme.textSecondary)
+            }
             HStack(spacing: 8) {
                 TextField("전략 이름 (예: 나의 RSI 역추세)", text: $strategyName)
                     .font(.system(size: 14))
@@ -237,6 +265,7 @@ struct QuantBuilderView: View {
                     strategy.name = trimmed.isEmpty ? strategy.name : trimmed
                     StrategyStore.save(strategy)
                     savedNotice = true
+                    removedNotice = false
                 } label: {
                     Text("저장")
                         .font(.system(size: 14, weight: .semibold))

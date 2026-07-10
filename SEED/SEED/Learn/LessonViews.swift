@@ -24,6 +24,9 @@ struct LessonListView: View {
 
                 morningQuizCard
                 dailyMarketCard
+                if let practice = PracticeCatalog.todaysTask(store: store) {
+                    PracticeCard(task: practice.task)
+                }
                 deepLinkListener
 
                 // 하루 1레슨 페이스: 처음 3개는 자유, 이후 본편은 하루 1개

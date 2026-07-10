@@ -315,6 +315,16 @@ final class SeedStore {
             .lessonId
     }
 
+    /// 가장 최근에 완료한 본편 레슨 (오늘 포함) — 오늘의 실천 과제 대상.
+    func latestMainLessonCompleted() -> String? {
+        let mainIds = Set(LessonCatalog.registered.map(\.id))
+        let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
+        return lessons
+            .filter { $0.completedAt != nil && mainIds.contains($0.lessonId) }
+            .max { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }?
+            .lessonId
+    }
+
     func isLessonDone(_ lessonId: String) -> Bool {
         // 관찰 property를 읽어 잠금 화면들이 즉시 반응하게 한다.
         completedLessonIds.contains(lessonId)

@@ -33,6 +33,11 @@ enum PracticeRecord {
     static func markDone() {
         UserDefaults.standard.set(DailyMarket.dayStamp(), forKey: stampKey)
     }
+
+    /// 실수 탭 되돌리기
+    static func unmark() {
+        UserDefaults.standard.removeObject(forKey: stampKey)
+    }
 }
 
 /// 배우기 탭 카드 — 과제 한 줄 + 셀프 체크
@@ -43,9 +48,8 @@ struct PracticeCard: View {
     var body: some View {
         HStack(spacing: 12) {
             Button {
-                guard !checked else { return }
-                checked = true
-                PracticeRecord.markDone()
+                checked.toggle()
+                checked ? PracticeRecord.markDone() : PracticeRecord.unmark()
             } label: {
                 ZStack {
                     Circle()

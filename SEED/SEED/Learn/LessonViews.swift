@@ -6,6 +6,7 @@ struct LessonListView: View {
     let store: SeedStore
     @State private var activeLesson: LessonDef?
     @State private var showsDailyMarket = false
+    @State private var showsGlossary = false
     @State private var showsBotCompare = false
     @State private var showsQuantBuilder = false
 
@@ -43,6 +44,37 @@ struct LessonListView: View {
                     deepDiveRow(lesson)
                 }
 
+                // 용어사전 — 막힌 단어만 바로 해소
+                Button {
+                    showsGlossary = true
+                } label: {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(SeedTheme.violetTint)
+                                .frame(width: 38, height: 38)
+                            Image(systemName: "character.book.closed.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(SeedTheme.violetDeep)
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("용어사전")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(SeedTheme.textPrimary)
+                            Text("슬리피지? 평단? — 막힌 단어를 쉬운 말로")
+                                .font(.system(size: 12))
+                                .foregroundStyle(SeedTheme.textSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                    }
+                    .padding(14)
+                    .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
+
                 if store.isLessonDone(LessonCatalog.chase.id) {
                     botCompareCard
                     quantBuilderCard
@@ -59,6 +91,9 @@ struct LessonListView: View {
         .background(SeedTheme.background)
         .fullScreenCover(item: $activeLesson) { lesson in
             LessonFlowView(lesson: lesson, store: store)
+        }
+        .sheet(isPresented: $showsGlossary) {
+            GlossaryView()
         }
         .fullScreenCover(isPresented: $showsDailyMarket) {
             DailyMarketView(store: store)

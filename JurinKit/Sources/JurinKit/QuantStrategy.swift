@@ -23,7 +23,7 @@ public extension Array where Element == Candle {
 
 /// 사용자가 조립하는 조건 블록. 출력은 §11.1 원칙에 따라
 /// 백테스트 통계(수익률·MDD·매매 횟수)로만 표현된다 — 점 가격 예측은 없다.
-public enum QuantCondition: Equatable {
+public enum QuantCondition: Equatable, Codable {
     /// RSI가 임계 아래 (과매도 — 역추세 매수의 재료)
     case rsiBelow(threshold: Double, period: Int)
     /// RSI가 임계 위 (과매수)
@@ -94,7 +94,7 @@ public enum QuantCondition: Equatable {
 }
 
 /// 진입·청산 한 쌍으로 이루어진 사용자 전략.
-public struct QuantStrategy {
+public struct QuantStrategy: Codable {
     public var name: String
     public var entry: QuantCondition
     public var exit: QuantCondition

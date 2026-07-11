@@ -15,9 +15,7 @@ struct ArenaView: View {
     @State private var botRuns: [(profile: MasterProfile, run: BotRun)] = []
     @State private var phase: Phase = .running
     @State private var myTrades = 0
-    @State private var isPaused = false
-    @State private var speed = 1
-    @State private var loop: Task<Void, Never>?
+    @State private var loop = LiveLoop()
 
     init() {
         let initialStamp = Int.random(in: 10_000_000...99_999_999)
@@ -30,7 +28,6 @@ struct ArenaView: View {
         DailyMarket.scenario(stamp: stamp, id: "arena.\(stamp)")
     }
     private var totalCandles: Int { preset.durationTicks / engine.config.ticksPerCandle }
-    private var tickDelayMs: Int { [1: 40, 2: 22, 4: 11][speed] ?? 40 }
     private var myEquity: Int { engine.portfolio.equity(at: engine.lastPrice) }
     private var myReturnPct: Double {
         Double(myEquity - engine.config.initialCash) / Double(engine.config.initialCash) * 100
@@ -47,7 +44,7 @@ struct ArenaView: View {
         }
         .background(SeedTheme.background)
         .task { startMatch() }
-        .onDisappear { loop?.cancel() }
+        .onDisappear { loop.cancel() }
     }
 
     // MARK: 헤더
@@ -110,60 +107,11 @@ struct ArenaView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
 
-            HStack(spacing: 8) {
-                Button {
-                    isPaused.toggle()
-                } label: {
-                    Image(systemName: isPaused ? "play.fill" : "pause.fill")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(SeedTheme.inverse)
-                        .frame(width: 38, height: 30)
-                        .background(SeedTheme.textPrimary, in: Capsule())
-                }
-                ForEach([1, 2, 4], id: \.self) { value in
-                    Button {
-                        speed = value
-                        isPaused = false
-                    } label: {
-                        Text("\(value)x")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(speed == value && !isPaused
-                                             ? SeedTheme.inverse : SeedTheme.textSecondary)
-                            .padding(.horizontal, 11).padding(.vertical, 6)
-                            .background(speed == value && !isPaused
-                                        ? SeedTheme.textPrimary : SeedTheme.card,
-                                        in: Capsule())
-                    }
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 16).padding(.top, 8)
+            SpeedControls(loop: loop)
+                .padding(.horizontal, 16).padding(.top, 8)
 
-            HStack(spacing: 8) {
-                Button {
-                    trade(side: .buy)
-                } label: {
-                    Text("100주 사기")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).padding(.vertical, 13)
-                        .background(SeedTheme.up, in: RoundedRectangle(cornerRadius: 12))
-                }
-                if engine.portfolio.qty > 0 {
-                    Button {
-                        trade(side: .sell)
-                    } label: {
-                        Text("전량 팔기")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity).padding(.vertical, 13)
-                            .background(SeedTheme.down, in: RoundedRectangle(cornerRadius: 12))
-                    }
-                }
-            }
-            .padding(.horizontal, 16).padding(.vertical, 10)
-            .animation(.snappy(duration: 0.25), value: engine.portfolio.qty > 0)
-            .sensoryFeedback(.success, trigger: myTrades)
+            LiveTradeButtons(engine: engine) { _, _ in myTrades += 1 }
+                .padding(.horizontal, 16).padding(.vertical, 10)
         }
     }
 
@@ -316,7 +264,6 @@ struct ArenaView: View {
     // MARK: 대결 진행
 
     private func startMatch() {
-        guard loop == nil else { return }
         // 거장 5인은 같은 시드 시장을 결정론으로 미리 완주 (즉시)
         botRuns = MasterCatalog.all.map { ($0, $0.run(preset)) }
         // 내가 만든 전략도 출전 (퀀트 빌더에서 저장한 슬롯)
@@ -329,22 +276,7 @@ struct ArenaView: View {
                 run: { BotComparison.run(strategy: mine, scenario: $0) })
             botRuns.append((profile, BotComparison.run(strategy: mine, scenario: preset)))
         }
-        // 워밍업: 흘러온 시장에 들어간다
-        if engine.tick == 0 { engine.advance(ticks: 160) }
-        loop = Task {
-            while !Task.isCancelled {
-                guard phase == .running else { return }
-                if !isPaused {
-                    engine.step()
-                    if engine.pendingDecision != nil { engine.resolveDecision() }
-                    if engine.isScenarioFinished {
-                        finishMatch()
-                        return
-                    }
-                }
-                try? await Task.sleep(for: .milliseconds(tickDelayMs))
-            }
-        }
+        loop.start(engine: engine) { finishMatch() }
     }
 
     private func finishMatch() {
@@ -355,20 +287,13 @@ struct ArenaView: View {
     }
 
     private func newMatch() {
-        loop?.cancel()
-        loop = nil
+        loop.cancel()
+        loop.isPaused = false
         stamp = Int.random(in: 10_000_000...99_999_999)
         engine = MarketEngine(scenario: DailyMarket.scenario(stamp: stamp, id: "arena.\(stamp)"))
         myTrades = 0
-        isPaused = false
         phase = .running
         startMatch()
-    }
-
-    private func trade(side: Side) {
-        let qty = side == .buy ? 100 : engine.portfolio.qty
-        guard qty > 0, (try? engine.placeMarketOrder(side: side, qty: qty)) != nil else { return }
-        myTrades += 1
     }
 }
 

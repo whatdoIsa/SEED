@@ -11,7 +11,7 @@ struct PatienceMissionView: View {
     @State private var engine = MarketEngine(scenario: .sideways())
     @State private var phase: Phase = .running
     @State private var tradeCount = 0
-    @State private var loop: Task<Void, Never>?
+    @State private var loop = LiveLoop()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -53,34 +53,12 @@ struct PatienceMissionView: View {
                 resultCard
                     .padding(.horizontal, 20).padding(.bottom, 16)
             } else {
-                HStack(spacing: 8) {
-                    Button {
-                        trade(side: .buy)
-                    } label: {
-                        Text("100주 사기")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity).padding(.vertical, 13)
-                            .background(SeedTheme.up, in: RoundedRectangle(cornerRadius: 12))
-                    }
-                    if engine.portfolio.qty > 0 {
-                        Button {
-                            trade(side: .sell)
-                        } label: {
-                            Text("전량 팔기")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity).padding(.vertical, 13)
-                                .background(SeedTheme.down, in: RoundedRectangle(cornerRadius: 12))
-                        }
-                    }
-                }
-                .padding(.horizontal, 20).padding(.vertical, 12)
-                .animation(.snappy(duration: 0.25), value: engine.portfolio.qty > 0)
+                LiveTradeButtons(engine: engine) { _, _ in tradeCount += 1 }
+                    .padding(.horizontal, 20).padding(.vertical, 12)
             }
         }
         .task { startLoop() }
-        .onDisappear { loop?.cancel() }
+        .onDisappear { loop.cancel() }
     }
 
     private var resultCard: some View {
@@ -128,26 +106,7 @@ struct PatienceMissionView: View {
     }
 
     private func startLoop() {
-        guard loop == nil else { return }
-        // 워밍업: 과거 캔들을 그린 상태로 시작 — 빈 차트에 거대 막대가 쌓이는 혼란 방지
-        if engine.tick == 0 { engine.advance(ticks: 160) }
-        loop = Task {
-            while !Task.isCancelled {
-                guard phase == .running else { return }
-                engine.step()
-                if engine.pendingDecision != nil { engine.resolveDecision() }
-                if engine.isScenarioFinished {
-                    phase = .result
-                    return
-                }
-                try? await Task.sleep(for: .milliseconds(18))
-            }
-        }
-    }
-
-    private func trade(side: Side) {
-        let qty = side == .buy ? 100 : engine.portfolio.qty
-        guard qty > 0, (try? engine.placeMarketOrder(side: side, qty: qty)) != nil else { return }
-        tradeCount += 1
+        loop.speed = 2 // 인내 미션은 빠르게 감는 게 기본
+        loop.start(engine: engine) { phase = .result }
     }
 }

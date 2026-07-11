@@ -24,6 +24,15 @@ struct AutopsyView: View {
             VStack(alignment: .leading, spacing: 0) {
                 inkHeader
                 accountSummary(equity: equity, returnPct: returnPct)
+
+                // AI 부검: 시즌당 1회 (시즌 키 캐시)
+                AICoachCard(
+                    cacheKey: "autopsy.\(store.currentSeason.number)",
+                    fingerprint: "\(equity)",
+                    prompt: autopsyPrompt(equity: equity, returnPct: returnPct),
+                    maxTokens: 300
+                )
+                .padding(.horizontal, 20)
                 habitSection
                 if equity <= startCash / 2 {
                     halfLossMath(equity: equity, startCash: startCash)
@@ -95,6 +104,18 @@ struct AutopsyView: View {
     }
 
     // MARK: 계좌 요약
+
+    private func autopsyPrompt(equity: Int, returnPct: Double) -> String {
+        let stats = store.tagStats()
+        var lines = ["시즌이 끝났어. 이 시즌의 계좌 부검을 두세 문장으로 해줘. 데이터:"]
+        lines.append("- 시즌 \(store.currentSeason.number): 수익률 \(returnPct >= 0 ? "+" : "")\(returnPct.formatted(.number.precision(.fractionLength(1))))%, 매매 \(store.tradeCount())건")
+        for stat in stats.prefix(4) {
+            let avg = stat.avgRealizedReturnPct.map { "\($0 >= 0 ? "+" : "")\($0.formatted(.number.precision(.fractionLength(1))))%" } ?? "미확정"
+            lines.append("- '\(stat.tag.label)': \(stat.count)건, 평균 \(avg)")
+        }
+        lines.append("이 시즌의 결정적 습관 하나를 짚고, 다음 시즌으로 가져갈 규칙 하나를 제안해줘.")
+        return lines.joined(separator: "\n")
+    }
 
     private func accountSummary(equity: Int, returnPct: Double) -> some View {
         VStack(spacing: 6) {

@@ -11,9 +11,14 @@ struct TutorView: View {
         var countsAgainstQuota = false
     }
 
-    @State private var items: [ChatItem] = [
-        .init(role: "assistant",
-              content: "안녕하세요! 주식·ETF·비트코인 같은 금융 기초가 궁금하면 물어보세요. 종목 추천이나 가격 예측은 하지 않아요 — 대신 판단에 필요한 개념을 쉽게 풀어드릴게요.")
+    @State private var items: [ChatItem] = []
+
+    private let starterQuestions = [
+        "ETF가 뭐야?",
+        "배당은 언제, 어떻게 받아?",
+        "공매도가 뭐야?",
+        "비트코인은 주식이랑 뭐가 달라?",
+        "PER이랑 PBR 차이가 뭐야?"
     ]
     @State private var input = ""
     @State private var isThinking = false
@@ -26,6 +31,9 @@ struct TutorView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 10) {
+                        if items.isEmpty {
+                            emptyState
+                        }
                         ForEach(items) { item in
                             bubble(item)
                         }
@@ -88,17 +96,77 @@ struct TutorView: View {
         .padding(.horizontal, 16).padding(.vertical, 10)
     }
 
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                Circle().fill(SeedTheme.violetTint).frame(width: 64, height: 64)
+                Image(systemName: "graduationcap.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(SeedTheme.violet)
+            }
+            .padding(.top, 28)
+            Text("금융 기초, 뭐든 물어보세요")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(SeedTheme.textPrimary)
+            Text("주식·ETF·비트코인의 개념을 쉽게 풀어드려요.\n종목 추천과 가격 예측은 하지 않아요.")
+                .font(.system(size: 13))
+                .foregroundStyle(SeedTheme.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+
+            VStack(spacing: 7) {
+                ForEach(starterQuestions, id: \.self) { question in
+                    Button {
+                        input = question
+                        send()
+                    } label: {
+                        HStack {
+                            Text(question)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(SeedTheme.violetDeep)
+                            Spacer()
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 15))
+                                .foregroundStyle(SeedTheme.violet.opacity(0.6))
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 11)
+                        .background(SeedTheme.violetTint.opacity(0.6),
+                                    in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+        }
+    }
+
     private func bubble(_ item: ChatItem) -> some View {
-        HStack {
-            if item.role == "user" { Spacer(minLength: 40) }
-            Text(item.content)
+        HStack(alignment: .bottom, spacing: 8) {
+            if item.role == "user" {
+                Spacer(minLength: 48)
+            } else {
+                ZStack {
+                    Circle().fill(SeedTheme.violet).frame(width: 24, height: 24)
+                    Image(systemName: "graduationcap.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white)
+                }
+            }
+            Text((try? AttributedString(
+                markdown: item.content,
+                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+                ?? AttributedString(item.content))
                 .font(.system(size: 14))
                 .foregroundStyle(item.role == "user" ? .white : SeedTheme.textPrimary)
                 .lineSpacing(4)
                 .padding(.horizontal, 13).padding(.vertical, 10)
                 .background(item.role == "user" ? SeedTheme.violet : SeedTheme.card,
-                            in: RoundedRectangle(cornerRadius: 14))
-            if item.role != "user" { Spacer(minLength: 40) }
+                            in: UnevenRoundedRectangle(
+                                topLeadingRadius: 16,
+                                bottomLeadingRadius: item.role == "user" ? 16 : 4,
+                                bottomTrailingRadius: item.role == "user" ? 4 : 16,
+                                topTrailingRadius: 16))
+            if item.role != "user" { Spacer(minLength: 48) }
         }
         .padding(.horizontal, 16)
     }

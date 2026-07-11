@@ -12,8 +12,7 @@ struct ChaseRematchView: View {
     @State private var engine = MarketEngine(scenario: .chaseRally())
     @State private var phase: Phase = .running
     @State private var myTrades: [(candleIndex: Int, price: Double, side: Side)] = []
-    @State private var fast = false
-    @State private var loop: Task<Void, Never>?
+    @State private var loop = LiveLoop()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,7 +26,7 @@ struct ChaseRematchView: View {
         }
         .background(SeedTheme.background)
         .task { startLoop() }
-        .onDisappear { loop?.cancel() }
+        .onDisappear { loop.cancel() }
     }
 
     // MARK: 헤더
@@ -54,9 +53,9 @@ struct ChaseRematchView: View {
             Spacer()
             if phase == .running {
                 Button {
-                    fast.toggle()
+                    loop.speed = loop.speed == 1 ? 2 : 1
                 } label: {
-                    Text(fast ? "2x" : "1x")
+                    Text("\(loop.speed)x")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(SeedTheme.inverse)
                         .padding(.horizontal, 10).padding(.vertical, 5)
@@ -95,31 +94,11 @@ struct ChaseRematchView: View {
     }
 
     private var tradeButtons: some View {
-        HStack(spacing: 10) {
-            Button {
-                trade(side: .buy)
-            } label: {
-                Text("100주 사기")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity).padding(.vertical, 14)
-                    .background(SeedTheme.up, in: RoundedRectangle(cornerRadius: 13))
-            }
-            if engine.portfolio.qty > 0 {
-                Button {
-                    trade(side: .sell)
-                } label: {
-                    Text("전량 팔기")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).padding(.vertical, 14)
-                        .background(SeedTheme.down, in: RoundedRectangle(cornerRadius: 13))
-                }
-            }
+        LiveTradeButtons(engine: engine) { side, fill in
+            myTrades.append((engine.candles.count, fill.avgFillPrice, side))
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
-        .sensoryFeedback(.success, trigger: myTrades.count)
     }
 
     // MARK: 결과 — 이번엔 공정한 비교
@@ -257,27 +236,7 @@ struct ChaseRematchView: View {
     // MARK: 진행 루프
 
     private func startLoop() {
-        guard loop == nil else { return }
-        // 워밍업: 과거 캔들을 그린 상태로 시작 — 빈 차트에 거대 막대가 쌓이는 혼란 방지
-        if engine.tick == 0 { engine.advance(ticks: 160) }
-        loop = Task {
-            while !Task.isCancelled {
-                guard phase == .running else { return }
-                engine.step()
-                // 자유 모드: 대본 결정 지점은 조용히 넘긴다 — 선택은 상시 버튼이 대신한다
-                if engine.pendingDecision != nil { engine.resolveDecision() }
-                if engine.isScenarioFinished {
-                    phase = .result
-                    return
-                }
-                try? await Task.sleep(for: .milliseconds(fast ? 10 : 22))
-            }
-        }
-    }
-
-    private func trade(side: Side) {
-        let qty = side == .buy ? 100 : engine.portfolio.qty
-        guard qty > 0, let fill = try? engine.placeMarketOrder(side: side, qty: qty) else { return }
-        myTrades.append((engine.candles.count, fill.avgFillPrice, side))
+        loop.speed = 2 // 리매치 기본 속도
+        loop.start(engine: engine) { phase = .result }
     }
 }

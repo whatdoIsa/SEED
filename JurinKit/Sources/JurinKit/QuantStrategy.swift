@@ -127,7 +127,10 @@ public extension BotComparison {
         runCustom(name: strategy.name, scenario: scenario) { ctx in
             if ctx.holdingQty == 0 {
                 guard strategy.entry.isMet(candles: ctx.candles) else { return nil }
-                return (.buyUnit(qty: strategy.unitQty), "진입 조건 충족 — \(strategy.entry.label)")
+                // 비싼 장 가드: 설정 수량이 현금을 넘으면 살 수 있는 만큼으로
+                let affordable = max(1, 9_400_000 / max(ctx.lastPrice, 1))
+                return (.buyUnit(qty: min(strategy.unitQty, affordable)),
+                        "진입 조건 충족 — \(strategy.entry.label)")
             } else {
                 guard strategy.exit.isMet(candles: ctx.candles) else { return nil }
                 return (.sellAll(qty: ctx.holdingQty), "청산 조건 충족 — \(strategy.exit.label)")

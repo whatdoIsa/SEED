@@ -90,6 +90,22 @@ enum QuizCatalog {
             choices: ["수익", "수수료", "배당"],
             answerIndex: 1,
             explanation: "방향이 없으니 벌 것은 불확실한데, 매매마다 나가는 수수료는 확실해요. 가만히 있는 것도 포지션이에요."),
+        "lesson.sizing": QuizQuestion(
+            lessonId: "lesson.sizing",
+            question: "수량을 정할 때 먼저 물어야 하는 질문은?",
+            choices: ["이번에 얼마나 벌 수 있나",
+                      "이번에 틀리면 얼마나 잃는가",
+                      "남들은 몇 주나 샀나"],
+            answerIndex: 1,
+            explanation: "감당 가능한 손실에서 거꾸로 수량을 정하는 게 자금 관리예요. 터틀은 그 답을 계좌의 1%로 정했죠."),
+        "lesson.graduation": QuizQuestion(
+            lessonId: "lesson.graduation",
+            question: "이 앱에서 완성한 규칙을 실전으로 가져갈 때 첫걸음은?",
+            choices: ["확신 있는 종목에 크게 시작",
+                      "잃어도 되는 소액으로 규칙이 실돈 앞에서도 지켜지는지 확인",
+                      "실전에선 감이 더 중요하니 규칙은 버린다"],
+            answerIndex: 1,
+            explanation: "가상 돈과 실돈의 심리는 달라요. 진짜 첫 시험은 종목 선택이 아니라 — 실돈 앞에서의 나 자신이에요."),
     ]
 
     /// 오늘 복습할 문제: 가장 최근에 완료한 본편 레슨 중 '오늘 이전'에 완료한 것.

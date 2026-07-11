@@ -18,10 +18,9 @@ struct LessonListView: View {
                 Text("배우기")
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(SeedTheme.textPrimary)
-                Text("레슨을 마칠 때마다 시장 화면에 도구가 하나씩 열려요.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(SeedTheme.textSecondary)
 
+                // ── 오늘: 하루의 리듬 (복습 → 한 판 → 실천)
+                sectionHeader("오늘", subtitle: nil)
                 morningQuizCard
                 dailyMarketCard
                 if let practice = PracticeCatalog.todaysTask(store: store) {
@@ -29,23 +28,18 @@ struct LessonListView: View {
                 }
                 deepLinkListener
 
-                // 하루 1레슨 페이스: 처음 3개는 자유, 이후 본편은 하루 1개
+                // ── 커리큘럼: 본편 사슬 (하루 1레슨)
                 let mainDoneCount = LessonCatalog.all.filter { store.isLessonDone($0.id) }.count
                 let paceExhausted = mainDoneCount >= 3 && store.mainLessonsCompletedToday() >= 1
+                sectionHeader("커리큘럼 \(mainDoneCount)/\(LessonCatalog.all.count)",
+                              subtitle: "레슨을 마칠 때마다 도구가 하나씩 열려요 · 하루 1개")
                 ForEach(LessonCatalog.all) { lesson in
                     lessonRow(lesson, paceExhausted: paceExhausted)
                 }
 
-                // 심화 시리즈 — 책에서 배우는 것들. 잠금 없음, 읽기형.
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("심화 시리즈")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(SeedTheme.textPrimary)
-                        .padding(.top, 10)
-                    Text("책 한 권의 핵심을 몇 분 읽기로 — 순서 없이 아무 편이나")
-                        .font(.system(size: 12))
-                        .foregroundStyle(SeedTheme.textSecondary)
-                }
+                // ── 라이브러리: 순서 없이 언제든
+                sectionHeader("라이브러리",
+                              subtitle: "심화 읽기·도장·실험실 — 순서 없이 언제든")
                 ForEach(DeepDiveCatalog.all) { lesson in
                     deepDiveRow(lesson)
                 }
@@ -412,6 +406,20 @@ struct LessonListView: View {
         .buttonStyle(.plain)
     }
 
+    private func sectionHeader(_ title: String, subtitle: String?) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(SeedTheme.textPrimary)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+        }
+        .padding(.top, 12)
+    }
+
     private func isAvailable(_ lesson: LessonDef) -> Bool {
         guard let index = LessonCatalog.all.firstIndex(where: { $0.id == lesson.id }) else { return false }
         guard index > 0 else { return true }
@@ -506,6 +514,8 @@ struct LessonFlowView: View {
             StopLossMissionView { stage = .done }
         case .patience:
             PatienceMissionView { stage = .done }
+        case .positionSizing:
+            PositionSizingMissionView { stage = .done }
         }
     }
 

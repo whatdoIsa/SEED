@@ -26,6 +26,7 @@ enum MissionKind {
     case supportBounce
     case stopLoss
     case patience
+    case positionSizing
 }
 
 struct LessonDef: Identifiable {
@@ -253,8 +254,54 @@ enum LessonCatalog {
         mission: .patience
     )
 
+    static let sizing = LessonDef(
+        id: "lesson.sizing",
+        order: 11,
+        title: "얼마나 살까",
+        subtitle: "타이밍보다 크기가 계좌를 지킨다",
+        duration: "약 2분",
+        unlocksLevel: nil,
+        unlockLabel: "자금 관리 감각",
+        concept: [
+            ConceptPage(
+                text: "언제 살지, 언제 팔지는 배웠어요. 그런데 실전에서 초보의 계좌를 무너뜨리는 건 대부분 타이밍이 아니라 **크기**예요 — 한 번에 전부를 거는 것.\n\n같은 종목, 같은 타이밍이라도 전 재산으로 산 사람과 절반만 산 사람의 운명은 완전히 달라요. 틀렸을 때의 결과가 다르니까요.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "거장들의 공통 규칙이 여기 있어요. 터틀은 **한 번의 매수로 계좌의 1%만 위험**에 두도록 수량을 정했죠(터틀 ② 참고). 핵심 질문은 \"얼마나 벌까\"가 아니라 —\n\n**\"이번에 틀리면 얼마나 잃는가?\"**\n\n이 질문에 답할 수 있는 수량이 올바른 수량이에요. 같은 하락을 몰빵 계좌와 절반 계좌로 나눠 겪어봅시다.",
+                visual: .none
+            )
+        ],
+        mission: .positionSizing
+    )
+
+    static let graduation = LessonDef(
+        id: "lesson.graduation",
+        order: 12,
+        title: "졸업 — 이 앱과 실전이 다른 것",
+        subtitle: "정직한 마지막 수업",
+        duration: "읽기 3분",
+        unlocksLevel: nil,
+        unlockLabel: "커리큘럼 수료",
+        concept: [
+            ConceptPage(
+                text: "여기까지 왔다면, 당신은 이제 이런 것들을 가져요.\n\n캔들·호가·거래량을 읽는 눈. 급등을 쫓지 않고 급락에 계획으로 답하는 습관. 손절선·분산·수량이라는 세 겹의 방어. 그리고 매매마다 이유를 적고 복기하는 루틴 — 사실 이게 전부 중에 제일 큰 거예요.\n\n이건 진짜 실력이에요. 다만, 정직하게 말할 게 남았어요.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "**이 앱이 가르치지 못한 것들**\n\n① **실돈의 심리** — 가상 1,000만원의 -10%와 진짜 월급의 -10%는 완전히 다른 경험이에요. 여기서 완벽했던 규칙이 실전의 공포 앞에서 흔들릴 수 있어요.\n\n② **진짜 뉴스** — 여기의 뉴스는 깔끔한 신호였지만, 실전의 뉴스는 소음과 해석 싸움이에요.\n\n③ **제도의 디테일** — 세금, 수수료 체계, 거래 정지, 공시… 실전엔 이 앱이 단순화한 규칙이 훨씬 많아요.\n\n④ **시장의 어두운 면** — 작전, 리딩방, 허위 정보. 여기엔 없지만 실전엔 있어요.",
+                visual: .none
+            ),
+            ConceptPage(
+                text: "그래서 나가는 자세는 이래요.\n\n**작게 시작하세요.** 잃어도 생활이 흔들리지 않는 돈으로, 여기서 만든 규칙이 실돈 앞에서도 지켜지는지부터 확인하세요. 그게 진짜 첫 시험이에요.\n\n**이 앱은 계속 연습장이에요.** 실전을 시작해도 새 전략은 여기서 먼저 시험하고, 흔들린 날엔 여기로 돌아와 복기하세요.\n\n마지막으로 — 이 앱은 수익을 보장하지 않고, 어떤 종목도 추천하지 않아요. 판단과 책임은 언제나 당신의 것. 그걸 감당할 수 있는 사람이 되는 게 이 커리큘럼의 목표였어요. 졸업을 축하해요. 🌱",
+                visual: .none
+            )
+        ],
+        mission: nil
+    )
+
     static var all: [LessonDef] { registered }
-    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify, valueTrap, supportBounce, stopLoss, patience]
+    static var registered: [LessonDef] = [candle, orderbook, chase, volume, crash, diversify, valueTrap, supportBounce, stopLoss, patience, sizing, graduation]
 }
 
 // MARK: - 미션 1용 손수 만든 캔들 (교육 목적으로 모양을 통제)

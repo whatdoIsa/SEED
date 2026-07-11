@@ -1,0 +1,187 @@
+import SwiftUI
+
+/// AI 튜터 — 금융 기초를 묻는 채팅. 필터·직답은 무료(0토큰), 지식 답변만 쿼터 차감.
+struct TutorView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    private struct ChatItem: Identifiable {
+        let id = UUID()
+        let role: String   // "user" | "assistant"
+        let content: String
+        var countsAgainstQuota = false
+    }
+
+    @State private var items: [ChatItem] = [
+        .init(role: "assistant",
+              content: "안녕하세요! 주식·ETF·비트코인 같은 금융 기초가 궁금하면 물어보세요. 종목 추천이나 가격 예측은 하지 않아요 — 대신 판단에 필요한 개념을 쉽게 풀어드릴게요.")
+    ]
+    @State private var input = ""
+    @State private var isThinking = false
+    @State private var quotaLeft = TutorQuota.remaining
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 10) {
+                        ForEach(items) { item in
+                            bubble(item)
+                        }
+                        if isThinking {
+                            HStack {
+                                ProgressView().controlSize(.small)
+                                Text("생각하는 중…")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(SeedTheme.textSecondary)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 16)
+                        }
+                        Color.clear.frame(height: 1).id("bottom")
+                    }
+                    .padding(.vertical, 12)
+                }
+                .onChange(of: items.count) { _, _ in
+                    withAnimation { proxy.scrollTo("bottom") }
+                }
+            }
+
+            inputBar
+        }
+        .background(SeedTheme.background)
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9).fill(SeedTheme.violet).frame(width: 34, height: 34)
+                Image(systemName: "graduationcap.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.white)
+            }
+            VStack(alignment: .leading, spacing: 1) {
+                Text("AI 튜터")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Text("금융 기초 질문 · 추천/예측은 안 해요")
+                    .font(.system(size: 11))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+            Spacer()
+            if quotaLeft <= 5 {
+                Text("남은 질문 \(quotaLeft)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(quotaLeft == 0 ? SeedTheme.down : SeedTheme.textSecondary)
+            }
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(SeedTheme.textSecondary)
+                    .frame(width: 30, height: 30)
+                    .background(SeedTheme.card, in: Circle())
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 10)
+    }
+
+    private func bubble(_ item: ChatItem) -> some View {
+        HStack {
+            if item.role == "user" { Spacer(minLength: 40) }
+            Text(item.content)
+                .font(.system(size: 14))
+                .foregroundStyle(item.role == "user" ? .white : SeedTheme.textPrimary)
+                .lineSpacing(4)
+                .padding(.horizontal, 13).padding(.vertical, 10)
+                .background(item.role == "user" ? SeedTheme.violet : SeedTheme.card,
+                            in: RoundedRectangle(cornerRadius: 14))
+            if item.role != "user" { Spacer(minLength: 40) }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var inputBar: some View {
+        VStack(spacing: 6) {
+            if !TutorService.isConfigured {
+                Text("튜터 서버 준비 중이에요 — 용어 정의 질문은 지금도 답해드려요.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            } else if quotaLeft == 0 {
+                Text("체험 질문을 모두 사용했어요 — 리필과 Pro는 곧 열려요.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+            HStack(spacing: 8) {
+                TextField("예: ETF가 뭐야?", text: $input, axis: .vertical)
+                    .font(.system(size: 14))
+                    .lineLimit(1...3)
+                    .padding(.horizontal, 13).padding(.vertical, 10)
+                    .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 12))
+                    .onSubmit(send)
+                Button(action: send) {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(canSend ? SeedTheme.violet : SeedTheme.textSecondary,
+                                    in: Circle())
+                }
+                .disabled(!canSend)
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 10)
+    }
+
+    private var canSend: Bool {
+        !input.trimmingCharacters(in: .whitespaces).isEmpty && !isThinking
+    }
+
+    private func send() {
+        let question = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !question.isEmpty, !isThinking else { return }
+        input = ""
+        items.append(.init(role: "user", content: question))
+
+        // ① 규칙 필터 — 0토큰 거절
+        if let refusal = TutorService.refusal(for: question) {
+            items.append(.init(role: "assistant", content: refusal))
+            return
+        }
+        // ② 용어사전 직답 — 0토큰
+        if let direct = TutorService.glossaryAnswer(for: question) {
+            items.append(.init(role: "assistant",
+                               content: direct + "\n\n(용어사전에서 바로 찾아드렸어요 — 더 깊은 질문도 환영이에요.)"))
+            return
+        }
+        // ③ 클라우드 — 쿼터 차감
+        guard TutorService.isConfigured else {
+            items.append(.init(role: "assistant",
+                               content: "지식 답변 서버가 아직 준비 중이에요. 용어 뜻은 지금도 물어볼 수 있어요 — 예: \u{201C}슬리피지가 뭐야?\u{201D}"))
+            return
+        }
+        guard TutorQuota.remaining > 0 else {
+            items.append(.init(role: "assistant",
+                               content: "체험 질문 5개를 모두 사용했어요. 리필(₩1,100~)과 Pro(월 40문)는 곧 열릴 예정이에요!"))
+            return
+        }
+
+        isThinking = true
+        let history = items.map { TutorService.Message(role: $0.role, content: $0.content) }
+        Task {
+            defer { isThinking = false }
+            do {
+                let answer = try await TutorService.ask(history: history)
+                TutorQuota.consume()
+                quotaLeft = TutorQuota.remaining
+                items.append(.init(role: "assistant", content: answer, countsAgainstQuota: true))
+            } catch TutorService.TutorError.serverLimit {
+                items.append(.init(role: "assistant", content: "오늘은 질문이 너무 많았어요 — 내일 다시 물어봐 주세요."))
+            } catch {
+                items.append(.init(role: "assistant", content: "지금은 연결이 원활하지 않아요. 잠시 뒤 다시 시도해 주세요."))
+            }
+        }
+    }
+}

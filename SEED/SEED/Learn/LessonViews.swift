@@ -9,6 +9,7 @@ struct LessonListView: View {
     @State private var showsGlossary = false
     @State private var summaryLesson: LessonDef?
     @State private var quiz: QuizQuestion?
+    @State private var showsTutor = false
     @State private var showsBotCompare = false
     @State private var showsQuantBuilder = false
 
@@ -43,6 +44,37 @@ struct LessonListView: View {
                 ForEach(DeepDiveCatalog.all) { lesson in
                     deepDiveRow(lesson)
                 }
+
+                // AI 튜터 — 금융 기초 질문
+                Button {
+                    showsTutor = true
+                } label: {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(SeedTheme.violetTint)
+                                .frame(width: 38, height: 38)
+                            Image(systemName: "graduationcap.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(SeedTheme.violetDeep)
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("AI 튜터")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(SeedTheme.textPrimary)
+                            Text("ETF? 배당? — 궁금한 금융 기초를 직접 물어보세요")
+                                .font(.system(size: 12))
+                                .foregroundStyle(SeedTheme.textSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                    }
+                    .padding(14)
+                    .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+                }
+                .buttonStyle(.plain)
 
                 // 용어사전 — 막힌 단어만 바로 해소
                 Button {
@@ -94,6 +126,9 @@ struct LessonListView: View {
         }
         .sheet(isPresented: $showsGlossary) {
             GlossaryView()
+        }
+        .sheet(isPresented: $showsTutor) {
+            TutorView()
         }
         .sheet(item: $quiz) { question in
             MorningQuizSheet(quiz: question)

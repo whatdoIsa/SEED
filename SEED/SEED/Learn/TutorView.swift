@@ -3,6 +3,8 @@ import SwiftUI
 /// AI 튜터 — 금융 기초를 묻는 채팅. 필터·직답은 무료(0토큰), 지식 답변만 쿼터 차감.
 struct TutorView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(PurchaseStore.self) private var purchases
+    @State private var showsRefill = false
 
     private struct ChatItem: Identifiable {
         let id = UUID()
@@ -59,6 +61,10 @@ struct TutorView: View {
             inputBar
         }
         .background(SeedTheme.background)
+        .sheet(isPresented: $showsRefill) {
+            RefillSheet(purchases: purchases)
+                .onDisappear { quotaLeft = TutorQuota.remaining }
+        }
     }
 
     private var header: some View {
@@ -178,9 +184,16 @@ struct TutorView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(SeedTheme.textSecondary)
             } else if quotaLeft == 0 {
-                Text("체험 질문을 모두 사용했어요 — 리필과 Pro는 곧 열려요.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(SeedTheme.textSecondary)
+                Button {
+                    showsRefill = true
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus.circle.fill").font(.system(size: 12))
+                        Text("질문 리필하기 · Pro 알아보기")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(SeedTheme.violetDeep)
+                }
             }
             HStack(spacing: 8) {
                 TextField("예: ETF가 뭐야?", text: $input, axis: .vertical)
@@ -232,7 +245,8 @@ struct TutorView: View {
         }
         guard TutorQuota.remaining > 0 else {
             items.append(.init(role: "assistant",
-                               content: "체험 질문 5개를 모두 사용했어요. 리필(₩1,100~)과 Pro(월 40문)는 곧 열릴 예정이에요!"))
+                               content: "체험 질문을 모두 사용했어요. 아래 '질문 리필하기'로 이어갈 수 있어요 — 용어 뜻 질문은 계속 무료예요!"))
+            showsRefill = true
             return
         }
 

@@ -11,7 +11,7 @@
  *   5. 배포된 URL(https://xxx.workers.dev)을 앱의 TutorService.endpoint에 반영
  */
 
-const MODEL = "claude-haiku-4-5";
+const MODEL = "claude-haiku-4-5-20251001";
 const MAX_OUTPUT_TOKENS = 500;
 const DAILY_LIMIT_PER_DEVICE = 30; // 서버측 상한 — 클라이언트 상한(5/일)보다 넉넉히, 탈취 방어용
 
@@ -75,7 +75,9 @@ export default {
     });
 
     if (!anthropicResponse.ok) {
-      return json({ error: "upstream" }, 502);
+      // 진단용: 업스트림 상태와 메시지를 함께 내려준다 (키 오류 401 / 모델 404 / 크레딧 400 구분)
+      const detail = (await anthropicResponse.text()).slice(0, 300);
+      return json({ error: "upstream", status: anthropicResponse.status, detail }, 502);
     }
     const data = await anthropicResponse.json();
     const text = (data.content || [])

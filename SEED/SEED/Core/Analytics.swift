@@ -28,7 +28,23 @@ enum Analytics {
         return support.appendingPathComponent("analytics.jsonl")
     }
 
+    /// 로그 파일 상한 — 넘으면 오래된 앞쪽 절반을 버린다 (무한 성장 방지)
+    private static let maxLogBytes = 1_000_000
+
+    private static func rotateIfNeeded() {
+        guard let size = try? FileManager.default
+            .attributesOfItem(atPath: fileURL.path)[.size] as? Int,
+              size > maxLogBytes,
+              let data = try? Data(contentsOf: fileURL) else { return }
+        let keep = data.suffix(maxLogBytes / 2)
+        // 줄 경계 정렬: 첫 개행 다음부터
+        if let newline = keep.firstIndex(of: UInt8(ascii: "\n")) {
+            try? keep[keep.index(after: newline)...].write(to: fileURL)
+        }
+    }
+
     static func log(_ event: SeedEvent, _ props: [String: String] = [:]) {
+        rotateIfNeeded()
         var payload: [String: String] = props
         payload["event"] = event.rawValue
         payload["ts"] = ISO8601DateFormatter().string(from: .now)

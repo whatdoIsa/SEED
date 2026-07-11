@@ -66,6 +66,30 @@ final class MarketSession {
             }
         }
 
+        // 장기 시즌 가드: 리플레이 총량이 크면(수 초 이상 걸릴 규모)
+        // 차트 연속성을 포기하고 계좌만 스냅샷으로 복원한다 — 시작 지연 방지.
+        let totalReplaySteps = restoredTargets.values.reduce(0, +)
+        let replayBudgetSteps = 300_000 // 릴리즈 기준 ~1.5초
+        if totalReplaySteps > replayBudgetSteps,
+           let snapshot = LedgerSnapshot.load(seasonNumber: store?.currentSeason.number ?? 1) {
+            // 새 시장(워밍업)으로 교체하고 계좌만 복원
+            for spec in SymbolCatalog.all where restoredTargets[spec.code] != nil {
+                let seed = UInt64.random(in: 0...UInt64.max)
+                seeds[spec.code] = seed
+                let engine = MarketEngine(
+                    seed: seed, initialPrice: spec.initialPrice,
+                    config: spec.config, symbol: spec.code, ledger: ledger, climate: climate)
+                engine.advance(ticks: spec.config.ticksPerCandle * warmupCandles)
+                engines[spec.code] = engine
+                freshCodes.append(spec.code)
+            }
+            restoredTargets.removeAll()
+            ledger.restore(cash: snapshot.cash,
+                           realizedPnL: snapshot.realizedPnL,
+                           feesPaid: snapshot.feesPaid,
+                           holdings: snapshot.holdingTuples)
+        }
+
         // 전 종목 주문을 틱 순으로 리플레이 — 현금 흐름의 시간 순서를 보존한다
         if !restoredTargets.isEmpty {
             for log in store?.replayableLogs() ?? [] {
@@ -129,6 +153,7 @@ final class MarketSession {
 
     func persistState() {
         for code in engines.keys { persistSymbol(code) }
+        LedgerSnapshot.save(from: ledger, seasonNumber: store?.currentSeason.number ?? 1)
     }
 
     /// 씬 전환 처리: 백그라운드 진입 시 상태 저장, 복귀 시 경과분 따라잡기 (catch-up).
@@ -294,5 +319,45 @@ final class MarketSession {
     func skipToNextCandle() {
         for engine in enginesList { engine.advanceToNextCandle() }
         processUserFills()
+    }
+}
+
+// MARK: - 원장 스냅샷 (장기 시즌 리플레이 가드의 폴백)
+
+struct LedgerSnapshot: Codable {
+    struct HoldingSnap: Codable {
+        let qty: Int
+        let avgCost: Double
+    }
+    let seasonNumber: Int
+    let cash: Int
+    let realizedPnL: Double
+    let feesPaid: Int
+    let holdings: [String: HoldingSnap]
+
+    var holdingTuples: [String: (qty: Int, avgCost: Double)] {
+        holdings.mapValues { ($0.qty, $0.avgCost) }
+    }
+
+    private static let key = "seed.ledgerSnapshot"
+
+    static func save(from ledger: AccountLedger, seasonNumber: Int) {
+        let snap = LedgerSnapshot(
+            seasonNumber: seasonNumber,
+            cash: ledger.cash,
+            realizedPnL: ledger.realizedPnL,
+            feesPaid: ledger.feesPaid,
+            holdings: ledger.holdings.mapValues { HoldingSnap(qty: $0.qty, avgCost: $0.avgCost) }
+        )
+        if let data = try? JSONEncoder().encode(snap) {
+            UserDefaults.standard.set(data, forKey: key)
+        }
+    }
+
+    static func load(seasonNumber: Int) -> LedgerSnapshot? {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let snap = try? JSONDecoder().decode(LedgerSnapshot.self, from: data),
+              snap.seasonNumber == seasonNumber else { return nil }
+        return snap
     }
 }

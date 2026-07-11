@@ -25,6 +25,19 @@ public final class AccountLedger {
 
     public var availableCash: Int { cash - reservedCash }
 
+    /// 스냅샷 복원 — 아주 긴 시즌에서 전체 리플레이 대신 계좌만 되살릴 때 (앱 전용).
+    /// 예약(미체결)은 복원하지 않는다 — 호출 측에서 대기 주문을 비운 상태를 전제.
+    public func restore(cash: Int,
+                        realizedPnL: Double,
+                        feesPaid: Int,
+                        holdings: [String: (qty: Int, avgCost: Double)]) {
+        self.cash = cash
+        self.realizedPnL = realizedPnL
+        self.feesPaid = feesPaid
+        self.reservedCash = 0
+        self.holdings = holdings.mapValues { Holding(qty: $0.qty, avgCost: $0.avgCost) }
+    }
+
     public func holding(of symbol: String) -> Holding {
         holdings[symbol] ?? Holding()
     }

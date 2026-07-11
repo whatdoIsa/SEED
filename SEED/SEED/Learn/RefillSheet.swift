@@ -5,6 +5,8 @@ import StoreKit
 /// 원칙: 강매 없음, 가격·내용 명확, 무료로 남는 것도 명시.
 struct RefillSheet: View {
     let purchases: PurchaseStore
+    var title = "튜터와 계속 대화하기"
+    var subtitle = "용어 정의와 추천 질문 거절은 언제나 무료예요."
     @Environment(\.dismiss) private var dismiss
     @State private var isPurchasing = false
 
@@ -13,10 +15,10 @@ struct RefillSheet: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("튜터와 계속 대화하기")
+                        Text(title)
                             .font(.system(size: 19, weight: .semibold))
                             .foregroundStyle(SeedTheme.textPrimary)
-                        Text("용어 정의와 추천 질문 거절은 언제나 무료예요.")
+                        Text(subtitle)
                             .font(.system(size: 12))
                             .foregroundStyle(SeedTheme.textSecondary)
                     }

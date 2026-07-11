@@ -79,6 +79,14 @@ struct ReviewReportView: View {
                 }
 
                 if tradeCount > 0 {
+                    // AI 코치: 주 1회 생성, 매매 5건마다 갱신 허용 (캐시 정책)
+                    AICoachCard(
+                        cacheKey: "weekly.\(Calendar.current.component(.year, from: .now))-\(Calendar.current.component(.weekOfYear, from: .now))",
+                        fingerprint: "\(tradeCount / 5)",
+                        prompt: reviewPrompt(stats: stats, tradeCount: tradeCount, winRate: winRate),
+                        maxTokens: 300
+                    )
+
                     HStack(spacing: 10) {
                         metricCard("매매", "\(tradeCount)건")
                         metricCard("승률", winRate.map { "\(Int($0))%" } ?? "—")
@@ -217,6 +225,21 @@ struct ReviewReportView: View {
     }
 
     // MARK: 룰베이스 문장 생성 (L1 — API 비용 0원)
+
+    /// AI 입력: 원시 로그가 아니라 미리 계산한 요약만 (토큰 다이어트)
+    private func reviewPrompt(stats: [SeedStore.TagStat], tradeCount: Int, winRate: Double?) -> String {
+        var lines = ["이번 주까지의 매매 기록을 복기해줘. 데이터:"]
+        lines.append("- 총 매매 \(tradeCount)건, 승률 \(winRate.map { "\(Int($0))%" } ?? "미확정")")
+        for stat in stats.prefix(5) {
+            let avg = stat.avgRealizedReturnPct.map { "\($0 >= 0 ? "+" : "")\($0.formatted(.number.precision(.fractionLength(1))))%" } ?? "미확정"
+            lines.append("- '\(stat.tag.label)' 태그: \(stat.count)건, 평균 \(avg)")
+        }
+        if let habits = store.holdingStats() {
+            lines.append("- 평균 보유 \(habits.avgHoldTicks)틱, 왕복 승률 \(Int(habits.winRate))%")
+        }
+        lines.append("가장 아픈 습관 하나와 잘한 것 하나를 짚고, 다음 주의 한 가지를 제안해줘.")
+        return lines.joined(separator: "\n")
+    }
 
     private func worstStat(in stats: [SeedStore.TagStat]) -> SeedStore.TagStat? {
         stats

@@ -209,6 +209,13 @@ struct ArenaView: View {
                     }
                 }
 
+                AICoachCard(
+                    cacheKey: "arena.\(stamp)",
+                    fingerprint: "\(myRank)-\(myTrades)",
+                    prompt: arenaPrompt(rows: rows, myRank: myRank),
+                    maxTokens: 200
+                )
+
                 Text(resultInsight(rows: rows, myRank: myRank))
                     .font(.system(size: 13))
                     .foregroundStyle(SeedTheme.violetDeep)
@@ -248,6 +255,18 @@ struct ArenaView: View {
         case 2: return "🥉"
         default: return "\(index + 1)위"
         }
+    }
+
+    private func arenaPrompt(rows: [StandingRow], myRank: Int) -> String {
+        let pattern = DailyMarket.pattern(stamp: stamp)
+        var lines = ["거장 봇들과의 모의 대결이 끝났어. 결과 해설을 두세 문장으로. 데이터:"]
+        lines.append("- 이번 장의 패턴: \(pattern.revealName)")
+        lines.append("- 내 순위: \(myRank)위 / \(rows.count)명, 내 매매 \(myTrades)회")
+        for (index, row) in rows.enumerated() {
+            lines.append("- \(index + 1)위 \(row.name): \(row.returnPct >= 0 ? "+" : "")\(row.returnPct.formatted(.number.precision(.fractionLength(2))))%")
+        }
+        lines.append("이 장의 성격과 승자의 철학이 왜 맞았는지, 내가 배울 점 하나를 짚어줘.")
+        return lines.joined(separator: "\n")
     }
 
     private func resultInsight(rows: [StandingRow], myRank: Int) -> String {

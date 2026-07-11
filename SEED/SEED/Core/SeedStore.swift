@@ -325,6 +325,14 @@ final class SeedStore {
             .lessonId
     }
 
+    /// 마감된 시즌들 (아카이브) — 번호 순
+    func pastSeasons() -> [Season] {
+        let seasons = (try? context.fetch(FetchDescriptor<Season>(
+            sortBy: [SortDescriptor(\.number)]
+        ))) ?? []
+        return seasons.filter { $0.endedAt != nil }
+    }
+
     func isLessonDone(_ lessonId: String) -> Bool {
         // 관찰 property를 읽어 잠금 화면들이 즉시 반응하게 한다.
         completedLessonIds.contains(lessonId)

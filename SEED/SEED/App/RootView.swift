@@ -7,6 +7,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var selectedTab = 0
+    @State private var purchases = PurchaseStore()
 
     var body: some View {
         Group {
@@ -57,6 +58,7 @@ struct RootView: View {
                 .tag(3)
         }
         .tint(SeedTheme.textPrimary)
+        .environment(purchases)
         .onOpenURL { url in
             // 위젯 딥링크: seed://daily → 배우기 탭 + 오늘의 장
             guard url.scheme == "seed", url.host() == "daily" else { return }

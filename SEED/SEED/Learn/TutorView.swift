@@ -3,6 +3,8 @@ import SwiftUI
 /// AI 튜터 — 금융 기초를 묻는 채팅. 필터·직답은 무료(0토큰), 지식 답변만 쿼터 차감.
 struct TutorView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(PurchaseStore.self) private var purchases
+    @State private var showsRefill = false
 
     private struct ChatItem: Identifiable {
         let id = UUID()
@@ -11,9 +13,14 @@ struct TutorView: View {
         var countsAgainstQuota = false
     }
 
-    @State private var items: [ChatItem] = [
-        .init(role: "assistant",
-              content: "안녕하세요! 주식·ETF·비트코인 같은 금융 기초가 궁금하면 물어보세요. 종목 추천이나 가격 예측은 하지 않아요 — 대신 판단에 필요한 개념을 쉽게 풀어드릴게요.")
+    @State private var items: [ChatItem] = []
+
+    private let starterQuestions = [
+        "ETF가 뭐야?",
+        "배당은 언제, 어떻게 받아?",
+        "공매도가 뭐야?",
+        "비트코인은 주식이랑 뭐가 달라?",
+        "PER이랑 PBR 차이가 뭐야?"
     ]
     @State private var input = ""
     @State private var isThinking = false
@@ -26,6 +33,9 @@ struct TutorView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 10) {
+                        if items.isEmpty {
+                            emptyState
+                        }
                         ForEach(items) { item in
                             bubble(item)
                         }
@@ -51,6 +61,10 @@ struct TutorView: View {
             inputBar
         }
         .background(SeedTheme.background)
+        .sheet(isPresented: $showsRefill) {
+            RefillSheet(purchases: purchases)
+                .onDisappear { quotaLeft = TutorQuota.remaining }
+        }
     }
 
     private var header: some View {
@@ -88,17 +102,77 @@ struct TutorView: View {
         .padding(.horizontal, 16).padding(.vertical, 10)
     }
 
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                Circle().fill(SeedTheme.violetTint).frame(width: 64, height: 64)
+                Image(systemName: "graduationcap.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(SeedTheme.violet)
+            }
+            .padding(.top, 28)
+            Text("금융 기초, 뭐든 물어보세요")
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(SeedTheme.textPrimary)
+            Text("주식·ETF·비트코인의 개념을 쉽게 풀어드려요.\n종목 추천과 가격 예측은 하지 않아요.")
+                .font(.system(size: 13))
+                .foregroundStyle(SeedTheme.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(4)
+
+            VStack(spacing: 7) {
+                ForEach(starterQuestions, id: \.self) { question in
+                    Button {
+                        input = question
+                        send()
+                    } label: {
+                        HStack {
+                            Text(question)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(SeedTheme.violetDeep)
+                            Spacer()
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 15))
+                                .foregroundStyle(SeedTheme.violet.opacity(0.6))
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 11)
+                        .background(SeedTheme.violetTint.opacity(0.6),
+                                    in: RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+        }
+    }
+
     private func bubble(_ item: ChatItem) -> some View {
-        HStack {
-            if item.role == "user" { Spacer(minLength: 40) }
-            Text(item.content)
+        HStack(alignment: .bottom, spacing: 8) {
+            if item.role == "user" {
+                Spacer(minLength: 48)
+            } else {
+                ZStack {
+                    Circle().fill(SeedTheme.violet).frame(width: 24, height: 24)
+                    Image(systemName: "graduationcap.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white)
+                }
+            }
+            Text((try? AttributedString(
+                markdown: item.content,
+                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
+                ?? AttributedString(item.content))
                 .font(.system(size: 14))
                 .foregroundStyle(item.role == "user" ? .white : SeedTheme.textPrimary)
                 .lineSpacing(4)
                 .padding(.horizontal, 13).padding(.vertical, 10)
                 .background(item.role == "user" ? SeedTheme.violet : SeedTheme.card,
-                            in: RoundedRectangle(cornerRadius: 14))
-            if item.role != "user" { Spacer(minLength: 40) }
+                            in: UnevenRoundedRectangle(
+                                topLeadingRadius: 16,
+                                bottomLeadingRadius: item.role == "user" ? 16 : 4,
+                                bottomTrailingRadius: item.role == "user" ? 4 : 16,
+                                topTrailingRadius: 16))
+            if item.role != "user" { Spacer(minLength: 48) }
         }
         .padding(.horizontal, 16)
     }
@@ -110,9 +184,16 @@ struct TutorView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(SeedTheme.textSecondary)
             } else if quotaLeft == 0 {
-                Text("체험 질문을 모두 사용했어요 — 리필과 Pro는 곧 열려요.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(SeedTheme.textSecondary)
+                Button {
+                    showsRefill = true
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "plus.circle.fill").font(.system(size: 12))
+                        Text("질문 리필하기 · Pro 알아보기")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(SeedTheme.violetDeep)
+                }
             }
             HStack(spacing: 8) {
                 TextField("예: ETF가 뭐야?", text: $input, axis: .vertical)
@@ -164,7 +245,8 @@ struct TutorView: View {
         }
         guard TutorQuota.remaining > 0 else {
             items.append(.init(role: "assistant",
-                               content: "체험 질문 5개를 모두 사용했어요. 리필(₩1,100~)과 Pro(월 40문)는 곧 열릴 예정이에요!"))
+                               content: "체험 질문을 모두 사용했어요. 아래 '질문 리필하기'로 이어갈 수 있어요 — 용어 뜻 질문은 계속 무료예요!"))
+            showsRefill = true
             return
         }
 

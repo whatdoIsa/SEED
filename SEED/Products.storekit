@@ -1,0 +1,94 @@
+{
+  "identifier": "7A7A18E4-F77E-4C1B-8B60-3F1A706B50CF",
+  "nonRenewingSubscriptions": [],
+  "products": [
+    {
+      "displayPrice": "1100",
+      "familyShareable": false,
+      "internalID": "F74E9B63-9E92-4444-8A3A-35ECA17C5DCB",
+      "localizations": [
+        {
+          "description": "튜터 질문 10회, 기한 없음",
+          "displayName": "튜터 리필 10문",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "seed.tutor.refill10",
+      "referenceName": "Tutor Refill 10",
+      "type": "Consumable"
+    },
+    {
+      "displayPrice": "2900",
+      "familyShareable": false,
+      "internalID": "2ADA2F7B-909C-4B29-8CE2-3CD67F2E3018",
+      "localizations": [
+        {
+          "description": "튜터 질문 30회, 기한 없음",
+          "displayName": "튜터 리필 30문",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "seed.tutor.refill30",
+      "referenceName": "Tutor Refill 30",
+      "type": "Consumable"
+    }
+  ],
+  "settings": {
+    "_failTransactionsEnabled": false
+  },
+  "subscriptionGroups": [
+    {
+      "id": "510726A7-2683-473C-9EA5-6908AFDFC07F",
+      "localizations": [],
+      "name": "SEED Pro",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "3300",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "A41044CE-8C87-4A7E-95DC-EC63F788E7E9",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "전 트랙 + AI 코치 + 튜터 월 40문",
+              "displayName": "SEED Pro 월간",
+              "locale": "ko_KR"
+            }
+          ],
+          "productID": "seed.pro.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Pro Monthly",
+          "subscriptionGroupID": "510726A7-2683-473C-9EA5-6908AFDFC07F",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "22000",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "4F01EF84-1E9D-4838-8B06-662DD1314023",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "전 트랙 + AI 코치 + 튜터 월 40문 (44% 할인)",
+              "displayName": "SEED Pro 연간",
+              "locale": "ko_KR"
+            }
+          ],
+          "productID": "seed.pro.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "Pro Yearly",
+          "subscriptionGroupID": "510726A7-2683-473C-9EA5-6908AFDFC07F",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version": {
+    "major": 3,
+    "minor": 0
+  }
+}

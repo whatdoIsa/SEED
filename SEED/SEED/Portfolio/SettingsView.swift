@@ -5,6 +5,7 @@ import UserNotifications
 struct SettingsView: View {
     @Bindable var session: MarketSession
     let store: SeedStore
+    @Environment(PurchaseStore.self) private var purchases
     @Environment(\.dismiss) private var dismiss
 
     @State private var notificationStatus: UNAuthorizationStatus?
@@ -43,6 +44,8 @@ struct SettingsView: View {
     private var aiSection: some View {
         section("AI 코치") {
             VStack(alignment: .leading, spacing: 8) {
+                infoRow("SEED Pro", purchases.isPro ? "구독 중" : "미구독")
+                infoRow("튜터 남은 질문", "\(TutorQuota.remaining)문")
                 infoRow("처리 방식", AICoach.isAvailable ? "이 기기 안에서 생성" : "이 기기에선 미지원")
                 infoRow("이번 달 생성", "\(AIUsageMeter.thisMonth)회")
                 Text(AICoach.isAvailable

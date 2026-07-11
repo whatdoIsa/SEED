@@ -7,11 +7,18 @@ struct ReviewReportView: View {
     let store: SeedStore
     @Bindable var session: MarketSession
 
+    @State private var showsArchive = false
+
     var body: some View {
-        if store.isLessonDone(LessonCatalog.chase.id) {
-            report
-        } else {
-            lockedState
+        Group {
+            if store.isLessonDone(LessonCatalog.chase.id) {
+                report
+            } else {
+                lockedState
+            }
+        }
+        .sheet(isPresented: $showsArchive) {
+            SeasonArchiveView(store: store)
         }
     }
 
@@ -115,6 +122,34 @@ struct ReviewReportView: View {
                 if tradeCount > 0 {
                     holdingHabitSection
                     coachCard(worst: worst, tradeCount: tradeCount)
+                }
+
+                // 시즌 아카이브 진입 (마감 시즌이 있을 때)
+                if !store.pastSeasons().isEmpty {
+                    Button {
+                        showsArchive = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "chart.line.uptrend.xyaxis.circle.fill")
+                                .font(.system(size: 22))
+                                .foregroundStyle(SeedTheme.violet)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("시즌 아카이브")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(SeedTheme.textPrimary)
+                                Text("지난 시즌 \(store.pastSeasons().count)개 — 성장의 기록")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(SeedTheme.textSecondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12))
+                                .foregroundStyle(SeedTheme.textSecondary)
+                        }
+                        .padding(14)
+                        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {

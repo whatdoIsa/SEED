@@ -8,7 +8,7 @@ enum TutorService {
 
     /// 프록시 주소 — Cloudflare Worker 배포 후 교체 (server/tutor-worker.js 참고).
     /// 비어 있으면 튜터가 '준비 중' 상태로 표시된다.
-    static let endpoint = ""
+    static let endpoint = "https://seed-tutor.throbbing-sun-9e1e.workers.dev/"
 
     static var isConfigured: Bool { !endpoint.isEmpty }
 

@@ -153,4 +153,25 @@ final class TurtleTests: XCTestCase {
             XCTAssertEqual(a.finalEquity, b.finalEquity, "\(a.botName) 결정론")
         }
     }
+
+    func testBotsSizeByPriceOnExpensiveMarkets() throws {
+        // 9만원대 시장: 고정 수량이면 매수가 조용히 실패하던 버그의 회귀 가드
+        let expensive = ScenarioPreset(
+            id: "test.expensive", seed: 11, initialPrice: 92_000,
+            durationTicks: 600, anchorPull: 0.12,
+            keyframes: [
+                .init(tick: 0, value: 92_000),
+                .init(tick: 150, value: 93_000),
+                .init(tick: 300, value: 80_000),   // 급락 (템플턴·가치 진입 유도)
+                .init(tick: 450, value: 91_000),   // 회복
+                .init(tick: 600, value: 92_500)
+            ]
+        )
+        let kostolany = BotComparison.runKostolany(scenario: expensive)
+        XCTAssertFalse(kostolany.actions.filter { $0.side == .buy }.isEmpty,
+                       "코스톨라니는 비싼 장에서도 산다")
+        let templeton = BotComparison.runTempleton(scenario: expensive)
+        XCTAssertFalse(templeton.actions.filter { $0.side == .buy }.isEmpty,
+                       "템플턴은 비싼 장의 급락에서도 산다")
+    }
 }

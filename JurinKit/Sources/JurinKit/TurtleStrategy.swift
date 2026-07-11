@@ -161,6 +161,10 @@ public enum BotComparison {
     public static func runTurtle(scenario: ScenarioPreset,
                                  strategy: TurtleStrategy? = nil) -> BotRun {
         var turtle = strategy ?? scenarioTurtle
+        if strategy == nil {
+            // 유닛을 가격에 맞춤 — 비싼 장에서 매수가 조용히 실패하지 않게 (4유닛까지 현금 내)
+            turtle.unitQty = max(1, 2_300_000 / max(scenario.initialPrice, 1))
+        }
         return runCustom(name: "터틀 봇", scenario: scenario) { ctx in
             turtle.onCandleClose(candles: ctx.candles, avgCost: ctx.avgCost)
         }
@@ -176,7 +180,7 @@ public enum BotComparison {
                                 marginOfSafety: Double = 0.035,
                                 premium: Double = 0.04,
                                 emaAlpha: Double = 0.06,
-                                unitQty: Int = 120) -> BotRun {
+                                unitQty: Int? = nil) -> BotRun {
         var intrinsic: Double = 0
         return runCustom(name: "가치투자 봇", scenario: scenario) { ctx in
             intrinsic = intrinsic == 0 ? ctx.fairValue
@@ -186,7 +190,8 @@ public enum BotComparison {
             if ctx.holdingQty == 0 {
                 // 내재가치 추정보다 안전마진만큼 쌀 때만 산다
                 guard price <= intrinsic * (1 - marginOfSafety) else { return nil }
-                return (.buyUnit(qty: unitQty),
+                let qty = unitQty ?? max(1, 8_500_000 / max(ctx.lastPrice, 1))
+                return (.buyUnit(qty: qty),
                         "내 가치 추정 \(Int(intrinsic).formatted())원보다 \(abs(gapPct).formatted(.number.precision(.fractionLength(1))))% 싸다 — 안전마진 확보, 매수")
             } else {
                 // 내재가치 추정보다 프리미엄만큼 비싸지면 전량 매도
@@ -202,7 +207,7 @@ public enum BotComparison {
     public static func runONeil(scenario: ScenarioPreset,
                                 lookback: Int = 7,
                                 stopPct: Double = 0.08,
-                                unitQty: Int = 100) -> BotRun {
+                                unitQty: Int? = nil) -> BotRun {
         var entryPrice: Double = 0
         return runCustom(name: "오닐 봇", scenario: scenario) { ctx in
             guard let closed = ctx.candles.last else { return nil }
@@ -217,7 +222,8 @@ public enum BotComparison {
                     : recent.map(\.volume).reduce(0, +) / recent.count
                 guard avgVolume > 0, closed.volume * 10 >= avgVolume * 13 else { return nil }
                 entryPrice = Double(closed.close)
-                return (.buyUnit(qty: unitQty),
+                let qty = unitQty ?? max(1, 8_000_000 / max(closed.close, 1))
+                return (.buyUnit(qty: qty),
                         "신고가 \(channelHigh.formatted())원 돌파 + 거래량 평소의 \((Double(closed.volume) / Double(avgVolume)).formatted(.number.precision(.fractionLength(1))))배 — 수요가 진짜다, 매수")
             }
 
@@ -238,10 +244,11 @@ public enum BotComparison {
     /// 코스톨라니 봇 (소신파) — 초반에 사서 끝까지 잔다.
     /// 매매 일지가 한 줄뿐인 것 자체가 교훈: 시장의 소음을 무시하는 힘.
     public static func runKostolany(scenario: ScenarioPreset,
-                                    unitQty: Int = 160) -> BotRun {
+                                    unitQty: Int? = nil) -> BotRun {
         runCustom(name: "코스톨라니 봇", scenario: scenario) { ctx in
             guard ctx.holdingQty == 0, ctx.candles.count >= 1, ctx.candles.count <= 3 else { return nil }
-            return (.buyUnit(qty: unitQty),
+            let qty = unitQty ?? max(1, 9_400_000 / max(ctx.lastPrice, 1))
+            return (.buyUnit(qty: qty),
                     "우량한 것을 사서, 수면제를 먹고, 잔다 — 흔들림은 계획에 없다")
         }
     }
@@ -252,7 +259,7 @@ public enum BotComparison {
                                     panicDrawdownPct: Double = 8,
                                     calmDrawdownPct: Double = 2,
                                     lookback: Int = 15,
-                                    unitQty: Int = 120) -> BotRun {
+                                    unitQty: Int? = nil) -> BotRun {
         runCustom(name: "템플턴 봇", scenario: scenario) { ctx in
             guard let closed = ctx.candles.last, ctx.candles.count > 3 else { return nil }
             let window = min(ctx.candles.count, lookback)
@@ -262,7 +269,8 @@ public enum BotComparison {
 
             if ctx.holdingQty == 0 {
                 guard drawdown >= panicDrawdownPct else { return nil }
-                return (.buyUnit(qty: unitQty),
+                let qty = unitQty ?? max(1, 8_500_000 / max(ctx.lastPrice, 1))
+                return (.buyUnit(qty: qty),
                         "고점 대비 -\(drawdown.formatted(.number.precision(.fractionLength(1))))% — 비관이 최고조일 때가 사는 날이다")
             }
             guard drawdown <= calmDrawdownPct else { return nil }

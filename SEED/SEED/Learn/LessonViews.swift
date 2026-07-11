@@ -514,6 +514,8 @@ struct LessonFlowView: View {
             StopLossMissionView { stage = .done }
         case .patience:
             PatienceMissionView { stage = .done }
+        case .positionSizing:
+            PositionSizingMissionView { stage = .done }
         }
     }
 

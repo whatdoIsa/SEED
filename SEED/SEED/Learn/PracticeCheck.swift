@@ -14,6 +14,8 @@ enum PracticeCatalog {
         "lesson.support": "차트에서 이동평균선 근처의 가격 반응을 한 장면 관찰하기",
         "lesson.stoploss": "오늘 매수한다면 — 사기 전에 손절선 가격을 먼저 계산해두기",
         "lesson.patience": "오늘 시장이 지루하면, 안 사는 것으로 하루를 이겨보기",
+        "lesson.sizing": "오늘 매수 전에 자문하기 — \u{201C}틀리면 얼마 잃지?\u{201D} 감당되는 수량인가",
+        "lesson.graduation": "복기 탭을 열고 나의 가장 나쁜 습관 하나를 소리 내어 읽기",
     ]
 
     static func todaysTask(store: SeedStore) -> (lessonId: String, task: String)? {

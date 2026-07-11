@@ -202,6 +202,13 @@ struct DailyMarketView: View {
                 .font(.system(size: 14))
                 .foregroundStyle(SeedTheme.inkText)
                 .lineSpacing(5)
+            // AI 해설: 장 완료 시 1회, 날짜 키 캐시 (재방문 무료)
+            AICoachCard(
+                cacheKey: "daily.\(DailyMarket.dayStamp())",
+                fingerprint: "\(pnl)",
+                prompt: dailyPrompt(pnl: pnl),
+                maxTokens: 200
+            )
             // 공유 카드 — 오늘 판을 포함한 스트릭으로 렌더
             if let card = DailyShareCard.render(
                 patternName: pattern.revealName,
@@ -240,6 +247,19 @@ struct DailyMarketView: View {
         }
         .padding(16)
         .background(SeedTheme.ink, in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func dailyPrompt(pnl: Int) -> String {
+        let myTrades = store.scenarioLogs(scenarioId: scenarioId)
+        var lines = ["오늘의 학습 장이 끝났어. 오늘 장 해설을 두세 문장으로 해줘. 데이터:"]
+        lines.append("- 오늘 장의 패턴: \(pattern.revealName)")
+        lines.append("- 내 손익: \(pnl >= 0 ? "+" : "")\(pnl.formatted())원, 매매 \(myTrades.count)건")
+        for log in myTrades.prefix(5) {
+            lines.append("- \(log.side == .buy ? "매수" : "매도") \(log.qty)주 @\(Int(log.avgFillPrice).formatted())원 (이유: \(log.reasonTag.label))")
+        }
+        if myTrades.isEmpty { lines.append("- 오늘은 매매하지 않고 지켜봤음") }
+        lines.append("이 패턴에서 내 행동이 어땠는지 짚어줘.")
+        return lines.joined(separator: "\n")
     }
 
     private func startLoop() {

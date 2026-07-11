@@ -14,6 +14,7 @@ struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    aiSection
                     notificationSection
                     dataSection
                     disclosureSection
@@ -34,6 +35,23 @@ struct SettingsView: View {
         .task {
             notificationStatus = await UNUserNotificationCenter.current()
                 .notificationSettings().authorizationStatus
+        }
+    }
+
+    // MARK: AI 코치
+
+    private var aiSection: some View {
+        section("AI 코치") {
+            VStack(alignment: .leading, spacing: 8) {
+                infoRow("처리 방식", AICoach.isAvailable ? "이 기기 안에서 생성" : "이 기기에선 미지원")
+                infoRow("이번 달 생성", "\(AIUsageMeter.thisMonth)회")
+                Text(AICoach.isAvailable
+                     ? "복기·해설 코멘트는 Apple Intelligence로 기기 안에서 만들어져요. 데이터가 기기를 떠나지 않아요."
+                     : "AI 코치는 Apple Intelligence 지원 기기(iPhone 15 Pro 이상)에서 동작해요. 이 기기에선 기본 코멘트가 제공돼요.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+                    .lineSpacing(4)
+            }
         }
     }
 

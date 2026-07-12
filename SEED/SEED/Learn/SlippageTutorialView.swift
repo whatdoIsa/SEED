@@ -253,7 +253,7 @@ struct SlippageMissionView: View {
                 .foregroundStyle(SeedTheme.textPrimary)
                 .padding(.top, 14)
 
-            Text("화면의 가격은 **지금 살 수 있는 가장 싼 '한 주'**일 뿐이에요. 크게 사면 그 위 호가까지 먹으면서 평균가가 밀립니다.")
+            Text("화면의 가격은 **지금 살 수 있는 가장 싼 한 주**일 뿐이에요. 크게 사면 그 위 호가까지 먹으면서 평균가가 밀립니다.")
                 .font(.system(size: 15))
                 .foregroundStyle(SeedTheme.textPrimary.opacity(0.85))
                 .lineSpacing(5)

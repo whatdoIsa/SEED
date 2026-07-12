@@ -50,7 +50,8 @@ struct SeasonArchiveView: View {
         .sheet(isPresented: $showsPaywall) {
             RefillSheet(purchases: purchases,
                         title: "성장의 전체 역사 보기",
-                        subtitle: "지난 모든 시즌의 기록과 규칙은 Pro에서 열려요.")
+                        subtitle: "지난 모든 시즌의 기록과 규칙은 Pro에서 열려요.",
+                        source: "season_archive")
         }
     }
 

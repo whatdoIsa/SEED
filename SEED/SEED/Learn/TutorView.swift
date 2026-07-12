@@ -62,7 +62,7 @@ struct TutorView: View {
         }
         .background(SeedTheme.background)
         .sheet(isPresented: $showsRefill) {
-            RefillSheet(purchases: purchases)
+            RefillSheet(purchases: purchases, source: "tutor_quota")
                 .onDisappear { quotaLeft = TutorQuota.remaining }
         }
     }

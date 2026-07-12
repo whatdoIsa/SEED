@@ -274,6 +274,7 @@ struct AutopsyView: View {
             Button {
                 _ = store.startNextSeason(endEquity: equity, carriedRule: selectedRule)
                 session.resetForNewSeason()
+                ReviewPrompt.askIfEligible(.seasonEnd)
                 dismiss()
             } label: {
                 Text("부검 확인 · 시즌 \(store.currentSeason.number + 1) 시작하기")

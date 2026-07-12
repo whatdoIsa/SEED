@@ -33,6 +33,8 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 - **오늘의 장**: 날짜시드 패턴 5종, 스트릭+7일 점, 공유카드. **아레나**: 무작위 장 나vs거장5+내전략, 라이브 순위, 전적. **거장 도장**: 5인 프로필(데니스·그레이엄·오닐·코스톨라니·템플턴)×장4종, 매매일지(이유 포함), 리매치. **전략 실험실**: 3템플릿+가치스크리너+장별성적표+아레나 출전 슬롯
 - **복기**: 태그·매매지도·보유습관(FIFO 페어링)·부검·시즌 아카이브(성장그래프, Pro게이트)
 - **인프라**: iCloud 백업(복원 병합 refreshAfterRemoteImport), 홈/잠금 위젯(App Group+딥링크 seed://daily), 주간 푸시(일 19시), 설정 화면, 앱아이콘/런치, 접근성 요약, 하루1레슨 페이스
+- **배우기 탭 = 트랙 허브 구조 (develop)**: 오늘 섹션 + "이어서 배우기" 히어로 카드(`Learn/TrackHub.swift`의 NextLessonFinder — 트랙1 다음 편 → 페이스 소진 시 트랙2 → 완주 시 예고 카드) + 트랙 카드 4장(1 주식기본기·2 ETF·3 크립토 예정·4 금융기초 예정, 진행률 바·진행 중 보라 테두리·미소유 "1편 무료" 배지) + 라이브러리 카드 1장. 레슨 목차는 `TrackDetailView` 시트로, 심화·도장·실험실·튜터·용어사전은 `LibraryView` 시트로 이사. 트랙 추가 시 `TrackCatalog.all`에 TrackDef 1개만 추가하면 됨.
+- **트랙 2 — ETF·분산투자 (develop, Phase 3 완료)**: `JurinKit/ETFFund.swift`(고정 좌수 바스켓 NAV + 연보수/252 일할 차감, 테스트 13개 — 총 102개), ETF 2종(`Core/ETFCatalog.swift` — HIX 한빛300 지수 0.15% / HBA 균형 자산배분 0.35%, BTX 제외), NAV 즉시 체결(호가창 없음·매도 거래세 없음), MarketSession 통합(리플레이·스냅샷·totalEquity·분산 β 반영), `Market/ETFMarketView.swift`(NAV 라인차트·구성·보수 누적 카드·주문 시트), 레슨 8편 `Learn/ETFTrack.swift`(order 201+, 읽기형, 1편 무료→순서 잠금, 하루 페이스 없음) + 요약·퀴즈·실천·용어사전 8종("ETF·분산투자" 카테고리). 진입: 시장 탭 ETF 칩 + 배우기 트랙 2 섹션, 비소유 시 `Learn/TrackPaywallSheet.swift`
 
 ## AI 스택 (Phase 1 완료 — 검증됨)
 - **온디바이스 (Foundation Models, iOS 26)**: `Core/AICoach.swift` — 주간복기·부검·오늘의장·아레나 해설. 캐시(키+지문, "같은 데이터에 두 번 안 묻기"), 미지원기기(iPhone 15 Pro 미만)→룰기반 폴백. **실기기 검증 아직 안 함** (시뮬은 미지원 정상).
@@ -42,16 +44,17 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 ## 수익 모델 (확정)
 - 무료 영원히: 트랙1(12편)+시장+오늘의장+아레나+룰기반 복기
 - **트랙 단품** 각 ₩5,000 일회성(영구소장, AI 미포함) / **Pro** 월 ₩3,300·연 ₩22,000(전 트랙+AI코멘트+튜터 월40문) / **리필** 10문 ₩1,100·30문 ₩2,900(소모성)
-- 상품 ID: `seed.pro.monthly` `seed.pro.yearly` `seed.tutor.refill10` `seed.tutor.refill30` — `Core/PurchaseStore.swift`, `Learn/RefillSheet.swift`(정직 페이월), 개발용 `SEED/Products.storekit`+스킴 연결
-- 결제 트리거: 트랙 졸업→목차→1편 무료→페이월 / 튜터 소진 / 아카이브 잠금
+- 상품 ID: `seed.pro.monthly.v2` `seed.pro.yearly.v2`(초기 ID는 ASC 삭제로 영구 잠김) `seed.tutor.refill10` `seed.tutor.refill30` `seed.track.etf`(트랙2 단품 ₩5,000 비소모성 — **App Store Connect 미등록, 등록 필요**) — `Core/PurchaseStore.swift`(ownsETFTrack = Pro ∨ 단품), `Learn/RefillSheet.swift`·`Learn/TrackPaywallSheet.swift`(정직 페이월), 개발용 `SEED/Products.storekit`+스킴 연결
+- 결제 트리거 (구현 완료): 졸업 완료 화면 CTA→트랙 2 목차→1편 무료→페이월 / 배우기 히어로·시장 ETF 칩·목차 잠금 행 / 튜터 소진 / 아카이브 잠금. 계측: paywall_shown(sheet·source별)·purchase_completed·track_promo_tapped — 전환율 = purchase/paywall_shown
 - 유저당 AI 하드캡 ~200원/월 설계. 손익분기 = 유료 5명.
 
 ## 진행 중 / 다음 할 일
 1. **[사용자 진행 중] App Store Connect 상품 등록** — 리필10문 등록했으나 "메타데이터 누락" = 심사 스크린샷 미첨부. **바탕화면 `iap-screenshot-refill.png`**(1206×2622) 업로드하면 해결. 나머지 3개 상품(refill30, pro monthly/yearly)도 같은 캡처 재사용. 유료 앱 계약(은행·세금) 활성 필수.
 2. **TestFlight 새 빌드** (main에서 Archive) — AI+결제 실기기 검증: 온디바이스 코치 카드(15 Pro+), 튜터 5문, 리필 시트 원화 표시(샌드박스 — 실결제 없음, 구독 갱신 가속됨)
-3. **Phase 3 — 트랙 2: ETF·분산투자** (다음 대형 작업, Pro의 간판 상품): 합성 ETF = 기존 6종목 바스켓 + 운용보수 엔진, 레슨 8~10편(지수·보수·적립식vs몰빵·리밸런싱), 완성 시 App Store 정식 출시 타이밍. 이후 트랙3 크립토심화, 트랙4 금융기초(분기당 1트랙).
+3. **Phase 3 — 트랙 2: ETF·분산투자 ✅ 완료 (develop)** — 남은 것: ①App Store Connect에 `seed.track.etf` ₩5,000 비소모성 등록(기존 심사 스크린샷 재사용 가능) ②main 승격은 사용자 지시 시 ③완성 시점 = App Store 정식 출시 타이밍. 이후 트랙3 크립토심화, 트랙4 금융기초(분기당 1트랙).
 4. **배포 트랙 병행** (매출 = 트래픽×전환율 — 제품만으론 구매 없음): 개발일지, 쇼츠(터틀 실험·기대값 퀴즈 소재), 커뮤니티 시딩, Apple 피처드 신청(온디바이스 AI 스토리 강점).
-5. 보류: CloudKit 프로덕션 스키마 배포(icloud.developer.apple.com — TestFlight iCloud 동기화에 필요, 앱 동작엔 지장 없음). 베타 테스터 프로모 코드. KPI 게이트: D7 리텐션 20%+.
+5. **P0 출시 준비 (develop 반영)**: 페이월 2종+설정에 약관·방침 링크(`Core/SeedLinks.swift` — **URL 3개 플레이스홀더, 홈페이지 게시 후 교체 필수**), 설정 구독관리·복원·문의, iPhone 전용(TARGETED_DEVICE_FAMILY=1). 문서: `claudedocs/legal-docs-요약.md`(방침·약관에 들어갈 내용), `claudedocs/appstore-메타데이터.md`(ASC 문안·심사노트·체크리스트). 남은 것: 문서 게시→URL 교체, 스크린샷 6장 제작. **P1 완료**: 온보딩 가상시장 한 줄+첫 체결 후 1회성 `Market/WhySyntheticSheet`, `Core/ReviewPrompt`(스트릭3·첫수익매도·졸업·시즌완주, 모멘트당 1회+14일 간격), 트랙 완주 시 수료 공유카드(`Learn/TrackCompletionCard`, 목차 진행바 아래 ShareLink).
+6. 보류: CloudKit 프로덕션 스키마 배포(icloud.developer.apple.com — TestFlight iCloud 동기화에 필요, 앱 동작엔 지장 없음). 베타 테스터 프로모 코드. KPI 게이트: D7 리텐션 20%+.
 
 ## 주의사항
 - Xcode 스킴에 `queueDebuggingEnabled=No` 필수 유지 (디버거 크래시 방지 — 절대 되돌리지 말 것)

@@ -3,23 +3,30 @@ import StoreKit
 import Observation
 
 /// 결제 (StoreKit 2) — 확정된 가격 구조:
-/// - SEED Pro: 월 ₩3,300 / 연 ₩22,000 (전 트랙[예정] + AI 코멘트 + 튜터 월 40문)
+/// - SEED Pro: 월 ₩3,300 / 연 ₩22,000 (전 트랙 + AI 코멘트 + 튜터 월 40문)
 /// - 튜터 리필: 10문 ₩1,100 / 30문 ₩2,900 (소모성, 영구 크레딧)
-/// - 트랙 단품(₩5,000, 영구 소장)은 트랙 2 출시와 함께 추가 예정
+/// - 트랙 단품: ₩5,000 일회성 영구 소장 (AI 미포함) — 트랙 2(ETF·분산투자)부터
 @MainActor
 @Observable
 final class PurchaseStore {
 
-    static let proMonthlyID = "seed.pro.monthly"
-    static let proYearlyID = "seed.pro.yearly"
+    // ASC에서 초기 ID(seed.pro.monthly/yearly)를 삭제해 영구 잠김 → .v2로 재등록
+    static let proMonthlyID = "seed.pro.monthly.v2"
+    static let proYearlyID = "seed.pro.yearly.v2"
     static let refill10ID = "seed.tutor.refill10"
     static let refill30ID = "seed.tutor.refill30"
+    static let trackETFID = "seed.track.etf"
 
-    private static let allIDs = [proMonthlyID, proYearlyID, refill10ID, refill30ID]
+    private static let allIDs = [proMonthlyID, proYearlyID, refill10ID, refill30ID, trackETFID]
 
     private(set) var products: [Product] = []
     private(set) var isPro = false
+    /// 영구 소장한 트랙 단품 (비소모성)
+    private(set) var ownedTrackIDs: Set<String> = []
     private(set) var isLoading = false
+
+    /// 트랙 2(ETF·분산투자) 접근권 — Pro 구독 또는 단품 소장.
+    var ownsETFTrack: Bool { isPro || ownedTrackIDs.contains(Self.trackETFID) }
 
     private var transactionListener: Task<Void, Never>?
 
@@ -38,10 +45,24 @@ final class PurchaseStore {
 
     // MARK: 상품
 
+    /// 상품 로드 실패 원인 — 페이월이 DEBUG에서 노출해 진단을 돕는다
+    private(set) var lastLoadError: String?
+
     func loadProducts() async {
         isLoading = true
         defer { isLoading = false }
-        products = (try? await Product.products(for: Self.allIDs)) ?? []
+        do {
+            products = try await Product.products(for: Self.allIDs)
+            lastLoadError = products.isEmpty
+                ? "상품 0개 로드 — StoreKit Configuration이 이 실행에 주입되지 않았을 가능성 (Xcode ▶︎ Run으로 실행했는지, Edit Scheme > Run > Options > StoreKit Configuration 확인)"
+                : nil
+        } catch {
+            products = []
+            lastLoadError = "\(error)"
+        }
+        #if DEBUG
+        print("[StoreKit] products=\(products.count) error=\(lastLoadError ?? "none")")
+        #endif
     }
 
     func product(_ id: String) -> Product? {
@@ -54,6 +75,9 @@ final class PurchaseStore {
         guard let result = try? await product.purchase() else { return }
         if case .success(let verification) = result {
             await handle(verification)
+            if case .verified = verification {
+                Analytics.log(.purchaseCompleted, ["product": product.id])
+            }
         }
     }
 
@@ -94,14 +118,19 @@ final class PurchaseStore {
 
     func refreshEntitlements() async {
         var pro = false
+        var tracks: Set<String> = []
         for await entitlement in Transaction.currentEntitlements {
             guard case .verified(let transaction) = entitlement else { continue }
             if transaction.productID == Self.proMonthlyID
                 || transaction.productID == Self.proYearlyID {
                 pro = true
             }
+            if transaction.productType == .nonConsumable {
+                tracks.insert(transaction.productID)
+            }
         }
         isPro = pro
+        ownedTrackIDs = tracks
         if pro { grantMonthlyProCreditsIfNeeded() }
     }
 

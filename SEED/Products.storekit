@@ -1,94 +1,152 @@
 {
-  "identifier": "7A7A18E4-F77E-4C1B-8B60-3F1A706B50CF",
-  "nonRenewingSubscriptions": [],
-  "products": [
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "7A7A18E4-F77E-4C1B-8B60-3F1A706B50CF",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
     {
-      "displayPrice": "1100",
-      "familyShareable": false,
-      "internalID": "F74E9B63-9E92-4444-8A3A-35ECA17C5DCB",
-      "localizations": [
+      "displayPrice" : "1100",
+      "familyShareable" : false,
+      "internalID" : "F74E9B63-9E92-4444-8A3A-35ECA17C5DCB",
+      "localizations" : [
         {
-          "description": "튜터 질문 10회, 기한 없음",
-          "displayName": "튜터 리필 10문",
-          "locale": "ko_KR"
+          "description" : "튜터 질문 10회, 기한 없음",
+          "displayName" : "튜터 리필 10문",
+          "locale" : "ko"
         }
       ],
-      "productID": "seed.tutor.refill10",
-      "referenceName": "Tutor Refill 10",
-      "type": "Consumable"
+      "productID" : "seed.tutor.refill10",
+      "referenceName" : "Tutor Refill 10",
+      "type" : "Consumable"
     },
     {
-      "displayPrice": "2900",
-      "familyShareable": false,
-      "internalID": "2ADA2F7B-909C-4B29-8CE2-3CD67F2E3018",
-      "localizations": [
+      "displayPrice" : "2900",
+      "familyShareable" : false,
+      "internalID" : "2ADA2F7B-909C-4B29-8CE2-3CD67F2E3018",
+      "localizations" : [
         {
-          "description": "튜터 질문 30회, 기한 없음",
-          "displayName": "튜터 리필 30문",
-          "locale": "ko_KR"
+          "description" : "튜터 질문 30회, 기한 없음",
+          "displayName" : "튜터 리필 30문",
+          "locale" : "ko"
         }
       ],
-      "productID": "seed.tutor.refill30",
-      "referenceName": "Tutor Refill 30",
-      "type": "Consumable"
+      "productID" : "seed.tutor.refill30",
+      "referenceName" : "Tutor Refill 30",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "5000",
+      "familyShareable" : false,
+      "internalID" : "B14FA82B-168A-4201-A751-9BA8E8E4EAB2",
+      "localizations" : [
+        {
+          "description" : "ETF·분산투자 트랙 영구 소장 (레슨 8편 + ETF 시장)",
+          "displayName" : "트랙 2 — ETF·분산투자",
+          "locale" : "ko"
+        }
+      ],
+      "productID" : "seed.track.etf",
+      "referenceName" : "Track 2 ETF",
+      "type" : "NonConsumable"
     }
   ],
-  "settings": {
-    "_failTransactionsEnabled": false
+  "settings" : {
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_locale" : "ko",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "KOR",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
   },
-  "subscriptionGroups": [
+  "subscriptionGroups" : [
     {
-      "id": "510726A7-2683-473C-9EA5-6908AFDFC07F",
-      "localizations": [],
-      "name": "SEED Pro",
-      "subscriptions": [
+      "id" : "510726A7-2683-473C-9EA5-6908AFDFC07F",
+      "localizations" : [
+
+      ],
+      "name" : "SEED Pro",
+      "subscriptions" : [
         {
-          "adHocOffers": [],
-          "codeOffers": [],
-          "displayPrice": "3300",
-          "familyShareable": false,
-          "groupNumber": 1,
-          "internalID": "A41044CE-8C87-4A7E-95DC-EC63F788E7E9",
-          "introductoryOffer": null,
-          "localizations": [
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "3300",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "A41044CE-8C87-4A7E-95DC-EC63F788E7E9",
+          "introductoryOffers" : [
+
+          ],
+          "localizations" : [
             {
-              "description": "전 트랙 + AI 코치 + 튜터 월 40문",
-              "displayName": "SEED Pro 월간",
-              "locale": "ko_KR"
+              "description" : "전 트랙 + AI 코치 + 튜터 월 40문",
+              "displayName" : "SEED Pro 월간",
+              "locale" : "ko"
             }
           ],
-          "productID": "seed.pro.monthly",
-          "recurringSubscriptionPeriod": "P1M",
-          "referenceName": "Pro Monthly",
-          "subscriptionGroupID": "510726A7-2683-473C-9EA5-6908AFDFC07F",
-          "type": "RecurringSubscription"
+          "productID" : "seed.pro.monthly.v2",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Pro Monthly",
+          "subscriptionGroupID" : "510726A7-2683-473C-9EA5-6908AFDFC07F",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
         },
         {
-          "adHocOffers": [],
-          "codeOffers": [],
-          "displayPrice": "22000",
-          "familyShareable": false,
-          "groupNumber": 1,
-          "internalID": "4F01EF84-1E9D-4838-8B06-662DD1314023",
-          "introductoryOffer": null,
-          "localizations": [
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "22000",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "4F01EF84-1E9D-4838-8B06-662DD1314023",
+          "introductoryOffers" : [
+
+          ],
+          "localizations" : [
             {
-              "description": "전 트랙 + AI 코치 + 튜터 월 40문 (44% 할인)",
-              "displayName": "SEED Pro 연간",
-              "locale": "ko_KR"
+              "description" : "전 트랙 + AI 코치 + 튜터 월 40문 (44% 할인)",
+              "displayName" : "SEED Pro 연간",
+              "locale" : "ko"
             }
           ],
-          "productID": "seed.pro.yearly",
-          "recurringSubscriptionPeriod": "P1Y",
-          "referenceName": "Pro Yearly",
-          "subscriptionGroupID": "510726A7-2683-473C-9EA5-6908AFDFC07F",
-          "type": "RecurringSubscription"
+          "productID" : "seed.pro.yearly.v2",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Pro Yearly",
+          "subscriptionGroupID" : "510726A7-2683-473C-9EA5-6908AFDFC07F",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
         }
       ]
     }
   ],
-  "version": {
-    "major": 3,
-    "minor": 0
+  "version" : {
+    "major" : 5,
+    "minor" : 0
   }
 }

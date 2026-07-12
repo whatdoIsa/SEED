@@ -22,6 +22,10 @@ struct OrderSheet: View {
     private var accent: Color { side == .buy ? SeedTheme.up : SeedTheme.down }
     private var title: String { side == .buy ? "사기" : "팔기" }
     private var isLimit: Bool { orderType == 1 }
+    /// 예상 금액의 기준 단가 — 지정가는 주문 가격, 시장가는 지금 보이는 최우선 호가
+    private var estimatedUnitPrice: Int {
+        isLimit ? limitPrice : (session.engine.displayedPrice(for: side) ?? session.engine.lastPrice)
+    }
     /// 내용 실측 높이 — 시트가 내용만큼만 뜬다 (빈 공간 제거)
     @State private var measuredHeight: CGFloat = 470
 
@@ -70,8 +74,9 @@ struct OrderSheet: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
+            // 500주 프리셋은 뺐다 — 시작 자금 1,000만원으로 닿을 일이 없는 숫자라서
             HStack(spacing: 8) {
-                ForEach([10, 50, 100, 500], id: \.self) { preset in
+                ForEach([10, 50, 100], id: \.self) { preset in
                     Button {
                         qty = preset
                     } label: {
@@ -90,6 +95,29 @@ struct OrderSheet: View {
 
             Stepper("수량 \(qty)주", value: $qty, in: 1...10_000, step: 10)
                 .font(.system(size: 14))
+
+            // 수량을 고르는 순간 돈으로 보여준다 — "몇 주"가 아니라 "얼마"가 결정의 단위
+            VStack(spacing: 4) {
+                HStack {
+                    Text(side == .buy ? "예상 주문 금액" : "예상 매도 금액")
+                        .font(.system(size: 13))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                    Spacer()
+                    Text("약 \((estimatedUnitPrice * qty).formatted())원")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                        .contentTransition(.numericText())
+                        .animation(.snappy(duration: 0.2), value: qty)
+                }
+                if !isLimit {
+                    Text("시장가는 체결 순간의 호가에 따라 조금 달라질 수 있어요 (수수료 별도)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(SeedTheme.textSecondary.opacity(0.8))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(12)
+            .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 12))
 
             // 매매 사유 태그 — 1탭 필수 (스펙 2). 텍스트 입력은 마찰이라 쓰지 않는다.
             VStack(alignment: .leading, spacing: 8) {

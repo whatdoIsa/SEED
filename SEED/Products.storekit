@@ -31,6 +31,21 @@
       "productID": "seed.tutor.refill30",
       "referenceName": "Tutor Refill 30",
       "type": "Consumable"
+    },
+    {
+      "displayPrice": "5000",
+      "familyShareable": false,
+      "internalID": "B14FA82B-168A-4201-A751-9BA8E8E4EAB2",
+      "localizations": [
+        {
+          "description": "ETF·분산투자 트랙 영구 소장 (레슨 8편 + ETF 시장)",
+          "displayName": "트랙 2 — ETF·분산투자",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "seed.track.etf",
+      "referenceName": "Track 2 ETF",
+      "type": "NonConsumable"
     }
   ],
   "settings": {

@@ -1,12 +1,12 @@
 import SwiftUI
 import StoreKit
 
-/// 튜터 리필·Pro 안내 시트 — 체험 소진 시 열리는 정직한 페이월.
-/// 원칙: 강매 없음, 가격·내용 명확, 무료로 남는 것도 명시.
-struct RefillSheet: View {
+/// 트랙 단품 페이월 — 트랙 2(ETF·분산투자)부터 쓰는 정직한 구매 시트.
+/// 원칙: 강매 없음, 단품과 Pro의 차이 명확, 무료로 남는 것 명시.
+struct TrackPaywallSheet: View {
     let purchases: PurchaseStore
-    var title = "튜터와 계속 대화하기"
-    var subtitle = "용어 정의와 추천 질문 거절은 언제나 무료예요."
+    var trackTitle = "트랙 2 — ETF·분산투자"
+    var trackSubtitle = "레슨 8편 + ETF 시장 (한빛300 지수·균형 자산배분)"
     @Environment(\.dismiss) private var dismiss
     @State private var isPurchasing = false
 
@@ -15,10 +15,10 @@ struct RefillSheet: View {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(title)
+                        Text(trackTitle)
                             .font(.system(size: 19, weight: .semibold))
                             .foregroundStyle(SeedTheme.textPrimary)
-                        Text(subtitle)
+                        Text(trackSubtitle)
                             .font(.system(size: 12))
                             .foregroundStyle(SeedTheme.textSecondary)
                     }
@@ -34,27 +34,35 @@ struct RefillSheet: View {
                     }
                 }
 
-                // 리필 (소모성 — 영구 크레딧)
+                // 트랙에 담긴 것
+                VStack(alignment: .leading, spacing: 6) {
+                    benefitRow("ETF가 뭔지부터 리밸런싱까지 — 레슨 8편")
+                    benefitRow("합성 ETF 2종으로 직접 운용 연습")
+                    benefitRow("운용보수가 계좌를 갉아먹는 걸 눈으로 확인")
+                    benefitRow("적립식 vs 몰빵, 숫자로 비교")
+                }
+                .padding(13)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 13))
+
+                // 단품 (영구 소장)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("질문 리필")
+                    Text("이 트랙만")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(SeedTheme.textSecondary)
-                    refillRow(id: PurchaseStore.refill10ID,
-                              title: "10문 리필", subtitle: "기한 없이 사용")
-                    refillRow(id: PurchaseStore.refill30ID,
-                              title: "30문 리필", subtitle: "기한 없이 사용 · 문당 더 저렴")
+                    trackBuyRow
                 }
 
                 // Pro (구독)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("SEED Pro — 매달 40문 + 앞으로의 전부")
+                    Text("SEED Pro — 전 트랙 + AI까지")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(SeedTheme.textSecondary)
                     VStack(alignment: .leading, spacing: 6) {
-                        benefitRow("튜터 매달 40문 자동 충전")
+                        benefitRow("지금·앞으로의 모든 트랙 포함")
                         benefitRow("AI 코치 코멘트 (복기·부검·해설)")
+                        benefitRow("튜터 매달 40문 자동 충전")
                         benefitRow("시즌 아카이브 — 전 시즌 성장 그래프")
-                        benefitRow("모든 학습 트랙 포함 (트랙 2 ETF·분산투자, 크립토 예정)")
                     }
                     .padding(13)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -68,7 +76,10 @@ struct RefillSheet: View {
                 }
 
                 Button {
-                    Task { await purchases.restore() }
+                    Task {
+                        await purchases.restore()
+                        if purchases.ownsETFTrack { dismiss() }
+                    }
                 } label: {
                     Text("구매 복원")
                         .font(.system(size: 12))
@@ -76,7 +87,7 @@ struct RefillSheet: View {
                         .frame(maxWidth: .infinity)
                 }
 
-                Text("구독은 언제든 App Store 설정에서 해지할 수 있어요. 트랙 1(12편)·시장·오늘의 장·아레나는 계속 무료입니다.")
+                Text("단품은 한 번 사면 영구 소장이에요 (AI 기능 미포함). 트랙 1(12편)·시장·오늘의 장·아레나는 계속 무료입니다.")
                     .font(.system(size: 10))
                     .foregroundStyle(SeedTheme.textSecondary.opacity(0.7))
                     .lineSpacing(4)
@@ -88,22 +99,23 @@ struct RefillSheet: View {
         .task { if purchases.products.isEmpty { await purchases.loadProducts() } }
     }
 
-    private func refillRow(id: String, title: String, subtitle: String) -> some View {
-        let product = purchases.product(id)
+    private var trackBuyRow: some View {
+        let product = purchases.product(PurchaseStore.trackETFID)
         return Button {
             guard let product else { return }
             Task {
                 isPurchasing = true
                 await purchases.purchase(product)
                 isPurchasing = false
+                if purchases.ownsETFTrack { dismiss() }
             }
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
+                    Text("트랙 2 영구 소장")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(SeedTheme.textPrimary)
-                    Text(subtitle)
+                    Text("일회성 · 기한 없음 · AI 미포함")
                         .font(.system(size: 11))
                         .foregroundStyle(SeedTheme.textSecondary)
                 }
@@ -127,6 +139,7 @@ struct RefillSheet: View {
                 isPurchasing = true
                 await purchases.purchase(product)
                 isPurchasing = false
+                if purchases.ownsETFTrack { dismiss() }
             }
         } label: {
             VStack(spacing: 2) {

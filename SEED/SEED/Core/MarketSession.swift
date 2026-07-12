@@ -24,6 +24,8 @@ final class MarketSession {
     private(set) var startPrices: [String: Int] = [:]
     /// 종목별 시드 (영속용)
     private(set) var engineSeeds: [String: UInt64] = [:]
+    /// 합성 ETF 펀드 (트랙 2) — 종목 엔진들 위의 바스켓 상품. 같은 원장을 공유한다.
+    private(set) var etfFunds: [String: ETFFund] = [:]
 
     private weak var store: SeedStore?
     private var loop: Task<Void, Never>?
@@ -90,9 +92,22 @@ final class MarketSession {
                            holdings: snapshot.holdingTuples)
         }
 
+        // 합성 ETF — 구성 좌수가 스펙 초기가 기준 상수라 시즌·세션 무관하게 결정론적
+        var funds: [String: ETFFund] = [:]
+        for spec in ETFCatalog.all {
+            funds[spec.code] = spec.makeFund(ledger: ledger)
+        }
+
         // 전 종목 주문을 틱 순으로 리플레이 — 현금 흐름의 시간 순서를 보존한다
         if !restoredTargets.isEmpty {
             for log in store?.replayableLogs() ?? [] {
+                // ETF 체결은 기록된 NAV 그대로 원장에만 반영 (호가창 없음)
+                if let etfCode = ETFCatalog.code(forName: log.symbol) {
+                    funds[etfCode]?.restoreFill(side: log.side,
+                                                price: Int(log.avgFillPrice.rounded()),
+                                                qty: log.qty)
+                    continue
+                }
                 guard let code = SymbolCatalog.code(forName: log.symbol),
                       let target = restoredTargets[code],
                       let engine = engines[code],
@@ -112,6 +127,7 @@ final class MarketSession {
         self.ledger = ledger
         self.engines = engines
         self.engineSeeds = seeds
+        self.etfFunds = funds
         self.startPrices = engines.mapValues { $0.candles.last?.close ?? $0.lastPrice }
         self.store = store
 
@@ -136,12 +152,104 @@ final class MarketSession {
     }
 
     var currentPrices: [String: Int] {
-        engines.mapValues(\.lastPrice)
+        var prices = engines.mapValues(\.lastPrice)
+        let members = prices
+        for (code, fund) in etfFunds {
+            prices[code] = fund.nav(prices: members, daysElapsed: etfDaysElapsed)
+        }
+        return prices
     }
 
     /// 전 종목 통합 평가액 — 진짜 내 자산.
     var totalEquity: Int {
         ledger.totalEquity(prices: currentPrices)
+    }
+
+    // MARK: ETF (트랙 2) — NAV 호가·매매
+
+    var etfList: [ETFFund] { ETFCatalog.all.compactMap { etfFunds[$0.code] } }
+
+    /// 보수 차감의 기준 경과 거래일 — 기준 종목(대형주) 엔진의 거래일에서 파생.
+    var etfDaysElapsed: Int {
+        max((engines[SymbolCatalog.all[0].code]?.tradingDay ?? 1) - 1, 0)
+    }
+
+    func etfNAV(_ code: String) -> Int {
+        guard let fund = etfFunds[code] else { return 0 }
+        return fund.nav(prices: engines.mapValues(\.lastPrice), daysElapsed: etfDaysElapsed)
+    }
+
+    /// 등락 기준 — 구성 종목의 기준가(전일 종가)로 계산한 NAV. 화면 전체가 같은 기준.
+    func etfReferenceNAV(_ code: String) -> Int {
+        guard let fund = etfFunds[code] else { return 0 }
+        return fund.nav(prices: engines.mapValues(\.referencePrice), daysElapsed: etfDaysElapsed)
+    }
+
+    func etfChangePercent(_ code: String) -> Double {
+        let basis = etfReferenceNAV(code)
+        guard basis > 0 else { return 0 }
+        return Double(etfNAV(code) - basis) / Double(basis) * 100
+    }
+
+    /// NAV 히스토리 — 구성 종목 분봉 종가에서 재구성 (라인차트 원료).
+    func etfNAVSeries(_ code: String, maxPoints: Int = 120) -> [Int] {
+        guard let fund = etfFunds[code],
+              let firstMember = fund.components.first?.symbol,
+              let referenceEngine = engines[firstMember] else { return [] }
+        let counts = fund.components.compactMap { engines[$0.symbol]?.candles.count }
+        guard let count = counts.min(), count > 0 else { return [] }
+        let candlesPerDay = max(referenceEngine.config.candlesPerDay, 1)
+        let start = max(count - maxPoints, 0)
+        return (start..<count).map { index in
+            var prices: [String: Int] = [:]
+            for component in fund.components {
+                if let candles = engines[component.symbol]?.candles, index < candles.count {
+                    prices[component.symbol] = candles[index].close
+                }
+            }
+            return fund.nav(prices: prices, daysElapsed: index / candlesPerDay)
+        }
+    }
+
+    func buyETF(code: String, qty: Int, tag: TradeReasonTag) -> Result<FillResult, OrderError> {
+        guard let fund = etfFunds[code] else { return .failure(.noLiquidity) }
+        let avgBefore = ledger.avgCost(of: code)
+        do {
+            let fill = try fund.buy(qty: qty, prices: engines.mapValues(\.lastPrice),
+                                    daysElapsed: etfDaysElapsed)
+            recordETF(fill: fill, fund: fund, tag: tag, avgCostBefore: avgBefore)
+            return .success(fill)
+        } catch let error as OrderError {
+            return .failure(error)
+        } catch {
+            return .failure(.noLiquidity)
+        }
+    }
+
+    func sellETF(code: String, qty: Int, tag: TradeReasonTag) -> Result<FillResult, OrderError> {
+        guard let fund = etfFunds[code] else { return .failure(.noLiquidity) }
+        let avgBefore = ledger.avgCost(of: code)
+        do {
+            let fill = try fund.sell(qty: qty, prices: engines.mapValues(\.lastPrice),
+                                     daysElapsed: etfDaysElapsed)
+            recordETF(fill: fill, fund: fund, tag: tag, avgCostBefore: avgBefore)
+            return .success(fill)
+        } catch let error as OrderError {
+            return .failure(error)
+        } catch {
+            return .failure(.noLiquidity)
+        }
+    }
+
+    private func recordETF(fill: FillResult, fund: ETFFund,
+                           tag: TradeReasonTag, avgCostBefore: Double) {
+        let referenceEngine = engines[SymbolCatalog.all[0].code]
+        store?.record(fill: fill, tag: tag, symbol: fund.name,
+                      avgCostBeforeOrder: avgCostBefore,
+                      atTick: referenceEngine?.tick,
+                      atCandleIndex: referenceEngine?.candles.count,
+                      wasLimit: false)
+        persistState()
     }
 
     // MARK: 연속성
@@ -219,6 +327,11 @@ final class MarketSession {
         self.ledger = fresh
         self.engines = engines
         self.engineSeeds = seeds
+        var funds: [String: ETFFund] = [:]
+        for spec in ETFCatalog.all {
+            funds[spec.code] = spec.makeFund(ledger: fresh)
+        }
+        self.etfFunds = funds
         self.startPrices = engines.mapValues { $0.candles.last?.close ?? $0.lastPrice }
         self.limitTags = [:]
         speed = .x1

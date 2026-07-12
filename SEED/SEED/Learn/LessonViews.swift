@@ -583,8 +583,7 @@ struct ConceptPageView: View {
     }
 
     private func attributed(_ text: String) -> AttributedString {
-        (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
-            ?? AttributedString(text)
+        SeedMarkdown.bold(text, size: 15, boldColor: SeedTheme.textPrimary)
     }
 }
 

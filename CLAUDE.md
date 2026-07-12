@@ -53,7 +53,8 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 2. **TestFlight 새 빌드** (main에서 Archive) — AI+결제 실기기 검증: 온디바이스 코치 카드(15 Pro+), 튜터 5문, 리필 시트 원화 표시(샌드박스 — 실결제 없음, 구독 갱신 가속됨)
 3. **Phase 3 — 트랙 2: ETF·분산투자 ✅ 완료 (develop)** — 남은 것: ①App Store Connect에 `seed.track.etf` ₩5,000 비소모성 등록(기존 심사 스크린샷 재사용 가능) ②main 승격은 사용자 지시 시 ③완성 시점 = App Store 정식 출시 타이밍. 이후 트랙3 크립토심화, 트랙4 금융기초(분기당 1트랙).
 4. **배포 트랙 병행** (매출 = 트래픽×전환율 — 제품만으론 구매 없음): 개발일지, 쇼츠(터틀 실험·기대값 퀴즈 소재), 커뮤니티 시딩, Apple 피처드 신청(온디바이스 AI 스토리 강점).
-5. 보류: CloudKit 프로덕션 스키마 배포(icloud.developer.apple.com — TestFlight iCloud 동기화에 필요, 앱 동작엔 지장 없음). 베타 테스터 프로모 코드. KPI 게이트: D7 리텐션 20%+.
+5. **P0 출시 준비 (develop 반영)**: 페이월 2종+설정에 약관·방침 링크(`Core/SeedLinks.swift` — **URL 3개 플레이스홀더, 홈페이지 게시 후 교체 필수**), 설정 구독관리·복원·문의, iPhone 전용(TARGETED_DEVICE_FAMILY=1). 문서: `claudedocs/legal-docs-요약.md`(방침·약관에 들어갈 내용), `claudedocs/appstore-메타데이터.md`(ASC 문안·심사노트·체크리스트). 남은 것: 문서 게시→URL 교체, 스크린샷 6장 제작, P1(온보딩 '왜 가상인가'·평가요청·수료 공유카드).
+6. 보류: CloudKit 프로덕션 스키마 배포(icloud.developer.apple.com — TestFlight iCloud 동기화에 필요, 앱 동작엔 지장 없음). 베타 테스터 프로모 코드. KPI 게이트: D7 리텐션 20%+.
 
 ## 주의사항
 - Xcode 스킴에 `queueDebuggingEnabled=No` 필수 유지 (디버거 크래시 방지 — 절대 되돌리지 말 것)

@@ -83,6 +83,8 @@ struct RefillSheet: View {
                     .foregroundStyle(SeedTheme.textSecondary.opacity(0.7))
                     .lineSpacing(4)
 
+                LegalLinkFooter()
+
                 #if DEBUG
                 if let loadError = purchases.lastLoadError {
                     Text("DEBUG · \(loadError)")

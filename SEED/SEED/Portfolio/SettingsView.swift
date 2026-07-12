@@ -1,7 +1,8 @@
 import SwiftUI
+import StoreKit
 import UserNotifications
 
-/// 설정·정보 — 알림 상태, 데이터 초기화, 교육 고지 전문, 버전.
+/// 설정·정보 — 알림 상태, 구독·지원, 데이터 초기화, 교육 고지 전문, 버전.
 struct SettingsView: View {
     @Bindable var session: MarketSession
     let store: SeedStore
@@ -10,6 +11,9 @@ struct SettingsView: View {
 
     @State private var notificationStatus: UNAuthorizationStatus?
     @State private var confirmsErase = false
+    @State private var showsManageSubscriptions = false
+    @State private var isRestoring = false
+    @State private var restoreDone = false
 
     var body: some View {
         NavigationStack {
@@ -17,6 +21,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     aiSection
                     notificationSection
+                    supportSection
                     dataSection
                     disclosureSection
                     aboutSection
@@ -33,10 +38,68 @@ struct SettingsView: View {
                 }
             }
         }
+        .manageSubscriptionsSheet(isPresented: $showsManageSubscriptions)
         .task {
             notificationStatus = await UNUserNotificationCenter.current()
                 .notificationSettings().authorizationStatus
         }
+    }
+
+    // MARK: 구독·지원 — 구독 앱의 기본 3종 + 법적 고지
+
+    private var supportSection: some View {
+        section("구독·지원") {
+            VStack(spacing: 0) {
+                supportRow("구독 관리", icon: "creditcard") {
+                    showsManageSubscriptions = true
+                }
+                Divider().padding(.vertical, 9)
+                supportRow(restoreDone ? "구매 복원 완료" : "구매 복원",
+                           icon: restoreDone ? "checkmark.circle.fill" : "arrow.clockwise") {
+                    guard !isRestoring else { return }
+                    Task {
+                        isRestoring = true
+                        await purchases.restore()
+                        isRestoring = false
+                        restoreDone = true
+                    }
+                }
+                Divider().padding(.vertical, 9)
+                supportRow("문의하기", icon: "envelope") {
+                    if let url = SeedLinks.supportMailURL {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Divider().padding(.vertical, 9)
+                supportRow("이용약관", icon: "doc.text") {
+                    UIApplication.shared.open(SeedLinks.terms)
+                }
+                Divider().padding(.vertical, 9)
+                supportRow("개인정보처리방침", icon: "hand.raised") {
+                    UIApplication.shared.open(SeedLinks.privacyPolicy)
+                }
+            }
+        }
+    }
+
+    private func supportRow(_ title: String, icon: String,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 13))
+                    .foregroundStyle(SeedTheme.violetDeep)
+                    .frame(width: 20)
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11))
+                    .foregroundStyle(SeedTheme.textSecondary.opacity(0.6))
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: AI 코치

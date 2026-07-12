@@ -33,6 +33,7 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 - **오늘의 장**: 날짜시드 패턴 5종, 스트릭+7일 점, 공유카드. **아레나**: 무작위 장 나vs거장5+내전략, 라이브 순위, 전적. **거장 도장**: 5인 프로필(데니스·그레이엄·오닐·코스톨라니·템플턴)×장4종, 매매일지(이유 포함), 리매치. **전략 실험실**: 3템플릿+가치스크리너+장별성적표+아레나 출전 슬롯
 - **복기**: 태그·매매지도·보유습관(FIFO 페어링)·부검·시즌 아카이브(성장그래프, Pro게이트)
 - **인프라**: iCloud 백업(복원 병합 refreshAfterRemoteImport), 홈/잠금 위젯(App Group+딥링크 seed://daily), 주간 푸시(일 19시), 설정 화면, 앱아이콘/런치, 접근성 요약, 하루1레슨 페이스
+- **배우기 탭 = 트랙 허브 구조 (develop)**: 오늘 섹션 + "이어서 배우기" 히어로 카드(`Learn/TrackHub.swift`의 NextLessonFinder — 트랙1 다음 편 → 페이스 소진 시 트랙2 → 완주 시 예고 카드) + 트랙 카드 4장(1 주식기본기·2 ETF·3 크립토 예정·4 금융기초 예정, 진행률 바·진행 중 보라 테두리·미소유 "1편 무료" 배지) + 라이브러리 카드 1장. 레슨 목차는 `TrackDetailView` 시트로, 심화·도장·실험실·튜터·용어사전은 `LibraryView` 시트로 이사. 트랙 추가 시 `TrackCatalog.all`에 TrackDef 1개만 추가하면 됨.
 - **트랙 2 — ETF·분산투자 (develop, Phase 3 완료)**: `JurinKit/ETFFund.swift`(고정 좌수 바스켓 NAV + 연보수/252 일할 차감, 테스트 13개 — 총 102개), ETF 2종(`Core/ETFCatalog.swift` — HIX 한빛300 지수 0.15% / HBA 균형 자산배분 0.35%, BTX 제외), NAV 즉시 체결(호가창 없음·매도 거래세 없음), MarketSession 통합(리플레이·스냅샷·totalEquity·분산 β 반영), `Market/ETFMarketView.swift`(NAV 라인차트·구성·보수 누적 카드·주문 시트), 레슨 8편 `Learn/ETFTrack.swift`(order 201+, 읽기형, 1편 무료→순서 잠금, 하루 페이스 없음) + 요약·퀴즈·실천·용어사전 8종("ETF·분산투자" 카테고리). 진입: 시장 탭 ETF 칩 + 배우기 트랙 2 섹션, 비소유 시 `Learn/TrackPaywallSheet.swift`
 
 ## AI 스택 (Phase 1 완료 — 검증됨)

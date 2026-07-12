@@ -103,7 +103,7 @@
               "locale" : "ko"
             }
           ],
-          "productID" : "seed.pro.monthly",
+          "productID" : "seed.pro.monthly.v2",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Pro Monthly",
           "subscriptionGroupID" : "510726A7-2683-473C-9EA5-6908AFDFC07F",
@@ -133,7 +133,7 @@
               "locale" : "ko"
             }
           ],
-          "productID" : "seed.pro.yearly",
+          "productID" : "seed.pro.yearly.v2",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Pro Yearly",
           "subscriptionGroupID" : "510726A7-2683-473C-9EA5-6908AFDFC07F",

@@ -10,8 +10,9 @@ import Observation
 @Observable
 final class PurchaseStore {
 
-    static let proMonthlyID = "seed.pro.monthly"
-    static let proYearlyID = "seed.pro.yearly"
+    // ASC에서 초기 ID(seed.pro.monthly/yearly)를 삭제해 영구 잠김 → .v2로 재등록
+    static let proMonthlyID = "seed.pro.monthly.v2"
+    static let proYearlyID = "seed.pro.yearly.v2"
     static let refill10ID = "seed.tutor.refill10"
     static let refill30ID = "seed.tutor.refill30"
     static let trackETFID = "seed.track.etf"

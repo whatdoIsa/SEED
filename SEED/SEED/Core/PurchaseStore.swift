@@ -44,10 +44,24 @@ final class PurchaseStore {
 
     // MARK: 상품
 
+    /// 상품 로드 실패 원인 — 페이월이 DEBUG에서 노출해 진단을 돕는다
+    private(set) var lastLoadError: String?
+
     func loadProducts() async {
         isLoading = true
         defer { isLoading = false }
-        products = (try? await Product.products(for: Self.allIDs)) ?? []
+        do {
+            products = try await Product.products(for: Self.allIDs)
+            lastLoadError = products.isEmpty
+                ? "상품 0개 로드 — StoreKit Configuration이 이 실행에 주입되지 않았을 가능성 (Xcode ▶︎ Run으로 실행했는지, Edit Scheme > Run > Options > StoreKit Configuration 확인)"
+                : nil
+        } catch {
+            products = []
+            lastLoadError = "\(error)"
+        }
+        #if DEBUG
+        print("[StoreKit] products=\(products.count) error=\(lastLoadError ?? "none")")
+        #endif
     }
 
     func product(_ id: String) -> Product? {

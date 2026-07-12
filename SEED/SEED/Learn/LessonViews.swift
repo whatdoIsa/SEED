@@ -412,10 +412,35 @@ struct LessonFlowView: View {
     }
     @State private var stage: Stage = .concept(0)
 
+    /// 현재 단계의 이전 단계 — 첫 페이지와 완료 화면에서는 없다.
+    private var previousStage: Stage? {
+        switch stage {
+        case .concept(let index):
+            return index > 0 ? .concept(index - 1) : nil
+        case .mission:
+            return .concept(lesson.concept.count - 1)
+        case .done:
+            return nil
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 // 심화·트랙 시리즈(order 100+)는 번호 대신 소요 시간만
+                // 뒤로가기 — "양봉이 뭐였지?" 하는 순간 앞 페이지로 돌아가 확인할 수 있게.
+                // 미션에서 누르면 마지막 개념 페이지로 (미션은 돌아오면 처음부터 다시).
+                if let previous = previousStage {
+                    Button {
+                        withAnimation(.snappy(duration: 0.25)) { stage = previous }
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                            .frame(width: 30, height: 30)
+                            .background(SeedTheme.card, in: Circle())
+                    }
+                }
                 Text(lesson.order < 100 ? "레슨 \(lesson.order) · \(lesson.duration)" : lesson.duration)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(SeedTheme.violetDeep)

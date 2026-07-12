@@ -60,7 +60,7 @@ struct LessonListView: View {
             LibraryView(store: store)
         }
         .sheet(isPresented: $showsTrackPaywall) {
-            TrackPaywallSheet(purchases: purchases)
+            TrackPaywallSheet(purchases: purchases, source: "learn_hero")
         }
         .sheet(item: $quiz) { question in
             MorningQuizSheet(quiz: question)
@@ -263,6 +263,13 @@ struct LessonListView: View {
             .onReceive(NotificationCenter.default.publisher(for: .seedOpenDailyMarket)) { _ in
                 if !store.isLessonDone(DailyMarket.id()) {
                     showsDailyMarket = true
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .seedOpenETFTrack)) { _ in
+                // 레슨 커버가 닫히는 애니메이션과 겹치지 않게 반 박자 늦춰 연다
+                Task {
+                    try? await Task.sleep(for: .seconds(0.6))
+                    selectedTrack = TrackCatalog.etf
                 }
             }
     }
@@ -475,17 +482,32 @@ struct LessonFlowView: View {
             case .mission:
                 missionView
             case .done:
-                LessonCompletionView(lesson: lesson) {
-                    // 레벨 = 레슨 순번 (심화 시리즈 order 100+는 레벨과 무관)
-                    store.completeLesson(lesson.id,
-                                         unlocksLevel: lesson.order < 100 ? lesson.order : nil)
-                    dismiss()
+                // 졸업 직후 + 트랙 2를 아직 시작 안 했을 때만 다음 여정 CTA
+                let promotesTrackTwo = lesson.id == LessonCatalog.graduation.id
+                    && !store.isLessonDone(ETFTrackCatalog.what.id)
+                LessonCompletionView(
+                    lesson: lesson,
+                    showsTrackPromo: promotesTrackTwo,
+                    onTrackPromo: promotesTrackTwo ? {
+                        Analytics.log(.trackPromoTapped, ["source": "graduation"])
+                        completeAndDismiss()
+                        NotificationCenter.default.post(name: .seedOpenETFTrack, object: nil)
+                    } : nil
+                ) {
+                    completeAndDismiss()
                 }
             }
         }
         .background(SeedTheme.background)
         .interactiveDismissDisabled(stage == .mission)
         .onAppear { Analytics.log(.lessonStart, ["lessonId": lesson.id]) }
+    }
+
+    /// 레벨 = 레슨 순번 (심화·트랙 시리즈 order 100+는 레벨과 무관)
+    private func completeAndDismiss() {
+        store.completeLesson(lesson.id,
+                             unlocksLevel: lesson.order < 100 ? lesson.order : nil)
+        dismiss()
     }
 
     @ViewBuilder
@@ -757,6 +779,10 @@ struct MiniCandleView: View {
 
 struct LessonCompletionView: View {
     let lesson: LessonDef
+    /// 졸업(레슨 12) 완료 화면에서만: 트랙 2로 잇는 CTA.
+    /// 트랙 1을 완주한 직후가 다음 여정에 대한 의지가 가장 높은 순간이다.
+    var showsTrackPromo = false
+    var onTrackPromo: (() -> Void)? = nil
     let onFinish: () -> Void
 
     var body: some View {
@@ -777,8 +803,40 @@ struct LessonCompletionView: View {
                 .foregroundStyle(SeedTheme.textSecondary)
                 .padding(.top, 6)
             Spacer()
+            if showsTrackPromo, let onTrackPromo {
+                Button(action: onTrackPromo) {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(SeedTheme.violetTint)
+                                .frame(width: 38, height: 38)
+                            Image(systemName: "basket.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(SeedTheme.violetDeep)
+                        }
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("다음 여정 — 트랙 2 · ETF·분산투자")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(SeedTheme.textPrimary)
+                            Text("종목을 고르지 않는 투자 · 1편은 무료예요")
+                                .font(.system(size: 12))
+                                .foregroundStyle(SeedTheme.textSecondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(SeedTheme.violetDeep)
+                    }
+                    .padding(14)
+                    .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14)
+                        .stroke(SeedTheme.violet.opacity(0.5), lineWidth: 1.2))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 20).padding(.bottom, 10)
+            }
             Button(action: onFinish) {
-                Text("레슨 \(lesson.order) 완료")
+                Text(lesson.order < 100 ? "레슨 \(lesson.order) 완료" : "완료")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)

@@ -7,6 +7,8 @@ struct RefillSheet: View {
     let purchases: PurchaseStore
     var title = "튜터와 계속 대화하기"
     var subtitle = "용어 정의와 추천 질문 거절은 언제나 무료예요."
+    /// 어디서 열렸는지 — 전환율을 소스별로 나눠 보기 위한 계측 키
+    var source = "tutor_quota"
     @Environment(\.dismiss) private var dismiss
     @State private var isPurchasing = false
 
@@ -85,6 +87,7 @@ struct RefillSheet: View {
         }
         .background(SeedTheme.background)
         .presentationDetents([.large])
+        .onAppear { Analytics.log(.paywallShown, ["sheet": "refill", "source": source]) }
         .task { if purchases.products.isEmpty { await purchases.loadProducts() } }
     }
 

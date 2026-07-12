@@ -306,7 +306,7 @@ struct TradingView: View {
             ETFDetailView(session: session, store: store, spec: spec)
         }
         .sheet(isPresented: $showsTrackPaywall) {
-            TrackPaywallSheet(purchases: purchases)
+            TrackPaywallSheet(purchases: purchases, source: "market_etf")
         }
     }
 

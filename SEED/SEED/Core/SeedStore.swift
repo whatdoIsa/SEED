@@ -301,26 +301,31 @@ final class SeedStore {
         }.count
     }
 
-    /// 오늘 이전에 완료한 가장 최근 본편 레슨 — 아침 복습 퀴즈의 대상.
+    /// 복습·실천의 대상 레슨: 본편 + 트랙 2. (하루 1레슨 페이스 카운트와 달리 유료 트랙 포함)
+    private var reviewableLessonIds: Set<String> {
+        Set(LessonCatalog.registered.map(\.id)).union(ETFTrackCatalog.all.map(\.id))
+    }
+
+    /// 오늘 이전에 완료한 가장 최근 레슨 — 아침 복습 퀴즈의 대상.
     func latestMainLessonCompletedBeforeToday() -> String? {
-        let mainIds = Set(LessonCatalog.registered.map(\.id))
+        let targetIds = reviewableLessonIds
         let calendar = Calendar.current
         let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
         return lessons
             .filter { record in
                 guard let done = record.completedAt else { return false }
-                return mainIds.contains(record.lessonId) && !calendar.isDateInToday(done)
+                return targetIds.contains(record.lessonId) && !calendar.isDateInToday(done)
             }
             .max { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }?
             .lessonId
     }
 
-    /// 가장 최근에 완료한 본편 레슨 (오늘 포함) — 오늘의 실천 과제 대상.
+    /// 가장 최근에 완료한 레슨 (오늘 포함) — 오늘의 실천 과제 대상.
     func latestMainLessonCompleted() -> String? {
-        let mainIds = Set(LessonCatalog.registered.map(\.id))
+        let targetIds = reviewableLessonIds
         let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
         return lessons
-            .filter { $0.completedAt != nil && mainIds.contains($0.lessonId) }
+            .filter { $0.completedAt != nil && targetIds.contains($0.lessonId) }
             .max { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }?
             .lessonId
     }

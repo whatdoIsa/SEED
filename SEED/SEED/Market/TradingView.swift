@@ -6,6 +6,9 @@ import JurinKit
 struct TradingView: View {
     @Bindable var session: MarketSession
     let store: SeedStore
+    @Environment(PurchaseStore.self) private var purchases
+    @State private var selectedETF: ETFSpec?
+    @State private var showsTrackPaywall = false
     @State private var orderSide: Side?
     @State private var lastFill: FillResult?
     @State private var orderErrorMessage: String?
@@ -268,10 +271,43 @@ struct TradingView: View {
                             .background(selected ? SeedTheme.textPrimary : SeedTheme.card, in: Capsule())
                     }
                 }
+                // ETF (트랙 2) — 바스켓 상품은 별도 상세로 연다 (호가창이 없는 시장)
+                ForEach(ETFCatalog.all) { spec in
+                    Button {
+                        if purchases.ownsETFTrack {
+                            selectedETF = spec
+                        } else {
+                            showsTrackPaywall = true
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            if !purchases.ownsETFTrack {
+                                Image(systemName: "lock.fill")
+                                    .font(.system(size: 9))
+                            }
+                            Text(spec.name)
+                                .font(.system(size: 12, weight: .medium))
+                            Text("ETF")
+                                .font(.system(size: 8, weight: .bold))
+                                .foregroundStyle(SeedTheme.violetDeep)
+                                .padding(.horizontal, 4).padding(.vertical, 1)
+                                .background(SeedTheme.violetTint, in: Capsule())
+                        }
+                        .foregroundStyle(SeedTheme.textSecondary)
+                        .padding(.horizontal, 11).padding(.vertical, 6)
+                        .background(SeedTheme.card, in: Capsule())
+                    }
+                }
             }
             .padding(.horizontal, 16)
         }
         .padding(.top, 8)
+        .sheet(item: $selectedETF) { spec in
+            ETFDetailView(session: session, store: store, spec: spec)
+        }
+        .sheet(isPresented: $showsTrackPaywall) {
+            TrackPaywallSheet(purchases: purchases)
+        }
     }
 
     private var header: some View {

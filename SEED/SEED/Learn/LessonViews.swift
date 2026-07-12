@@ -4,6 +4,8 @@ import SwiftUI
 
 struct LessonListView: View {
     let store: SeedStore
+    @Environment(PurchaseStore.self) private var purchases
+    @State private var showsTrackPaywall = false
     @State private var activeLesson: LessonDef?
     @State private var showsDailyMarket = false
     @State private var showsGlossary = false
@@ -36,6 +38,16 @@ struct LessonListView: View {
                               subtitle: "레슨을 마칠 때마다 도구가 하나씩 열려요 · 하루 1개")
                 ForEach(LessonCatalog.all) { lesson in
                     lessonRow(lesson, paceExhausted: paceExhausted)
+                }
+
+                // ── 트랙 2: ETF·분산투자 (1편 무료 → 단품 ₩5,000 또는 Pro)
+                let etfDoneCount = ETFTrackCatalog.all.filter { store.isLessonDone($0.id) }.count
+                sectionHeader("트랙 2 — ETF·분산투자 \(etfDoneCount)/\(ETFTrackCatalog.all.count)",
+                              subtitle: purchases.ownsETFTrack
+                              ? "예측 없이 굴리는 구조 — 순서대로, 원하는 페이스로"
+                              : "1편은 무료예요 — 지수·보수·적립식·리밸런싱")
+                ForEach(Array(ETFTrackCatalog.all.enumerated()), id: \.element.id) { index, lesson in
+                    etfTrackRow(lesson, index: index)
                 }
 
                 // ── 라이브러리: 순서 없이 언제든
@@ -126,6 +138,9 @@ struct LessonListView: View {
         }
         .sheet(isPresented: $showsGlossary) {
             GlossaryView()
+        }
+        .sheet(isPresented: $showsTrackPaywall) {
+            TrackPaywallSheet(purchases: purchases)
         }
         .sheet(isPresented: $showsTutor) {
             TutorView()
@@ -406,6 +421,72 @@ struct LessonListView: View {
         .buttonStyle(.plain)
     }
 
+    /// 트랙 2 행 — 1편 무료, 이후는 소장/Pro + 순서 잠금 (하루 페이스 없음)
+    private func etfTrackRow(_ lesson: LessonDef, index: Int) -> some View {
+        let done = store.isLessonDone(lesson.id)
+        let owned = purchases.ownsETFTrack || lesson.id == ETFTrackCatalog.freeLessonId
+        let sequenceOpen = index == 0 || store.isLessonDone(ETFTrackCatalog.all[index - 1].id)
+        let available = owned && sequenceOpen
+        return Button {
+            if done {
+                summaryLesson = lesson
+            } else if !owned {
+                showsTrackPaywall = true
+            } else if available {
+                activeLesson = lesson
+            }
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(done ? SeedTheme.violet : (available ? SeedTheme.violetTint : SeedTheme.card))
+                        .frame(width: 38, height: 38)
+                    if done {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                    } else if available {
+                        Text("\(index + 1)")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(SeedTheme.violetDeep)
+                    } else {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 13))
+                            .foregroundStyle(SeedTheme.textSecondary.opacity(0.6))
+                    }
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(lesson.title)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(available || done ? SeedTheme.textPrimary : SeedTheme.textSecondary)
+                        if index == 0 && !purchases.ownsETFTrack && !done {
+                            Text("무료")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(SeedTheme.violetDeep)
+                                .padding(.horizontal, 5).padding(.vertical, 1.5)
+                                .background(SeedTheme.violetTint, in: Capsule())
+                        }
+                    }
+                    Text(done ? lesson.unlockLabel + " 완료"
+                         : (!owned ? "단품 소장 또는 Pro로 열려요" : lesson.subtitle))
+                        .font(.system(size: 12))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                }
+                Spacer()
+                if !done {
+                    Text(lesson.duration)
+                        .font(.system(size: 11))
+                        .foregroundStyle(SeedTheme.textSecondary.opacity(0.8))
+                }
+            }
+            .padding(14)
+            .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+            .opacity(available || done || !owned ? 1 : 0.65)
+        }
+        .buttonStyle(.plain)
+    }
+
     /// 심화 시리즈 행 — 잠금 없음, 완료 체크만
     private func deepDiveRow(_ lesson: LessonDef) -> some View {
         let done = store.isLessonDone(lesson.id)
@@ -479,7 +560,8 @@ struct LessonFlowView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("레슨 \(lesson.order) · \(lesson.duration)")
+                // 심화·트랙 시리즈(order 100+)는 번호 대신 소요 시간만
+                Text(lesson.order < 100 ? "레슨 \(lesson.order) · \(lesson.duration)" : lesson.duration)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(SeedTheme.violetDeep)
                 Spacer()

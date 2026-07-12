@@ -78,10 +78,16 @@ struct PortfolioView: View {
 
                 // 종목별 보유 — 분산의 첫 화면
                 let held = SymbolCatalog.all.filter { ledger.qty(of: $0.code) > 0 }
-                if !held.isEmpty {
+                let heldETFs = ETFCatalog.all.filter { ledger.qty(of: $0.code) > 0 }
+                if !held.isEmpty || !heldETFs.isEmpty {
                     VStack(spacing: 8) {
                         ForEach(held) { spec in
-                            holdingRow(spec: spec, ledger: ledger, price: prices[spec.code] ?? 0)
+                            holdingRow(name: spec.name, code: spec.code, isETF: false,
+                                       ledger: ledger, price: prices[spec.code] ?? 0)
+                        }
+                        ForEach(heldETFs) { spec in
+                            holdingRow(name: spec.name, code: spec.code, isETF: true,
+                                       ledger: ledger, price: prices[spec.code] ?? 0)
                         }
                     }
                 }
@@ -177,15 +183,21 @@ struct PortfolioView: View {
         let equity = session.totalEquity
         if equity > 0 {
             // 계좌 β: 보유 평가액 가중 평균 (현금은 β 0 — 현금도 분산이다)
-            let weighted = SymbolCatalog.all.reduce(0.0) { sum, spec in
+            // ETF는 바스켓 β(구성 가중 평균)로 계산 — 자산배분 ETF가 β를 낮추는 게 눈에 보인다.
+            let stockWeighted = SymbolCatalog.all.reduce(0.0) { sum, spec in
                 let value = Double(ledger.qty(of: spec.code) * (prices[spec.code] ?? 0))
                 return sum + value * spec.config.marketBeta
             }
-            let accountBeta = weighted / Double(equity)
+            let etfWeighted = ETFCatalog.all.reduce(0.0) { sum, spec in
+                let value = Double(ledger.qty(of: spec.code) * (prices[spec.code] ?? 0))
+                return sum + value * spec.basketBeta
+            }
+            let accountBeta = (stockWeighted + etfWeighted) / Double(equity)
             let shockPct = -3.0
             let impactPct = shockPct * accountBeta
             let impactWon = Int(Double(equity) * impactPct / 100)
-            let biggest = SymbolCatalog.all
+            let biggest = (SymbolCatalog.all.map { (name: $0.name, code: $0.code) }
+                           + ETFCatalog.all.map { (name: $0.name, code: $0.code) })
                 .map { (name: $0.name, value: ledger.qty(of: $0.code) * (prices[$0.code] ?? 0)) }
                 .max { $0.value < $1.value }
             let concentration = Double(biggest?.value ?? 0) / Double(equity) * 100
@@ -291,16 +303,27 @@ struct PortfolioView: View {
         }
     }
 
-    private func holdingRow(spec: SymbolSpec, ledger: AccountLedger, price: Int) -> some View {
-        let qty = ledger.qty(of: spec.code)
-        let avgCost = ledger.avgCost(of: spec.code)
+    private func holdingRow(name: String, code: String, isETF: Bool,
+                            ledger: AccountLedger, price: Int) -> some View {
+        let qty = ledger.qty(of: code)
+        let avgCost = ledger.avgCost(of: code)
         let unrealized = Double(qty) * (Double(price) - avgCost)
+        let unit = isETF ? "좌" : "주"
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(spec.name)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(SeedTheme.textPrimary)
-                Text("\(qty)주 · 평단 \(Int(avgCost).formatted())원")
+                HStack(spacing: 5) {
+                    Text(name)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                    if isETF {
+                        Text("ETF")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(SeedTheme.violetDeep)
+                            .padding(.horizontal, 5).padding(.vertical, 1.5)
+                            .background(SeedTheme.violetTint, in: Capsule())
+                    }
+                }
+                Text("\(qty)\(unit) · 평단 \(Int(avgCost).formatted())원")
                     .font(.system(size: 12))
                     .foregroundStyle(SeedTheme.textSecondary)
             }

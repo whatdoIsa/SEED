@@ -16,6 +16,15 @@ enum PracticeCatalog {
         "lesson.patience": "오늘 시장이 지루하면, 안 사는 것으로 하루를 이겨보기",
         "lesson.sizing": "오늘 매수 전에 자문하기 — \u{201C}틀리면 얼마 잃지?\u{201D} 감당되는 수량인가",
         "lesson.graduation": "복기 탭을 열고 나의 가장 나쁜 습관 하나를 소리 내어 읽기",
+        // 트랙 2 — ETF·분산투자
+        "etf.what": "시장 탭에서 ETF 상세를 열어 바구니 구성 확인하기 — 내가 뭘 사게 되는지",
+        "etf.index": "한빛300 1좌 사보기 — 산 뒤 구성 카드에서 내가 산 것들 확인",
+        "etf.fee": "ETF 상세의 운용보수 카드에서 누적 차감액 확인하기 — 며칠 뒤 다시 보기",
+        "etf.nav": "두 ETF의 NAV를 나란히 보고 오늘 각각 왜 움직였는지 구성으로 설명해보기",
+        "etf.corr": "내 주식 탭의 분산 점검에서 내 계좌 β 확인하기 — 시장의 몇 배로 흔들리나",
+        "etf.dca": "나만의 적립 규칙 정하기 — 예: 매 거래일 첫 접속 때 한빛300 3좌",
+        "etf.rebalance": "목표 비율을 정하고 실제 비율과 비교하기 — 어긋났다면 리밸런싱 1건",
+        "etf.graduation": "운용 계획 3줄(비율·적립·리밸런싱)을 메모에 적고 오늘 그대로 실행하기",
     ]
 
     static func todaysTask(store: SeedStore) -> (lessonId: String, task: String)? {

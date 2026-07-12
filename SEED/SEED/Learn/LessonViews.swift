@@ -507,6 +507,9 @@ struct LessonFlowView: View {
     private func completeAndDismiss() {
         store.completeLesson(lesson.id,
                              unlocksLevel: lesson.order < 100 ? lesson.order : nil)
+        if lesson.id == LessonCatalog.graduation.id {
+            ReviewPrompt.askIfEligible(.graduation)
+        }
         dismiss()
     }
 

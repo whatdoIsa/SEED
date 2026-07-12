@@ -17,6 +17,9 @@ struct TradingView: View {
     @State private var hasTraded = true
     @State private var newsBanner: (text: String, positive: Bool, marketWide: Bool)?
     @State private var showsCryptoIntro = false
+    @State private var showsWhySynthetic = false
+    /// 체결 결과 시트가 닫힌 뒤 요청할 평가 모멘트 (전환 중 요청은 무시되므로)
+    @State private var pendingReviewMoment: ReviewPrompt.Moment?
     /// 차트 스타일 (피드백 #2) — 캔들 해금 후 선/캔들 선택, 기기 단위로 기억
     @AppStorage("seed.chartStyle") private var chartStyleRaw = ChartStyle.candle.rawValue
     /// 차트 줌 (핀치) — 보이는 캔들 수, 기기 단위로 기억
@@ -181,6 +184,10 @@ struct TradingView: View {
             CryptoIntroSheet()
                 .presentationDetents([.height(430)])
         }
+        .sheet(isPresented: $showsWhySynthetic) {
+            WhySyntheticSheet()
+                .presentationDetents([.height(500)])
+        }
         .onChange(of: session.engine.newsFeed.count) { _, _ in
             guard let event = session.engine.latestNews else { return }
             withAnimation(.snappy(duration: 0.3)) {
@@ -211,6 +218,11 @@ struct TradingView: View {
                     }
                     hasTraded = true
                     showMiniReview(store.miniReview(for: tag))
+                    // 첫 수익 실현 매도 — 평가 요청 모멘트 (시트 닫힌 뒤 발동)
+                    if fill.side == .sell, avgCostBefore > 0,
+                       fill.avgFillPrice > avgCostBefore {
+                        pendingReviewMoment = .firstProfit
+                    }
                 case .success(.limit(let limitResult)):
                     if let immediate = limitResult.immediateFill {
                         store.record(fill: immediate, tag: tag, symbol: session.activeSpec.name,
@@ -233,7 +245,7 @@ struct TradingView: View {
         }
         .sensoryFeedback(.success, trigger: lastFill?.id)
         .sensoryFeedback(.success, trigger: session.limitFillNotice)
-        .sheet(item: $lastFill) { fill in
+        .sheet(item: $lastFill, onDismiss: handleFillSheetDismiss) { fill in
             FillResultSheet(
                 fill: fill,
                 fee: fill.side == .buy
@@ -568,6 +580,19 @@ struct TradingView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .background(color, in: RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
+    /// 체결 결과 시트가 닫힌 뒤: 첫 매매면 "왜 가상인가" 카드, 대기 중 평가 모멘트 발동.
+    private func handleFillSheetDismiss() {
+        if !UserDefaults.standard.bool(forKey: "seed.whySyntheticSeen"),
+           store.tradeCount() == 1 {
+            UserDefaults.standard.set(true, forKey: "seed.whySyntheticSeen")
+            showsWhySynthetic = true
+        }
+        if let moment = pendingReviewMoment {
+            pendingReviewMoment = nil
+            ReviewPrompt.askIfEligible(moment)
         }
     }
 

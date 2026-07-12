@@ -234,6 +234,10 @@ struct DailyMarketView: View {
             }
             Button {
                 store.completeLesson(scenarioId, unlocksLevel: nil)
+                // 3일 연속 달성 — 출시 초기 가장 빨리 오는 만족 순간에 평가 요청
+                if DailyMarket.streak(completed: store.completedLessonIds) >= 3 {
+                    ReviewPrompt.askIfEligible(.streak3)
+                }
                 dismiss()
             } label: {
                 Text("오늘 장 마감 · 내일 또 열려요")

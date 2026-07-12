@@ -82,6 +82,17 @@ struct RefillSheet: View {
                     .font(.system(size: 10))
                     .foregroundStyle(SeedTheme.textSecondary.opacity(0.7))
                     .lineSpacing(4)
+
+                #if DEBUG
+                if let loadError = purchases.lastLoadError {
+                    Text("DEBUG · \(loadError)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(SeedTheme.down)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(SeedTheme.downTint, in: RoundedRectangle(cornerRadius: 10))
+                }
+                #endif
             }
             .padding(20)
         }

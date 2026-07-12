@@ -415,11 +415,7 @@ struct MasterProfileSheet: View {
                     }
                 }
 
-                // 일반 String은 마크다운을 해석하지 않으므로 명시적으로 파싱 (줄바꿈 보존)
-                Text((try? AttributedString(
-                    markdown: master.story,
-                    options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
-                    ?? AttributedString(master.story))
+                Text(SeedMarkdown.bold(master.story, size: 14))
                     .font(.system(size: 14))
                     .foregroundStyle(SeedTheme.textPrimary)
                     .lineSpacing(6)

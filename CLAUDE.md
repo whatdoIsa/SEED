@@ -44,7 +44,7 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 ## 수익 모델 (확정)
 - 무료 영원히: 트랙1(12편)+시장+오늘의장+아레나+룰기반 복기
 - **트랙 단품** 각 ₩5,000 일회성(영구소장, AI 미포함) / **Pro** 월 ₩3,300·연 ₩22,000(전 트랙+AI코멘트+튜터 월40문) / **리필** 10문 ₩1,100·30문 ₩2,900(소모성)
-- 상품 ID: `seed.pro.monthly` `seed.pro.yearly` `seed.tutor.refill10` `seed.tutor.refill30` `seed.track.etf`(트랙2 단품 ₩5,000 비소모성 — **App Store Connect 미등록, 등록 필요**) — `Core/PurchaseStore.swift`(ownsETFTrack = Pro ∨ 단품), `Learn/RefillSheet.swift`·`Learn/TrackPaywallSheet.swift`(정직 페이월), 개발용 `SEED/Products.storekit`+스킴 연결
+- 상품 ID: `seed.pro.monthly.v2` `seed.pro.yearly.v2`(초기 ID는 ASC 삭제로 영구 잠김) `seed.tutor.refill10` `seed.tutor.refill30` `seed.track.etf`(트랙2 단품 ₩5,000 비소모성 — **App Store Connect 미등록, 등록 필요**) — `Core/PurchaseStore.swift`(ownsETFTrack = Pro ∨ 단품), `Learn/RefillSheet.swift`·`Learn/TrackPaywallSheet.swift`(정직 페이월), 개발용 `SEED/Products.storekit`+스킴 연결
 - 결제 트리거 (구현 완료): 졸업 완료 화면 CTA→트랙 2 목차→1편 무료→페이월 / 배우기 히어로·시장 ETF 칩·목차 잠금 행 / 튜터 소진 / 아카이브 잠금. 계측: paywall_shown(sheet·source별)·purchase_completed·track_promo_tapped — 전환율 = purchase/paywall_shown
 - 유저당 AI 하드캡 ~200원/월 설계. 손익분기 = 유료 5명.
 

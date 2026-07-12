@@ -223,6 +223,10 @@ struct TrackDetailView: View {
             Text(done == total ? "완주 — 축하해요" : "\(done)/\(total) 완료")
                 .font(.system(size: 11))
                 .foregroundStyle(SeedTheme.textSecondary)
+            if done == total {
+                TrackCompletionShareButton(track: track)
+                    .padding(.top, 6)
+            }
         }
     }
 

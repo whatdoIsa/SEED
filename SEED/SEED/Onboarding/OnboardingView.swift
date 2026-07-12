@@ -42,6 +42,13 @@ struct OnboardingView: View {
             .background(SeedTheme.violetTint, in: Capsule())
             .padding(.top, 18)
 
+            // 가상 시장 선언 — "실시세가 아님"을 약점이 아니라 목적으로 말한다
+            Text("실제 시세가 아닌, 학습용으로 설계된 가상 시장이에요. 진짜 돈을 잃기 전에 여기서 먼저 망해보세요.")
+                .font(.system(size: 12))
+                .foregroundStyle(SeedTheme.textSecondary)
+                .lineSpacing(4)
+                .padding(.top, 10)
+
             // 살아있는 시장 미리보기 — "이미 움직이고 있어요"
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 5) {

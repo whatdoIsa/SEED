@@ -17,6 +17,10 @@ enum SeedEvent: String {
     case accountReset = "account_reset"
     case sessionStart = "session_start"
     case dayOpen = "day_open"
+    // 수익화 퍼널: 노출 → (졸업 CTA) → 결제. 전환율 = purchase / paywall_shown.
+    case paywallShown = "paywall_shown"
+    case purchaseCompleted = "purchase_completed"
+    case trackPromoTapped = "track_promo_tapped"
 }
 
 @MainActor

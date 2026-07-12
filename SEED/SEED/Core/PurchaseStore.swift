@@ -60,6 +60,9 @@ final class PurchaseStore {
         guard let result = try? await product.purchase() else { return }
         if case .success(let verification) = result {
             await handle(verification)
+            if case .verified = verification {
+                Analytics.log(.purchaseCompleted, ["product": product.id])
+            }
         }
     }
 

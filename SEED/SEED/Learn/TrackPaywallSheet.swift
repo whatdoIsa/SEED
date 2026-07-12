@@ -7,6 +7,8 @@ struct TrackPaywallSheet: View {
     let purchases: PurchaseStore
     var trackTitle = "트랙 2 — ETF·분산투자"
     var trackSubtitle = "레슨 8편 + ETF 시장 (한빛300 지수·균형 자산배분)"
+    /// 어디서 열렸는지 — 전환율을 소스별로 나눠 보기 위한 계측 키
+    var source = "unknown"
     @Environment(\.dismiss) private var dismiss
     @State private var isPurchasing = false
 
@@ -96,6 +98,7 @@ struct TrackPaywallSheet: View {
         }
         .background(SeedTheme.background)
         .presentationDetents([.large])
+        .onAppear { Analytics.log(.paywallShown, ["sheet": "track", "source": source]) }
         .task { if purchases.products.isEmpty { await purchases.loadProducts() } }
     }
 

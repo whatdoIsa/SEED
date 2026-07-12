@@ -70,6 +70,11 @@ enum TrackCatalog {
     static let all: [TrackDef] = [stockBasics, etf, crypto, finance]
 }
 
+extension Notification.Name {
+    /// 졸업 CTA → 배우기 탭이 트랙 2 목차를 연다
+    static let seedOpenETFTrack = Notification.Name("seed.openETFTrack")
+}
+
 // MARK: - 이어서 배우기 — 다음 레슨 계산
 
 enum NextLessonFinder {
@@ -162,7 +167,7 @@ struct TrackDetailView: View {
             }
         }
         .sheet(isPresented: $showsTrackPaywall) {
-            TrackPaywallSheet(purchases: purchases)
+            TrackPaywallSheet(purchases: purchases, source: "track_toc")
         }
     }
 

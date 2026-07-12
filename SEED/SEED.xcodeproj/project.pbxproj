@@ -38,6 +38,7 @@
 /* Begin PBXFileReference section */
 		AB00000000000000000001 /* SEEDWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SEEDWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		E9CC17692FFBB238001C5393 /* SEED.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SEED.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E9F8A7B83003A6C1008C2124 /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -75,6 +76,7 @@
 		E9CC17602FFBB238001C5393 = {
 			isa = PBXGroup;
 			children = (
+				E9F8A7B83003A6C1008C2124 /* Products.storekit */,
 				E9CC176B2FFBB238001C5393 /* SEED */,
 				AB00000000000000000002 /* SEEDWidget */,
 				E9CC176A2FFBB238001C5393 /* Products */,

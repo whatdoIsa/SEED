@@ -49,7 +49,9 @@
     }
   ],
   "settings": {
-    "_failTransactionsEnabled": false
+    "_failTransactionsEnabled": false,
+    "_locale": "ko_KR",
+    "_storefront": "KOR"
   },
   "subscriptionGroups": [
     {

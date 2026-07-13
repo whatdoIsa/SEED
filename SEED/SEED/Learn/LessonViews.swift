@@ -29,12 +29,15 @@ struct LessonListView: View {
                 deepLinkListener
 
                 // ── 이어서 배우기: 오늘 필요한 건 다음 레슨 하나
-                continueCard
+                // (다음 레슨 계산은 SwiftData fetch를 동반하므로 렌더당 1회만)
+                let next = NextLessonFinder.next(store: store,
+                                                 ownsETFTrack: purchases.ownsETFTrack)
+                continueCard(next)
 
                 // ── 트랙: 교과서 진열대 — 목차는 카드 안으로
                 sectionHeader("트랙", subtitle: "한 트랙 = 한 주제 · 탭해서 목차 열기")
                 ForEach(TrackCatalog.all) { track in
-                    trackCard(track)
+                    trackCard(track, isCurrent: next?.track.id == track.id)
                 }
 
                 // ── 라이브러리: 순서 없는 것들은 한 장으로
@@ -73,9 +76,8 @@ struct LessonListView: View {
     // MARK: 이어서 배우기 — 다음 레슨 히어로
 
     @ViewBuilder
-    private var continueCard: some View {
-        if let next = NextLessonFinder.next(store: store,
-                                            ownsETFTrack: purchases.ownsETFTrack) {
+    private func continueCard(_ next: NextLessonFinder.Candidate?) -> some View {
+        if let next {
             Button {
                 if next.needsPurchase {
                     showsTrackPaywall = true
@@ -149,13 +151,10 @@ struct LessonListView: View {
     // MARK: 트랙 카드 — 제목 + 진행률만, 목차는 상세로
 
     @ViewBuilder
-    private func trackCard(_ track: TrackDef) -> some View {
+    private func trackCard(_ track: TrackDef, isCurrent: Bool) -> some View {
         let done = track.doneCount(store: store)
         let total = track.lessons.count
         let isComingSoon = track.kind == .comingSoon
-        let isCurrent = NextLessonFinder.next(store: store,
-                                              ownsETFTrack: purchases.ownsETFTrack)?
-            .track.id == track.id
         Button {
             guard !isComingSoon else { return }
             selectedTrack = track

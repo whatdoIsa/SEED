@@ -84,10 +84,20 @@ struct TrackCompletionCard: View {
 /// 트랙 목차의 완주 상태에서 노출되는 공유 버튼.
 struct TrackCompletionShareButton: View {
     let track: TrackDef
+    /// ImageRenderer는 싸지 않다 — 뷰 갱신마다가 아니라 등장 시 1회만 렌더해 보관
+    @State private var card: Image?
 
     var body: some View {
-        if let card = TrackCompletionCard.render(track: track) {
-            ShareLink(item: card,
+        Group {
+            if let card {
+                shareLink(card)
+            }
+        }
+        .task { if card == nil { card = TrackCompletionCard.render(track: track) } }
+    }
+
+    private func shareLink(_ card: Image) -> some View {
+        ShareLink(item: card,
                       preview: SharePreview("\(track.title) 수료 카드", image: card)) {
                 HStack(spacing: 7) {
                     Image(systemName: "square.and.arrow.up")
@@ -99,7 +109,6 @@ struct TrackCompletionShareButton: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 12)
                 .background(SeedTheme.violetTint, in: RoundedRectangle(cornerRadius: 12))
-            }
         }
     }
 }

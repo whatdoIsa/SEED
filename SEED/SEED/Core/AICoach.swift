@@ -67,11 +67,15 @@ enum AICoach {
 // MARK: - 코멘트 캐시 (키 + 데이터 지문)
 
 enum AICommentCache {
-    private static func defaultsKey(_ key: String) -> String { "seed.ai.cache.\(key)" }
+    private static let keyPrefix = "seed.ai.cache."
+    private static func defaultsKey(_ key: String) -> String { keyPrefix + key }
+    /// 날짜 키(daily.*)가 무한히 쌓이지 않도록 오래된 항목은 버린다
+    private static let retention: TimeInterval = 45 * 86_400
 
     struct Entry: Codable {
         let fingerprint: String
         let text: String
+        var savedAt: Date? = nil
     }
 
     static func load(key: String, fingerprint: String) -> String? {
@@ -82,9 +86,24 @@ enum AICommentCache {
     }
 
     static func save(key: String, fingerprint: String, text: String) {
-        let entry = Entry(fingerprint: fingerprint, text: text)
+        let entry = Entry(fingerprint: fingerprint, text: text, savedAt: .now)
         if let data = try? JSONEncoder().encode(entry) {
             UserDefaults.standard.set(data, forKey: defaultsKey(key))
+        }
+        pruneStale()
+    }
+
+    /// 보존 기간이 지난(또는 저장 시각이 없는 구버전) 캐시 제거
+    private static func pruneStale() {
+        let defaults = UserDefaults.standard
+        let cutoff = Date.now.addingTimeInterval(-retention)
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(keyPrefix) {
+            guard let data = defaults.data(forKey: key),
+                  let entry = try? JSONDecoder().decode(Entry.self, from: data),
+                  let savedAt = entry.savedAt, savedAt > cutoff else {
+                defaults.removeObject(forKey: key)
+                continue
+            }
         }
     }
 }

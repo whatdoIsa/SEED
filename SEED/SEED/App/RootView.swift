@@ -37,7 +37,8 @@ struct RootView: View {
                 // iCloud 복원분(늦게 도착)을 화면에 합류시키고 중복 레코드를 정리
                 store.refreshAfterRemoteImport()
                 SeedNotifications.rescheduleIfAuthorized(
-                    weeklyTradeCount: store.weeklyTradeCount())
+                    weeklyTradeCount: store.weeklyTradeCount(),
+                    dailyDoneToday: store.isLessonDone(DailyMarket.id()))
             }
         }
     }

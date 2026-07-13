@@ -213,8 +213,9 @@ struct TradingView: View {
                     lastFill = fill
                     if !hasTraded {
                         // 첫 매매 — 의미 있는 순간에 주간 복기 알림 권한을 묻는다 (B)
-                        SeedNotifications.requestThenScheduleWeekly(
-                            weeklyTradeCount: store.weeklyTradeCount())
+                        SeedNotifications.requestThenScheduleAll(
+                            weeklyTradeCount: store.weeklyTradeCount(),
+                            dailyDoneToday: store.isLessonDone(DailyMarket.id()))
                     }
                     hasTraded = true
                     showMiniReview(store.miniReview(for: tag))
@@ -238,7 +239,7 @@ struct TradingView: View {
                     }
                     session.persistState()
                 case .failure(let error):
-                    orderErrorMessage = message(for: error)
+                    orderErrorMessage = error.userMessage()
                 }
             }
 
@@ -604,20 +605,4 @@ struct TradingView: View {
         }
     }
 
-    private func message(for error: OrderError) -> String {
-        switch error {
-        case .insufficientCash(let needed, let available):
-            return "현금이 부족해요. 필요 \(needed.formatted())원 / 보유 \(available.formatted())원"
-        case .insufficientHoldings(let requested, let held):
-            return "보유한 주식이 부족해요. 주문 \(requested)주 / 보유 \(held)주"
-        case .noLiquidity:
-            return "지금은 살 수 있는 물량이 없어요. 잠시 뒤 다시 해봐요."
-        case .invalidQuantity:
-            return "수량을 확인해 주세요."
-        case .priceOutOfBand(let lower, let upper):
-            return "오늘 주문 가능한 범위는 \(lower.formatted())원(하한가) ~ \(upper.formatted())원(상한가)이에요."
-        case .auctionInProgress:
-            return "지금은 동시호가 시간이에요 — 주문을 모아 하나의 가격으로 체결해요. 지정가로 참여하거나 잠시 기다려주세요."
-        }
-    }
 }

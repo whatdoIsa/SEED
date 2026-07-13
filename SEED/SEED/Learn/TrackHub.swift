@@ -136,10 +136,14 @@ struct TrackDetailView: View {
                 header
                 progressBar
 
+                // 페이스 판정은 SwiftData fetch를 동반하므로 행마다가 아니라 렌더당 1회만
+                let paceExhausted = track.kind == .main
+                    && track.doneCount(store: store) >= 3
+                    && store.mainLessonsCompletedToday() >= 1
                 ForEach(Array(track.lessons.enumerated()), id: \.element.id) { index, lesson in
                     switch track.kind {
                     case .main:
-                        mainLessonRow(lesson)
+                        mainLessonRow(lesson, paceExhausted: paceExhausted)
                     case .etf:
                         etfLessonRow(lesson, index: index)
                     case .comingSoon:
@@ -232,10 +236,8 @@ struct TrackDetailView: View {
 
     // MARK: 트랙 1 행 — 순서 잠금 + 하루 1레슨 페이스
 
-    private func mainLessonRow(_ lesson: LessonDef) -> some View {
+    private func mainLessonRow(_ lesson: LessonDef, paceExhausted: Bool) -> some View {
         let done = store.isLessonDone(lesson.id)
-        let mainDone = track.doneCount(store: store)
-        let paceExhausted = mainDone >= 3 && store.mainLessonsCompletedToday() >= 1
         let sequenceOpen = isSequenceOpen(lesson)
         let waitsForTomorrow = sequenceOpen && !done && paceExhausted
         let available = sequenceOpen && !waitsForTomorrow

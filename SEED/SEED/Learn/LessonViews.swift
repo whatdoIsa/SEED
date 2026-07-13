@@ -19,22 +19,17 @@ struct LessonListView: View {
                     .font(.system(size: 22, weight: .semibold))
                     .foregroundStyle(SeedTheme.textPrimary)
 
-                // ── 오늘: 하루의 리듬 (복습 → 한 판 → 실천)
-                sectionHeader("오늘", subtitle: nil)
-                morningQuizCard
-                dailyMarketCard
-                if let practice = PracticeCatalog.todaysTask(store: store) {
-                    PracticeCard(task: practice.task)
-                }
+                // ── 오늘의 루틴: 복습 → 레슨 → 오늘의 장, 카드 한 장에 (하루 3탭)
+                // (다음 레슨 계산은 SwiftData fetch를 동반하므로 렌더당 1회만)
+                let next = NextLessonFinder.next(store: store,
+                                                 ownsETFTrack: purchases.ownsETFTrack)
+                routineCard(next)
                 deepLinkListener
-
-                // ── 이어서 배우기: 오늘 필요한 건 다음 레슨 하나
-                continueCard
 
                 // ── 트랙: 교과서 진열대 — 목차는 카드 안으로
                 sectionHeader("트랙", subtitle: "한 트랙 = 한 주제 · 탭해서 목차 열기")
                 ForEach(TrackCatalog.all) { track in
-                    trackCard(track)
+                    trackCard(track, isCurrent: next?.track.id == track.id)
                 }
 
                 // ── 라이브러리: 순서 없는 것들은 한 장으로
@@ -70,92 +65,131 @@ struct LessonListView: View {
         }
     }
 
-    // MARK: 이어서 배우기 — 다음 레슨 히어로
+    // MARK: 오늘의 루틴 — 하루 할 일을 카드 한 장에 (복습 → 레슨 → 오늘의 장)
+    // 오늘의 실천은 독립 카드에서 내려와 "오늘의 장" 행의 서브텍스트가 됐다:
+    // 실천은 할 일이 아니라 오늘의 장을 할 때 지킬 것이라서.
 
     @ViewBuilder
-    private var continueCard: some View {
-        if let next = NextLessonFinder.next(store: store,
-                                            ownsETFTrack: purchases.ownsETFTrack) {
-            Button {
-                if next.needsPurchase {
-                    showsTrackPaywall = true
-                } else if !next.waitsForTomorrow {
-                    activeLesson = next.lesson
-                }
-            } label: {
-                HStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(.white.opacity(0.18))
-                            .frame(width: 38, height: 38)
-                        Image(systemName: next.waitsForTomorrow
-                              ? "moon.stars.fill"
-                              : (next.needsPurchase ? "lock.fill" : "play.fill"))
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white)
-                    }
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("이어서 배우기 · 트랙 \(next.track.number)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.75))
-                        Text(next.lesson.title)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.white)
-                        Text(next.waitsForTomorrow
-                             ? "오늘 몫 완료 — 내일 이어져요"
-                             : (next.needsPurchase
-                                ? "단품 소장 또는 Pro로 이어가기"
-                                : next.lesson.duration))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.75))
-                    }
-                    Spacer()
-                    if !next.waitsForTomorrow {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.85))
-                    }
-                }
-                .padding(14)
-                .background(SeedTheme.violet, in: RoundedRectangle(cornerRadius: 14))
-            }
-            .buttonStyle(.plain)
-        } else {
-            // 모든 트랙 완주 — 다음 트랙 예고로 자리를 지킨다
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(SeedTheme.violetTint)
-                        .frame(width: 38, height: 38)
-                    Image(systemName: "flag.checkered")
-                        .font(.system(size: 14, weight: .semibold))
+    private func routineCard(_ next: NextLessonFinder.Candidate?) -> some View {
+        let todaysQuiz = QuizCatalog.todaysQuiz(store: store)
+        let quizDone = QuizRecord.doneToday
+        let dailyDone = store.isLessonDone(DailyMarket.id())
+        let streak = DailyMarket.streak(completed: store.completedLessonIds)
+        let practiceLine = PracticeCatalog.todaysTask(store: store)?.task
+
+        // 보이는 행 수와 완료 수 — 복습은 복습거리가 있을 때만, 레슨은 완주 전까지만
+        let rowCount = (todaysQuiz != nil ? 1 : 0) + (next != nil ? 1 : 0) + 1
+        let doneCount = (todaysQuiz != nil && quizDone ? 1 : 0)
+            + (next?.waitsForTomorrow == true ? 1 : 0)
+            + (dailyDone ? 1 : 0)
+
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Text("오늘의 루틴")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Text("\(doneCount)/\(rowCount)")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(SeedTheme.violetDeep)
+                Spacer()
+                if streak >= 2 {
+                    Text("🔥 \(streak)일 연속")
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(SeedTheme.violetDeep)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(SeedTheme.violetTint, in: Capsule())
                 }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("모든 트랙 완주 — 대단해요")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(SeedTheme.textPrimary)
-                    Text("다음 트랙(크립토 심화)이 준비되면 여기서 이어져요")
-                        .font(.system(size: 12))
-                        .foregroundStyle(SeedTheme.textSecondary)
+            }
+            .padding(.bottom, 4)
+
+            if let todaysQuiz {
+                routineRow(icon: "sparkles",
+                           title: "아침 복습 1문제",
+                           subtitle: quizDone ? nil : "배운 건 다음날 꺼내야 내 것이 돼요",
+                           done: quizDone) {
+                    quiz = todaysQuiz
+                }
+                Divider().padding(.vertical, 2)
+            }
+
+            if let next {
+                routineRow(icon: next.needsPurchase ? "lock.fill" : "play.fill",
+                           title: next.waitsForTomorrow
+                               ? "오늘 레슨 완료"
+                               : "다음 레슨 — \(next.lesson.title)",
+                           subtitle: next.waitsForTomorrow
+                               ? "내일 이어져요 — 배운 걸 오늘의 장에서 써보세요"
+                               : (next.needsPurchase
+                                  ? "단품 소장 또는 Pro로 이어가기"
+                                  : "트랙 \(next.track.number) · \(next.lesson.duration)"),
+                           done: next.waitsForTomorrow) {
+                    if next.needsPurchase {
+                        showsTrackPaywall = true
+                    } else {
+                        activeLesson = next.lesson
+                    }
+                }
+                Divider().padding(.vertical, 2)
+            }
+
+            routineRow(icon: "sunrise.fill",
+                       title: "오늘의 장 한 판",
+                       subtitle: dailyDone
+                           ? "오늘 완료 — 내일 새로운 장이 열려요"
+                           : (practiceLine.map { "오늘의 실천: \($0)" } ?? "오늘은 어떤 장일까요?"),
+                       done: dailyDone) {
+                showsDailyMarket = true
+            }
+        }
+        .padding(14)
+        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14)
+            .stroke(SeedTheme.violet.opacity(0.35), lineWidth: 1.2))
+    }
+
+    private func routineRow(icon: String, title: String, subtitle: String?,
+                            done: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            guard !done else { return }
+            action()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: done ? "checkmark.circle.fill" : icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(done ? SeedTheme.violet : SeedTheme.violetDeep)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(done ? SeedTheme.textSecondary : SeedTheme.textPrimary)
+                        .strikethrough(done, color: SeedTheme.textSecondary.opacity(0.6))
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.system(size: 11))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                            .lineLimit(2)
+                    }
                 }
                 Spacer()
+                if !done {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11))
+                        .foregroundStyle(SeedTheme.textSecondary.opacity(0.7))
+                }
             }
-            .padding(14)
-            .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: 트랙 카드 — 제목 + 진행률만, 목차는 상세로
 
     @ViewBuilder
-    private func trackCard(_ track: TrackDef) -> some View {
+    private func trackCard(_ track: TrackDef, isCurrent: Bool) -> some View {
         let done = track.doneCount(store: store)
         let total = track.lessons.count
         let isComingSoon = track.kind == .comingSoon
-        let isCurrent = NextLessonFinder.next(store: store,
-                                              ownsETFTrack: purchases.ownsETFTrack)?
-            .track.id == track.id
         Button {
             guard !isComingSoon else { return }
             selectedTrack = track
@@ -272,122 +306,6 @@ struct LessonListView: View {
                     selectedTrack = TrackCatalog.etf
                 }
             }
-    }
-
-    /// 아침 복습 — 어제 배운 레슨 1문제 (하루 한 번, 간격 반복)
-    @ViewBuilder
-    private var morningQuizCard: some View {
-        if !QuizRecord.doneToday, let question = QuizCatalog.todaysQuiz(store: store) {
-            Button {
-                quiz = question
-            } label: {
-                HStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(SeedTheme.up.opacity(0.12))
-                            .frame(width: 38, height: 38)
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(SeedTheme.up)
-                    }
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("아침 복습 · 1문제")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(SeedTheme.textPrimary)
-                        Text("배운 건 다음날 꺼내야 진짜 내 것이 돼요")
-                            .font(.system(size: 12))
-                            .foregroundStyle(SeedTheme.textSecondary)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13))
-                        .foregroundStyle(SeedTheme.up)
-                }
-                .padding(14)
-                .background(SeedTheme.up.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var dailyMarketCard: some View {
-        let doneToday = store.isLessonDone(DailyMarket.id())
-        let streak = DailyMarket.streak(completed: store.completedLessonIds)
-        let week = DailyMarket.lastSevenDays(completed: store.completedLessonIds)
-        let patterns = DailyMarket.patternCounts(completed: store.completedLessonIds)
-
-        return Button {
-            if !doneToday { showsDailyMarket = true }
-        } label: {
-            VStack(alignment: .leading, spacing: 11) {
-                HStack(spacing: 12) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(doneToday ? SeedTheme.card : SeedTheme.violet)
-                            .frame(width: 38, height: 38)
-                        Image(systemName: doneToday ? "checkmark" : "sunrise.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(doneToday ? SeedTheme.textSecondary : .white)
-                    }
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack(spacing: 6) {
-                            Text("오늘의 장")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(SeedTheme.textPrimary)
-                            if streak >= 2 {
-                                Text("🔥 \(streak)일 연속")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundStyle(SeedTheme.violetDeep)
-                                    .padding(.horizontal, 7).padding(.vertical, 2)
-                                    .background(SeedTheme.background, in: Capsule())
-                            }
-                        }
-                        Text(doneToday ? "오늘 완료 · 내일 새로운 장이 열려요" : "오늘은 어떤 장일까요? 자유롭게 매매해보세요")
-                            .font(.system(size: 12))
-                            .foregroundStyle(SeedTheme.textSecondary)
-                    }
-                    Spacer()
-                    if !doneToday {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13))
-                            .foregroundStyle(SeedTheme.violet)
-                    }
-                }
-
-                // 최근 7일 점 캘린더 — 오늘이 맨 오른쪽
-                HStack(spacing: 5) {
-                    ForEach(Array(week.enumerated()), id: \.offset) { index, done in
-                        Circle()
-                            .fill(done ? SeedTheme.violet : SeedTheme.band)
-                            .frame(width: 7, height: 7)
-                            .overlay {
-                                if index == week.count - 1 {
-                                    Circle().stroke(SeedTheme.violetDeep.opacity(0.5), lineWidth: 1.5)
-                                        .frame(width: 11, height: 11)
-                                }
-                            }
-                    }
-                    Text("최근 7일")
-                        .font(.system(size: 10))
-                        .foregroundStyle(SeedTheme.textSecondary)
-                        .padding(.leading, 3)
-                    Spacer()
-                    // 겪어본 패턴 — 많이 겪은 순 상위 2개
-                    if !patterns.isEmpty {
-                        Text(patterns.prefix(2)
-                            .map { "\($0.pattern.revealName) ×\($0.count)" }
-                            .joined(separator: " · "))
-                            .font(.system(size: 10))
-                            .foregroundStyle(SeedTheme.textSecondary)
-                            .lineLimit(1)
-                    }
-                }
-            }
-            .padding(14)
-            .background(SeedTheme.violetTint.opacity(doneToday ? 0.4 : 1),
-                        in: RoundedRectangle(cornerRadius: 14))
-        }
-        .buttonStyle(.plain)
     }
 
     private func sectionHeader(_ title: String, subtitle: String?) -> some View {

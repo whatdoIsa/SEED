@@ -10,6 +10,9 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var notificationStatus: UNAuthorizationStatus?
+    @State private var morningOn = SeedNotifications.isEnabled(.morning)
+    @State private var eveningOn = SeedNotifications.isEnabled(.evening)
+    @State private var weeklyOn = SeedNotifications.isEnabled(.weekly)
     @State private var confirmsErase = false
     @State private var showsManageSubscriptions = false
     @State private var isRestoring = false
@@ -125,37 +128,64 @@ struct SettingsView: View {
 
     private var notificationSection: some View {
         section("알림") {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("주간 복기 알림")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(SeedTheme.textPrimary)
-                    Text(notificationText)
-                        .font(.system(size: 12))
-                        .foregroundStyle(SeedTheme.textSecondary)
-                }
-                Spacer()
-                Button {
-                    if let url = URL(string: UIApplication.openSettingsURLString) {
-                        UIApplication.shared.open(url)
+            VStack(spacing: 0) {
+                if notificationStatus == .denied {
+                    HStack {
+                        Text("알림이 꺼져 있어요 — 설정 앱에서 켤 수 있어요")
+                            .font(.system(size: 13))
+                            .foregroundStyle(SeedTheme.textSecondary)
+                        Spacer()
+                        Button {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        } label: {
+                            Text("설정 앱")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(SeedTheme.violet)
+                                .padding(.horizontal, 11).padding(.vertical, 6)
+                                .background(SeedTheme.violetTint, in: Capsule())
+                        }
                     }
-                } label: {
-                    Text("설정 앱")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(SeedTheme.violet)
-                        .padding(.horizontal, 11).padding(.vertical, 6)
-                        .background(SeedTheme.violetTint, in: Capsule())
+                } else {
+                    notifToggle("아침 루틴", "매일 08:00 · 복습 1문제 + 오늘의 장",
+                                kind: .morning, isOn: $morningOn)
+                    Divider().padding(.vertical, 9)
+                    notifToggle("저녁 리마인더", "매일 20:00 · 오늘의 장을 안 했을 때만",
+                                kind: .evening, isOn: $eveningOn)
+                    Divider().padding(.vertical, 9)
+                    notifToggle("주간 복기", "일요일 19:00 · 한 주 매매 정리",
+                                kind: .weekly, isOn: $weeklyOn)
+                    if notificationStatus == .notDetermined {
+                        Divider().padding(.vertical, 9)
+                        Text("첫 매매를 하면 알림 허용 여부를 물어볼게요.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(SeedTheme.textSecondary.opacity(0.8))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
         }
     }
 
-    private var notificationText: String {
-        switch notificationStatus {
-        case .authorized: return "켜짐 · 매주 일요일 저녁 7시"
-        case .denied: return "꺼짐 · 설정 앱에서 켤 수 있어요"
-        case .notDetermined: return "첫 매매를 하면 물어볼게요"
-        default: return "확인 중…"
+    private func notifToggle(_ title: String, _ subtitle: String,
+                             kind: SeedNotifications.Kind,
+                             isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+        }
+        .tint(SeedTheme.violet)
+        .onChange(of: isOn.wrappedValue) { _, on in
+            SeedNotifications.setEnabled(kind, on,
+                weeklyTradeCount: store.weeklyTradeCount(),
+                dailyDoneToday: store.isLessonDone(DailyMarket.id()))
         }
     }
 

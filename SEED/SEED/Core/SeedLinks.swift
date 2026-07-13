@@ -1,15 +1,15 @@
 import Foundation
 
-/// 외부 링크 모음 — 법적 고지·지원 채널.
-/// ⚠️ 아래 URL·이메일은 플레이스홀더: 회사 홈페이지에 문서 게시 후 실제 주소로 교체할 것.
-///   문서에 들어가야 할 내용 요약은 claudedocs/legal-docs-요약.md 참고.
+/// 외부 링크 모음 — 법적 고지·지원 채널 (arcseed.kr 게시 확인 완료, 2026.7).
 enum SeedLinks {
-    /// 개인정보처리방침 — App Store 메타데이터에도 같은 URL 입력
-    static let privacyPolicy = URL(string: "https://arcseed.kr/seed/privacy")!
+    /// 개인정보처리방침 — App Store Connect 앱 정보에도 같은 URL 입력
+    static let privacyPolicy = URL(string: "https://www.arcseed.kr/ko/privacy")!
     /// 이용약관 (EULA) — 구독 페이월 필수 링크
-    static let terms = URL(string: "https://arcseed.kr/seed/terms")!
-    /// 문의 이메일 — App Store 지원 URL의 대안 채널
-    static let supportEmail = "seed@arcseed.kr"
+    static let terms = URL(string: "https://www.arcseed.kr/ko/terms")!
+    /// 앱 소개 페이지 — App Store 지원 URL용
+    static let homepage = URL(string: "https://www.arcseed.kr/seed")!
+    /// 문의 이메일 — 홈페이지 방침 문서에 명시된 주소와 일치
+    static let supportEmail = "contact@arcseed.kr"
 
     static var supportMailURL: URL? {
         URL(string: "mailto:\(supportEmail)?subject=SEED%20문의")

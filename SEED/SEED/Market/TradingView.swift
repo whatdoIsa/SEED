@@ -213,8 +213,9 @@ struct TradingView: View {
                     lastFill = fill
                     if !hasTraded {
                         // 첫 매매 — 의미 있는 순간에 주간 복기 알림 권한을 묻는다 (B)
-                        SeedNotifications.requestThenScheduleWeekly(
-                            weeklyTradeCount: store.weeklyTradeCount())
+                        SeedNotifications.requestThenScheduleAll(
+                            weeklyTradeCount: store.weeklyTradeCount(),
+                            dailyDoneToday: store.isLessonDone(DailyMarket.id()))
                     }
                     hasTraded = true
                     showMiniReview(store.miniReview(for: tag))

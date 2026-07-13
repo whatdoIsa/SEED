@@ -532,14 +532,19 @@ struct TradingView: View {
 
     private var portfolioStrip: some View {
         let portfolio = session.engine.portfolio
-        let unrealized = portfolio.unrealizedPnL(at: session.engine.lastPrice)
+        let price = session.engine.lastPrice
+        let unrealized = portfolio.unrealizedPnL(at: price)
         return HStack(spacing: 16) {
             metric("현금", "\(portfolio.cash.formatted())원")
-            metric("보유", "\(portfolio.qty)주")
             if portfolio.qty > 0 {
+                // 보유분은 주 수가 아니라 "지금 팔면 얼마"가 결정의 단위 — 평가금액을 함께
+                metric("보유 \(portfolio.qty)주",
+                       "\(portfolio.marketValue(at: price).formatted())원")
                 metric("평가손익",
-                       "\(Int(unrealized).formatted())원",
+                       "\(unrealized >= 0 ? "+" : "")\(Int(unrealized).formatted())원",
                        color: SeedTheme.pnl(unrealized))
+            } else {
+                metric("보유", "0주")
             }
             Spacer()
         }

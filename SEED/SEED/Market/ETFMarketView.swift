@@ -43,7 +43,7 @@ struct ETFDetailView: View {
             ETFOrderSheet(session: session, spec: spec, side: side) { result, _ in
                 switch result {
                 case .success(let fill): lastFill = fill
-                case .failure(let error): orderErrorMessage = message(for: error)
+                case .failure(let error): orderErrorMessage = error.userMessage(unit: "좌")
                 }
             }
         }
@@ -294,16 +294,6 @@ struct ETFDetailView: View {
         }
     }
 
-    private func message(for error: OrderError) -> String {
-        switch error {
-        case .insufficientCash(let needed, let available):
-            return "현금이 부족해요. 필요 \(needed.formatted())원 / 보유 \(available.formatted())원"
-        case .insufficientHoldings(let requested, let held):
-            return "보유한 좌수가 부족해요. 주문 \(requested)좌 / 보유 \(held)좌"
-        default:
-            return "주문을 처리하지 못했어요. 잠시 뒤 다시 해봐요."
-        }
-    }
 }
 
 // MARK: - ETF 주문 시트 — NAV 즉시 체결, 태그는 주식과 같은 습관 훈련

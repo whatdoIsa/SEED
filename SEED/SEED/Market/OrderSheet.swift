@@ -267,6 +267,28 @@ struct FillResultSheet: View {
     }
 }
 
+// MARK: - 주문 오류 → 사용자 문구 (주식·ETF 화면 공용)
+
+extension OrderError {
+    /// unit: 주식 "주" / ETF "좌"
+    func userMessage(unit: String = "주") -> String {
+        switch self {
+        case .insufficientCash(let needed, let available):
+            return "현금이 부족해요. 필요 \(needed.formatted())원 / 보유 \(available.formatted())원"
+        case .insufficientHoldings(let requested, let held):
+            return "보유한 수량이 부족해요. 주문 \(requested)\(unit) / 보유 \(held)\(unit)"
+        case .noLiquidity:
+            return "지금은 살 수 있는 물량이 없어요. 잠시 뒤 다시 해봐요."
+        case .invalidQuantity:
+            return "수량을 확인해 주세요."
+        case .priceOutOfBand(let lower, let upper):
+            return "오늘 주문 가능한 범위는 \(lower.formatted())원(하한가) ~ \(upper.formatted())원(상한가)이에요."
+        case .auctionInProgress:
+            return "지금은 동시호가 시간이에요 — 주문을 모아 하나의 가격으로 체결해요. 지정가로 참여하거나 잠시 기다려주세요."
+        }
+    }
+}
+
 // MARK: - sheet(item:) 어댑터
 
 extension Side: @retroactive Identifiable {

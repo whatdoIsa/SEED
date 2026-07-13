@@ -167,8 +167,6 @@ final class MarketSession {
 
     // MARK: ETF (트랙 2) — NAV 호가·매매
 
-    var etfList: [ETFFund] { ETFCatalog.all.compactMap { etfFunds[$0.code] } }
-
     /// 보수 차감의 기준 경과 거래일 — 기준 종목(대형주) 엔진의 거래일에서 파생.
     var etfDaysElapsed: Int {
         max((engines[SymbolCatalog.all[0].code]?.tradingDay ?? 1) - 1, 0)

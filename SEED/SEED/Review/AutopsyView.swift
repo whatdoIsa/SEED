@@ -9,7 +9,7 @@ struct AutopsyView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedRule: String?
 
-    private static let rulePresets = [
+    static let rulePresets = [
         "한 종목에 30% 이상 넣지 않기",
         "급등을 봐도 첫 눌림까지 기다리기",
         "사기 전에 이유를 딱 하나 정하기"
@@ -38,6 +38,7 @@ struct AutopsyView: View {
                     halfLossMath(equity: equity, startCash: startCash)
                 }
                 carrySection
+            carryOverSection
                 confirmButton(equity: equity)
                 Text("교육용 복기 · 투자 권유 아님")
                     .font(.system(size: 10))
@@ -240,6 +241,54 @@ struct AutopsyView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 18)
+    }
+
+    // MARK: 가져가는 것 — 리셋은 상실이 아니라 졸업이다
+
+    private var carryOverSection: some View {
+        let lessonCount = store.completedLessonIds.filter { !$0.hasPrefix("daily.") }.count
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "briefcase.fill")
+                    .font(.system(size: 11))
+                Text("시즌 \(store.currentSeason.number + 1)로 가져가는 것")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(SeedTheme.violetDeep)
+            .padding(.bottom, 9)
+
+            carryRow("열어둔 도구 전부 (Lv\(min(store.progress.unlockLevel, UnlockLevel.max)))")
+            carryRow("완료한 레슨 \(lessonCount)개와 배운 \(store.currentSeason.number)시즌의 경험")
+            if let rule = selectedRule {
+                carryRow("이번 시즌 규칙: “\(rule)”")
+            }
+            carryRow("이번 시즌 매매 기록 (성장 그래프에 보관)")
+
+            Divider().padding(.vertical, 10)
+
+            Text("사라지는 것은 가상 계좌 잔고뿐 — 새 1,000만원으로 다시 시작해요. 잃은 건 연습이었고, 남은 건 실력입니다.")
+                .font(.system(size: 12))
+                .foregroundStyle(SeedTheme.textSecondary)
+                .lineSpacing(4)
+        }
+        .padding(15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+    }
+
+    private func carryRow(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(SeedTheme.violet)
+                .padding(.top, 2)
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundStyle(SeedTheme.textPrimary)
+        }
+        .padding(.vertical, 3)
     }
 
     // MARK: 확인 — 여기까지 스크롤해야 리셋된다

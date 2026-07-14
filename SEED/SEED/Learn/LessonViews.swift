@@ -11,6 +11,9 @@ struct LessonListView: View {
     @State private var quiz: QuizQuestion?
     @State private var selectedTrack: TrackDef?
     @State private var showsLibrary = false
+    @State private var showsChallengeArena = false
+    @State private var showsChallengeRematch = false
+    @State private var showsChallengeLab = false
 
     var body: some View {
         ScrollView {
@@ -20,10 +23,21 @@ struct LessonListView: View {
                     .foregroundStyle(SeedTheme.textPrimary)
 
                 // ── 오늘의 루틴: 복습 → 레슨 → 오늘의 장, 카드 한 장에 (하루 3탭)
-                // (다음 레슨 계산은 SwiftData fetch를 동반하므로 렌더당 1회만)
+                // (다음 레슨·퀴즈 계산은 SwiftData fetch를 동반하므로 렌더당 1회만)
                 let next = NextLessonFinder.next(store: store,
                                                  ownsETFTrack: purchases.ownsETFTrack)
-                routineCard(next)
+                let todaysQuiz = QuizCatalog.todaysQuiz(store: store)
+                let quizDone = QuizRecord.doneToday
+                let dailyDone = store.isLessonDone(DailyMarket.id())
+                routineCard(next, todaysQuiz: todaysQuiz,
+                            quizDone: quizDone, dailyDone: dailyDone)
+
+                // ── 오늘의 도전: 루틴을 끝낸 사람에게만 "이제 놀 것"을 건넨다
+                let lessonDone = next == nil || next?.waitsForTomorrow == true
+                if dailyDone && lessonDone && (todaysQuiz == nil || quizDone)
+                    && store.isLessonDone(LessonCatalog.chase.id) {
+                    challengeCard
+                }
                 deepLinkListener
 
                 // ── 트랙: 교과서 진열대 — 목차는 카드 안으로
@@ -63,6 +77,86 @@ struct LessonListView: View {
         .fullScreenCover(isPresented: $showsDailyMarket) {
             DailyMarketView(store: store)
         }
+        .fullScreenCover(isPresented: $showsChallengeArena) {
+            ArenaView()
+        }
+        .fullScreenCover(isPresented: $showsChallengeRematch) {
+            BotCompareView(store: store)
+        }
+        .fullScreenCover(isPresented: $showsChallengeLab) {
+            QuantBuilderView(store: store)
+        }
+    }
+
+    // MARK: 오늘의 도전 — 요일 로테이션으로 기존 깊이 콘텐츠를 순환 노출
+
+    private struct DailyChallengeDef {
+        let title: String
+        let subtitle: String
+        let icon: String
+        let kind: Kind
+        enum Kind { case arena, rematch, lab }
+    }
+
+    /// 일~토 (Calendar.weekday 1~7)
+    private static let weekdayChallenges: [DailyChallengeDef] = [
+        .init(title: "일요 아레나 — 거장 5인과 한 판",
+              subtitle: "한 주의 마무리, 무작위 장에서 승부", icon: "trophy.fill", kind: .arena),
+        .init(title: "전략 실험실 — 규칙 하나 검증하기",
+              subtitle: "감이 아니라 백테스트로 한 주를 시작", icon: "slider.horizontal.3", kind: .lab),
+        .init(title: "거장 도장 — 그 장을 다시",
+              subtitle: "같은 장, 같은 거장 — 이번엔 이길 차례", icon: "tortoise.fill", kind: .rematch),
+        .init(title: "수요 아레나 — 중간 점검",
+              subtitle: "이번 주의 감, 거장들 상대로 확인", icon: "trophy.fill", kind: .arena),
+        .init(title: "실험실 — 모든 장에서 시험하기",
+              subtitle: "내 전략은 어느 계절 옷일까", icon: "slider.horizontal.3", kind: .lab),
+        .init(title: "거장 도장 — 약한 장 정복",
+              subtitle: "전적이 나쁜 장을 골라 리매치", icon: "tortoise.fill", kind: .rematch),
+        .init(title: "토요 아레나 — 전적 쌓기",
+              subtitle: "주말의 여유, 한 판 더", icon: "trophy.fill", kind: .arena)
+    ]
+
+    private var challengeCard: some View {
+        let weekday = Calendar.current.component(.weekday, from: .now)
+        let challenge = Self.weekdayChallenges[(weekday - 1) % Self.weekdayChallenges.count]
+        return Button {
+            switch challenge.kind {
+            case .arena: showsChallengeArena = true
+            case .rematch: showsChallengeRematch = true
+            case .lab: showsChallengeLab = true
+            }
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(SeedTheme.violetTint)
+                        .frame(width: 38, height: 38)
+                    Image(systemName: challenge.icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(SeedTheme.violetDeep)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("오늘의 도전")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(SeedTheme.violetDeep)
+                    Text(challenge.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(SeedTheme.textPrimary)
+                    Text(challenge.subtitle)
+                        .font(.system(size: 12))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(SeedTheme.violetDeep)
+            }
+            .padding(14)
+            .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14)
+                .stroke(SeedTheme.violet, lineWidth: 1.2))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: 오늘의 루틴 — 하루 할 일을 카드 한 장에 (복습 → 레슨 → 오늘의 장)
@@ -70,10 +164,10 @@ struct LessonListView: View {
     // 실천은 할 일이 아니라 오늘의 장을 할 때 지킬 것이라서.
 
     @ViewBuilder
-    private func routineCard(_ next: NextLessonFinder.Candidate?) -> some View {
-        let todaysQuiz = QuizCatalog.todaysQuiz(store: store)
-        let quizDone = QuizRecord.doneToday
-        let dailyDone = store.isLessonDone(DailyMarket.id())
+    private func routineCard(_ next: NextLessonFinder.Candidate?,
+                             todaysQuiz: QuizQuestion?,
+                             quizDone: Bool,
+                             dailyDone: Bool) -> some View {
         let streak = DailyMarket.streak(completed: store.completedLessonIds)
         let practiceLine = PracticeCatalog.todaysTask(store: store)?.task
 

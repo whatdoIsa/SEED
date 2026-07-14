@@ -91,7 +91,8 @@ struct ReviewReportView: View {
                         cacheKey: "weekly.\(Calendar.current.component(.year, from: .now))-\(Calendar.current.component(.weekOfYear, from: .now))",
                         fingerprint: "\(tradeCount / 5)",
                         prompt: reviewPrompt(stats: stats, tradeCount: tradeCount, winRate: winRate),
-                        maxTokens: 300
+                        maxTokens: 300,
+                        offersTrial: true
                     )
 
                     HStack(spacing: 10) {

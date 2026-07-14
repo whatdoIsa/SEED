@@ -45,6 +45,18 @@ struct OrderSheet: View {
                 }
             }
 
+            // 보유 현황 — 특히 팔 때 "내가 몇 주 갖고 있더라"를 시트 안에서 바로
+            if session.engine.portfolio.qty > 0 {
+                HStack(spacing: 6) {
+                    Image(systemName: "briefcase.fill")
+                        .font(.system(size: 10))
+                    Text("보유 \(session.engine.portfolio.qty)주 · 평단 \(Int(session.engine.portfolio.avgCost).formatted())원")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                }
+                .foregroundStyle(SeedTheme.textSecondary)
+            }
+
             if allowsLimit {
                 Picker("주문 방식", selection: $orderType) {
                     Text("시장가").tag(0)
@@ -91,9 +103,32 @@ struct OrderSheet: View {
                             )
                     }
                 }
+                // 전량 매도 — 예약(대기 주문) 물량은 제외한 팔 수 있는 전부
+                if side == .sell {
+                    let sellable = session.engine.portfolio.availableShares
+                    Button {
+                        qty = max(sellable, 1)
+                    } label: {
+                        Text("전부")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(qty == sellable && sellable > 0
+                                             ? SeedTheme.inverse : SeedTheme.textPrimary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(
+                                qty == sellable && sellable > 0
+                                    ? SeedTheme.textPrimary : SeedTheme.card,
+                                in: RoundedRectangle(cornerRadius: 10)
+                            )
+                    }
+                }
             }
 
-            Stepper("수량 \(qty)주", value: $qty, in: 1...10_000, step: 10)
+            Stepper("수량 \(qty)주", value: $qty,
+                    in: 1...(side == .sell
+                             ? max(session.engine.portfolio.availableShares, 1)
+                             : 10_000),
+                    step: 10)
                 .font(.system(size: 14))
 
             // 수량을 고르는 순간 돈으로 보여준다 — "몇 주"가 아니라 "얼마"가 결정의 단위

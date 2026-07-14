@@ -107,15 +107,35 @@ struct ReviewReportView: View {
                 }
 
                 if !stats.isEmpty {
+                    // 매수 이유는 '분포'가 정보고, 손익은 매도에서만 확정된다 —
+                    // 한 리스트에 섞으면 매수 행이 영원히 빈 막대·미확정으로 남는다.
+                    let buyStats = stats
+                        .filter { TradeReasonTag.tags(for: .buy).contains($0.tag) }
+                        .sorted { $0.count > $1.count }
+                    let sellStats = stats
+                        .filter { TradeReasonTag.tags(for: .sell).contains($0.tag) }
+                        .sorted { $0.count > $1.count }
                     VStack(alignment: .leading, spacing: 10) {
                         Text("습관 분석")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(SeedTheme.textPrimary)
-                        Text("매수·매도할 때 고른 이유별 성적이에요.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(SeedTheme.textSecondary)
-                        ForEach(stats) { stat in
-                            habitRow(stat)
+                        if !buyStats.isEmpty {
+                            Text("사는 이유 — 어떤 마음으로 샀나")
+                                .font(.system(size: 12))
+                                .foregroundStyle(SeedTheme.textSecondary)
+                            let totalBuys = buyStats.reduce(0) { $0 + $1.count }
+                            ForEach(buyStats) { stat in
+                                buyHabitRow(stat, totalBuys: totalBuys)
+                            }
+                        }
+                        if !sellStats.isEmpty {
+                            Text("파는 이유 — 매도가 손익을 확정해요")
+                                .font(.system(size: 12))
+                                .foregroundStyle(SeedTheme.textSecondary)
+                                .padding(.top, buyStats.isEmpty ? 0 : 6)
+                            ForEach(sellStats) { stat in
+                                habitRow(stat)
+                            }
                         }
                     }
                 }
@@ -355,6 +375,31 @@ struct ReviewReportView: View {
         let averages = stats.compactMap(\.avgRealizedReturnPct)
         guard !averages.isEmpty else { return SeedTheme.textPrimary }
         return SeedTheme.pnl(averages.reduce(0, +))
+    }
+
+    /// 매수 이유 행 — 성적이 아니라 비중을 보여준다 ("내 매수의 44%가 돌파 기대")
+    private func buyHabitRow(_ stat: SeedStore.TagStat, totalBuys: Int) -> some View {
+        let share = totalBuys > 0 ? Double(stat.count) / Double(totalBuys) : 0
+        return HStack(spacing: 10) {
+            Text(stat.tag.label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(SeedTheme.textPrimary)
+                .frame(width: 72, alignment: .leading)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(SeedTheme.band)
+                    Capsule()
+                        .fill(SeedTheme.violet.opacity(0.55))
+                        .frame(width: max(geo.size.width * share, 6))
+                }
+            }
+            .frame(height: 7)
+            Text("\(stat.count)건 · \(Int((share * 100).rounded()))%")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(SeedTheme.textSecondary)
+                .frame(width: 92, alignment: .trailing)
+        }
+        .padding(.vertical, 3)
     }
 
     private func habitRow(_ stat: SeedStore.TagStat) -> some View {

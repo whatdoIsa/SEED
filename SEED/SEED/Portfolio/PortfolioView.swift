@@ -9,6 +9,7 @@ struct PortfolioView: View {
     @Query(sort: \TradeLog.timestamp, order: .reverse) private var logs: [TradeLog]
     @State private var showsAutopsy = false
     @State private var showsSettings = false
+    @State private var showsPromise = false
 
     var body: some View {
         let ledger = session.ledger
@@ -37,19 +38,38 @@ struct PortfolioView: View {
                     }
                 }
 
-                // 부검에서 가져온 이번 시즌 규칙 — 매일 눈에 밟히게
+                // 이번 시즌의 약속 — 매일 눈에 밟히게. 없으면 정하도록 초대한다.
                 if let rule = store.currentSeason.carriedRule, !rule.isEmpty {
                     HStack(spacing: 8) {
                         Image(systemName: "pin.fill")
                             .font(.system(size: 11))
                             .foregroundStyle(SeedTheme.violetDeep)
-                        Text("이번 시즌 규칙 · \(rule)")
+                        Text("시즌 \(store.currentSeason.number)의 약속 · \(rule)")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(SeedTheme.violetDeep)
                         Spacer()
                     }
                     .padding(.horizontal, 13).padding(.vertical, 10)
                     .background(SeedTheme.violetTint, in: RoundedRectangle(cornerRadius: 12))
+                } else {
+                    Button {
+                        showsPromise = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "pin")
+                                .font(.system(size: 11))
+                            Text("이번 시즌 약속 정하기 — 지킬 것 하나")
+                                .font(.system(size: 13, weight: .medium))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11))
+                        }
+                        .foregroundStyle(SeedTheme.violetDeep)
+                        .padding(.horizontal, 13).padding(.vertical, 10)
+                        .background(SeedTheme.violetTint.opacity(0.6),
+                                    in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 VStack(spacing: 10) {
@@ -93,19 +113,6 @@ struct PortfolioView: View {
                 }
 
                 diversificationCard(ledger: ledger, prices: prices)
-
-                if let rule = store.currentSeason.carriedRule {
-                    HStack(spacing: 7) {
-                        Image(systemName: "flag.fill")
-                            .font(.system(size: 11))
-                        Text("이번 시즌 규칙: \(rule)")
-                            .font(.system(size: 12, weight: .medium))
-                        Spacer()
-                    }
-                    .foregroundStyle(SeedTheme.violetDeep)
-                    .padding(.horizontal, 13).padding(.vertical, 9)
-                    .background(SeedTheme.violetTint, in: RoundedRectangle(cornerRadius: 10))
-                }
 
                 Text("매매 기록")
                     .font(.system(size: 16, weight: .semibold))
@@ -166,6 +173,9 @@ struct PortfolioView: View {
         .background(SeedTheme.background)
         .sheet(isPresented: $showsSettings) {
             SettingsView(session: session, store: store)
+        }
+        .sheet(isPresented: $showsPromise) {
+            SeasonPromiseSheet(store: store)
         }
         .fullScreenCover(isPresented: $showsAutopsy) {
             AutopsyView(store: store, session: session)

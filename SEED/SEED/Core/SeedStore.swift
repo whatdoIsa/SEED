@@ -262,6 +262,12 @@ final class SeedStore {
     // MARK: 시즌 전환 (M4-3 계좌 부검이 호출)
 
     /// 계좌 부검 통과 후 호출: 현 시즌 마감, 이월 규칙을 새기고 다음 시즌 시작.
+    /// 진행 중인 시즌의 약속(규칙)을 설정 — 시즌 1처럼 부검을 거치지 않은 시즌용.
+    func setSeasonRule(_ rule: String?) {
+        currentSeason.carriedRule = rule
+        try? context.save()
+    }
+
     func startNextSeason(endEquity: Int, carriedRule: String?) -> Season {
         currentSeason.endedAt = .now
         currentSeason.endEquity = endEquity

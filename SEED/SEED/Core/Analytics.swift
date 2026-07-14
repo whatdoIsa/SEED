@@ -22,6 +22,7 @@ enum SeedEvent: String {
     case purchaseCompleted = "purchase_completed"
     case trackPromoTapped = "track_promo_tapped"
     case reviewPrompted = "review_prompted"
+    case aiTrialUsed = "ai_trial_used"
 }
 
 @MainActor

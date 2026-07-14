@@ -62,7 +62,9 @@ struct TrackPaywallSheet: View {
                         .foregroundStyle(SeedTheme.textSecondary)
                     VStack(alignment: .leading, spacing: 6) {
                         benefitRow("지금·앞으로의 모든 트랙 포함")
-                        benefitRow("AI 코치 코멘트 (복기·부검·해설)")
+                        benefitRow(AICoach.isAvailable
+                            ? "AI 코치 코멘트 (복기·부검·해설)"
+                            : "AI 코치 코멘트 — 이 기기는 미지원 (iPhone 15 Pro 이상)")
                         benefitRow("튜터 매달 40문 자동 충전")
                         benefitRow("시즌 아카이브 — 전 시즌 성장 그래프")
                     }

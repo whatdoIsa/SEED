@@ -54,7 +54,9 @@ struct RefillSheet: View {
                         .foregroundStyle(SeedTheme.textSecondary)
                     VStack(alignment: .leading, spacing: 6) {
                         benefitRow("튜터 매달 40문 자동 충전")
-                        benefitRow("AI 코치 코멘트 (복기·부검·해설)")
+                        benefitRow(AICoach.isAvailable
+                            ? "AI 코치 코멘트 (복기·부검·해설)"
+                            : "AI 코치 코멘트 — 이 기기는 미지원 (iPhone 15 Pro 이상)")
                         benefitRow("시즌 아카이브 — 전 시즌 성장 그래프")
                         benefitRow("모든 학습 트랙 포함 (트랙 2 ETF·분산투자, 크립토 예정)")
                     }

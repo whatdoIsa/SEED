@@ -87,24 +87,18 @@ enum NextLessonFinder {
         var needsPurchase = false
     }
 
-    /// 우선순위: 트랙 1 다음 편 → (페이스 소진 시) 트랙 2 다음 편 → 완주면 nil.
+    /// 우선 트랙 하나만 안내한다: 진행 중인 트랙 1이 있으면 끝까지 트랙 1 기준
+    /// (오늘 몫을 마쳤으면 "완료·내일 예고" — 다른 트랙을 들이밀지 않는다).
+    /// 트랙 2는 트랙 1을 완주한 뒤에만 다음 여정으로 제안된다.
     static func next(store: SeedStore, ownsETFTrack: Bool) -> Candidate? {
         let mainDone = TrackCatalog.stockBasics.doneCount(store: store)
         let paceExhausted = mainDone >= 3 && store.mainLessonsCompletedToday() >= 1
 
-        let mainNext = TrackCatalog.stockBasics.lessons.first { !store.isLessonDone($0.id) }
-        let etfNext = nextInETF(store: store, ownsETFTrack: ownsETFTrack)
-
-        if let mainNext {
-            if !paceExhausted {
-                return Candidate(lesson: mainNext, track: TrackCatalog.stockBasics)
-            }
-            // 오늘 몫 소진 — 페이스 없는 트랙 2로 이어가거나, 내일 예고
-            if let etfNext { return etfNext }
+        if let mainNext = TrackCatalog.stockBasics.lessons.first(where: { !store.isLessonDone($0.id) }) {
             return Candidate(lesson: mainNext, track: TrackCatalog.stockBasics,
-                             waitsForTomorrow: true)
+                             waitsForTomorrow: paceExhausted)
         }
-        return etfNext
+        return nextInETF(store: store, ownsETFTrack: ownsETFTrack)
     }
 
     private static func nextInETF(store: SeedStore, ownsETFTrack: Bool) -> Candidate? {

@@ -36,6 +36,8 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 - **배우기 탭 = 트랙 허브 구조 (develop)**: "오늘의 루틴" 카드 1장(아침 복습·다음 레슨·오늘의 장 체크리스트 — 오늘의 실천은 오늘의 장 행 서브텍스트로 흡수, PracticeCard/PracticeRecord 삭제) + 다음 레슨 계산 히어로 카드(`Learn/TrackHub.swift`의 NextLessonFinder — 트랙1 다음 편 → 페이스 소진 시 트랙2 → 완주 시 예고 카드) + 트랙 카드 4장(1 주식기본기·2 ETF·3 크립토 예정·4 금융기초 예정, 진행률 바·진행 중 보라 테두리·미소유 "1편 무료" 배지) + 라이브러리 카드 1장. 레슨 목차는 `TrackDetailView` 시트로, 심화·도장·실험실·튜터·용어사전은 `LibraryView` 시트로 이사. 트랙 추가 시 `TrackCatalog.all`에 TrackDef 1개만 추가하면 됨.
 - **트랙 2 — ETF·분산투자 (develop, Phase 3 완료)**: `JurinKit/ETFFund.swift`(고정 좌수 바스켓 NAV + 연보수/252 일할 차감, 테스트 13개 — 총 102개), ETF 2종(`Core/ETFCatalog.swift` — HIX 한빛300 지수 0.15% / HBA 균형 자산배분 0.35%, BTX 제외), NAV 즉시 체결(호가창 없음·매도 거래세 없음), MarketSession 통합(리플레이·스냅샷·totalEquity·분산 β 반영), `Market/ETFMarketView.swift`(NAV 라인차트·구성·보수 누적 카드·주문 시트), 레슨 8편 `Learn/ETFTrack.swift`(order 201+, 읽기형, 1편 무료→순서 잠금, 하루 페이스 없음) + 요약·퀴즈·실천·용어사전 8종("ETF·분산투자" 카테고리). 진입: 시장 탭 ETF 칩 + 배우기 트랙 2 섹션, 비소유 시 `Learn/TrackPaywallSheet.swift`
 
+- **UX 폴리시 (develop=main)**: 주문시트(예상 주문/매도 금액 실시간·보유 N주·평단·매도 '전부' 버튼·매도 스테퍼 상한·500주 프리셋 제거), 시장 스트립 보유 평가금액(주 수는 라벨로), 복기 습관분석 분리(사는 이유=분포 보라 바 / 파는 이유=확정 성적 손익 바 — 그냥감 중복·빈막대 해소), 레슨 뒤로가기(개념·미션 간), 본문 볼드 `Design/SeedMarkdown.swift`(CommonMark 한국어 조사 문제로 ** 직접 파싱)
+
 ## AI 스택 (Phase 1 완료 — 검증됨)
 - **온디바이스 (Foundation Models, iOS 26)**: `Core/AICoach.swift` — 주간복기·부검·오늘의장·아레나 해설. 캐시(키+지문, "같은 데이터에 두 번 안 묻기"), 미지원기기(iPhone 15 Pro 미만)→룰기반 폴백. **실기기 검증 아직 안 함** (시뮬은 미지원 정상).
 - **튜터 (Haiku)**: 3겹 — ①규칙필터(추천·예측 거절, 0토큰) ②용어사전 직답(0토큰) ③`claude-haiku-4-5-20251001` via Cloudflare Worker `https://seed-tutor.throbbing-sun-9e1e.workers.dev/` (배포·크레딧 충전·종단 테스트 완료, 가드레일 검증 완료). 서버측 기기별 일30문 KV 상한.
@@ -49,17 +51,19 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 - 유저당 AI 하드캡 ~200원/월 설계. 손익분기 = 유료 5명.
 
 ## 진행 중 / 다음 할 일
-1. **[사용자 진행 중] App Store Connect 상품 등록** — 리필10문 등록했으나 "메타데이터 누락" = 심사 스크린샷 미첨부. **바탕화면 `iap-screenshot-refill.png`**(1206×2622) 업로드하면 해결. 나머지 3개 상품(refill30, pro monthly/yearly)도 같은 캡처 재사용. 유료 앱 계약(은행·세금) 활성 필수.
-2. **TestFlight 새 빌드** (main에서 Archive) — AI+결제 실기기 검증: 온디바이스 코치 카드(15 Pro+), 튜터 5문, 리필 시트 원화 표시(샌드박스 — 실결제 없음, 구독 갱신 가속됨)
-3. **Phase 3 — 트랙 2: ETF·분산투자 ✅ 완료 (develop)** — 남은 것: ①App Store Connect에 `seed.track.etf` ₩5,000 비소모성 등록(기존 심사 스크린샷 재사용 가능) ②main 승격은 사용자 지시 시 ③완성 시점 = App Store 정식 출시 타이밍. 이후 트랙3 크립토심화, 트랙4 금융기초(분기당 1트랙).
-4. **배포 트랙 병행** (매출 = 트래픽×전환율 — 제품만으론 구매 없음): 개발일지, 쇼츠(터틀 실험·기대값 퀴즈 소재), 커뮤니티 시딩, Apple 피처드 신청(온디바이스 AI 스토리 강점).
-5. **P0 출시 준비 (develop 반영)**: 페이월 2종+설정에 약관·방침 링크(`Core/SeedLinks.swift` — **URL 3개 플레이스홀더, 홈페이지 게시 후 교체 필수**), 설정 구독관리·복원·문의, iPhone 전용(TARGETED_DEVICE_FAMILY=1). 문서: `claudedocs/legal-docs-요약.md`(방침·약관에 들어갈 내용), `claudedocs/appstore-메타데이터.md`(ASC 문안·심사노트·체크리스트). 남은 것: 문서 게시→URL 교체, 스크린샷 6장 제작. **P1 완료**: 온보딩 가상시장 한 줄+첫 체결 후 1회성 `Market/WhySyntheticSheet`, `Core/ReviewPrompt`(스트릭3·첫수익매도·졸업·시즌완주, 모멘트당 1회+14일 간격), 트랙 완주 시 수료 공유카드(`Learn/TrackCompletionCard`, 목차 진행바 아래 ShareLink).
-6. **계곡·전환 패치 (develop)**: 루틴 3/3 완료 시 "오늘의 도전" 카드(요일 로테이션: 아레나/도장/실험실), 부검 "가져가는 것" 섹션, **AI 코치 Pro 게이트 신설**(기존엔 게이트 없이 전면 무료였음 — `Learn/AICoachCard.swift`: Pro 생성 / 비Pro는 주간복기에서 체험 1회(`seed.ai.trial.*`)→잠금 티저(지난 코멘트 인용, 페이월 source=ai_teaser) / 타 화면은 숨김·캐시는 항상 표시), 시즌 약속(`Review/SeasonPromiseSheet` — 시즌1도 내 주식 탭에서 설정, carriedRule 재사용).
-7. 보류: CloudKit 프로덕션 스키마 배포(icloud.developer.apple.com — TestFlight iCloud 동기화에 필요, 앱 동작엔 지장 없음). 베타 테스터 프로모 코드. KPI 게이트: D7 리텐션 20%+.
+1. **스크린샷 6장 제작** (남은 유일한 개발 제출물) — 샷리스트는 `claudedocs/appstore-메타데이터.md`. 시뮬 캡처로 원본 제작 가능.
+2. **[사용자] ASC 마무리**: ①구독 그룹(SEED Pro) 현지화 채우기(그룹 표시명 — 미채우면 상품이 메타데이터 누락으로 남음) ②연간 구독 `seed.pro.yearly.v2`로 등록(월간 v2는 제출 준비 완료됨) ③`seed.track.etf` 등록 ④개인정보 URL(`arcseed.kr/ko/privacy`)·지원 URL(`/seed`) 입력 ⑤App Privacy 라벨. 구독 심사 스크린샷 = 바탕화면 `iap-screenshot-pro.png`.
+3. **[사용자] 홈페이지 문안 2건 붙여넣기**: `legal-docs-요약.md`의 §1-A(AI 튜터 개인정보 조항→/ko/privacy)·§2-A(구독·환불 조항→/ko/terms). 붙여넣기 전 심사 제출 금지.
+4. **실기기 검증 대기**: 사용자 iPhone 17 Pro에서 **AI 체험 카드**(복기 탭, EmptyView task 앵커 버그 수정 후 재확인 요청한 상태 — 마지막 미확인), 구독 v2 샌드박스, 알림 3종, 위젯 딥링크. main Archive → TestFlight.
+5. **출시 후 백로그** (우선순위): 친구 대결(결정론 시드 → 도전 링크, 서버 불요) > 차트게임 스낵 모드(§11 프레임 필수) > MetricKit 로컬 진단+문의 첨부 > 트랙3 크립토 > 시즌 누적 프로필. Pro 체험(주간복기 AI 1회 무료)은 구현 완료.
+6. 보류: CloudKit 프로덕션 스키마 배포(icloud.developer.apple.com — TestFlight iCloud 동기화에 필요). 베타 프로모 코드. KPI 게이트: D7 리텐션 20%+.
 
 ## 주의사항
 - Xcode 스킴에 `queueDebuggingEnabled=No` 필수 유지 (디버거 크래시 방지 — 절대 되돌리지 말 것)
 - `Info.plist`(부분)·`WidgetInfo.plist`·entitlements 2개·`Products.storekit`는 프로젝트 루트/SEED에 있음 — 동기화 폴더 밖 (리소스 충돌 방지)
 - 오늘의 장 완료 기록 = `daily.YYYYMMDD` LessonProgress. 스트릭·패턴은 날짜에서 결정론 재계산
 - SeedStore.completedLessonIds가 관찰 캐시 — 레슨 상태 변경 시 반드시 이 집합도 갱신
-- 시뮬레이터에서 온디바이스 AI는 항상 미지원 폴백 (버그 아님)
+- 시뮬레이터에서 온디바이스 AI는 항상 미지원 폴백 (버그 아님) — **AI 관련 UI는 실기기 캡처가 유일한 검증 수단**
+- SwiftUI 함정: EmptyView로 풀리는 뷰의 `.task`는 실행 안 됨 — 조건부 카드엔 `Color.clear.frame(height:0)` 앵커 필수 (AICoachCard 참고)
+- 빌드 검증은 `grep -cE "BUILD SUCCEEDED"`로 — `grep error:`는 에러를 찾으면 exit 0이라 && 체인이 안 멈춘다 (한 번 깨진 빌드가 병합된 사고 있음)
+- 시뮬 캡처: 콜드부트 직후 첫 캡처는 빈 화면일 수 있음 — terminate 후 재launch가 정석

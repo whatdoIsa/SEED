@@ -37,6 +37,10 @@ struct AICoachCard: View {
                 } else {
                     trialOfferCard
                 }
+            } else {
+                // task 앵커 — 뷰가 EmptyView로 풀리면 .task가 아예 실행되지 않아
+                // isLoading이 영원히 true로 남는다 (비Pro 첫 렌더가 정확히 그 경우)
+                Color.clear.frame(height: 0)
             }
         }
         .animation(.easeOut(duration: 0.3), value: text)

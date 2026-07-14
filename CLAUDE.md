@@ -54,7 +54,8 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 3. **Phase 3 — 트랙 2: ETF·분산투자 ✅ 완료 (develop)** — 남은 것: ①App Store Connect에 `seed.track.etf` ₩5,000 비소모성 등록(기존 심사 스크린샷 재사용 가능) ②main 승격은 사용자 지시 시 ③완성 시점 = App Store 정식 출시 타이밍. 이후 트랙3 크립토심화, 트랙4 금융기초(분기당 1트랙).
 4. **배포 트랙 병행** (매출 = 트래픽×전환율 — 제품만으론 구매 없음): 개발일지, 쇼츠(터틀 실험·기대값 퀴즈 소재), 커뮤니티 시딩, Apple 피처드 신청(온디바이스 AI 스토리 강점).
 5. **P0 출시 준비 (develop 반영)**: 페이월 2종+설정에 약관·방침 링크(`Core/SeedLinks.swift` — **URL 3개 플레이스홀더, 홈페이지 게시 후 교체 필수**), 설정 구독관리·복원·문의, iPhone 전용(TARGETED_DEVICE_FAMILY=1). 문서: `claudedocs/legal-docs-요약.md`(방침·약관에 들어갈 내용), `claudedocs/appstore-메타데이터.md`(ASC 문안·심사노트·체크리스트). 남은 것: 문서 게시→URL 교체, 스크린샷 6장 제작. **P1 완료**: 온보딩 가상시장 한 줄+첫 체결 후 1회성 `Market/WhySyntheticSheet`, `Core/ReviewPrompt`(스트릭3·첫수익매도·졸업·시즌완주, 모멘트당 1회+14일 간격), 트랙 완주 시 수료 공유카드(`Learn/TrackCompletionCard`, 목차 진행바 아래 ShareLink).
-6. 보류: CloudKit 프로덕션 스키마 배포(icloud.developer.apple.com — TestFlight iCloud 동기화에 필요, 앱 동작엔 지장 없음). 베타 테스터 프로모 코드. KPI 게이트: D7 리텐션 20%+.
+6. **계곡·전환 패치 (develop)**: 루틴 3/3 완료 시 "오늘의 도전" 카드(요일 로테이션: 아레나/도장/실험실), 부검 "가져가는 것" 섹션, **AI 코치 Pro 게이트 신설**(기존엔 게이트 없이 전면 무료였음 — `Learn/AICoachCard.swift`: Pro 생성 / 비Pro는 주간복기에서 체험 1회(`seed.ai.trial.*`)→잠금 티저(지난 코멘트 인용, 페이월 source=ai_teaser) / 타 화면은 숨김·캐시는 항상 표시), 시즌 약속(`Review/SeasonPromiseSheet` — 시즌1도 내 주식 탭에서 설정, carriedRule 재사용).
+7. 보류: CloudKit 프로덕션 스키마 배포(icloud.developer.apple.com — TestFlight iCloud 동기화에 필요, 앱 동작엔 지장 없음). 베타 테스터 프로모 코드. KPI 게이트: D7 리텐션 20%+.
 
 ## 주의사항
 - Xcode 스킴에 `queueDebuggingEnabled=No` 필수 유지 (디버거 크래시 방지 — 절대 되돌리지 말 것)

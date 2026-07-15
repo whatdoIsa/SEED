@@ -149,7 +149,9 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(buy.filledQty, 10)
         XCTAssertEqual(engine.portfolio.qty, 10)
         XCTAssertEqual(engine.portfolio.cash, cashBefore - buy.notional - buyFee)
-        XCTAssertEqual(engine.portfolio.avgCost, buy.avgFillPrice, accuracy: 0.001)
+        // 평단 = 수수료 포함 취득원가 (본전가)
+        XCTAssertEqual(engine.portfolio.avgCost,
+                       buy.avgFillPrice + Double(buyFee) / 10, accuracy: 0.001)
 
         let sell = try engine.placeMarketOrder(side: .sell, qty: 10)
         let sellFee = engine.config.sellFee(on: sell.notional)
@@ -157,6 +159,10 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(engine.portfolio.qty, 0)
         XCTAssertEqual(engine.portfolio.cash,
                        cashBefore - buy.notional - buyFee + sell.notional - sellFee)
+        // Σ실현손익 = 현금 변화 — 실현손익이 매수·매도 수수료를 모두 반영한다
+        XCTAssertEqual(engine.portfolio.realizedPnL,
+                       Double(engine.portfolio.cash - cashBefore), accuracy: 0.001,
+                       "전량 청산 후 실현손익은 현금 변화와 일치해야 한다")
     }
 
     func testBuyRejectedWhenCashInsufficient() {

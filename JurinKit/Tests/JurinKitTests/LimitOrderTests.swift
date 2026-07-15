@@ -32,8 +32,9 @@ final class LimitOrderTests: XCTestCase {
         XCTAssertEqual(totalFilled, 100)
         XCTAssertEqual(engine.portfolio.qty, 100)
         XCTAssertEqual(engine.portfolio.reservedCash, 0, "체결 후 예약금은 전부 정산")
-        XCTAssertEqual(engine.portfolio.avgCost, Double(price), accuracy: 0.001,
-                       "지정가 대기 체결은 정확히 지정한 값에 산다 — 슬리피지 0")
+        XCTAssertEqual(engine.portfolio.avgCost,
+                       Double(price) + Double(engine.portfolio.feesPaid) / 100, accuracy: 0.001,
+                       "지정가 대기 체결은 정확히 지정한 값에 산다 — 슬리피지 0, 평단은 수수료 포함")
         XCTAssertEqual(engine.portfolio.cash,
                        cashBefore - price * 100 - engine.portfolio.feesPaid)
     }
@@ -114,7 +115,9 @@ final class LimitOrderTests: XCTestCase {
         engine.restoreFill(side: .buy, price: 52_000, qty: 30)
 
         XCTAssertEqual(engine.portfolio.qty, 30)
-        XCTAssertEqual(engine.portfolio.avgCost, 52_000, accuracy: 0.001)
+        let fee = engine.config.buyFee(on: 52_000 * 30)
+        XCTAssertEqual(engine.portfolio.avgCost,
+                       52_000 + Double(fee) / 30, accuracy: 0.001)
         XCTAssertEqual(engine.candles, candlesBefore, "복원은 시장을 건드리지 않는다")
     }
 }

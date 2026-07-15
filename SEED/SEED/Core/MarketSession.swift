@@ -142,6 +142,7 @@ final class MarketSession {
         }
 
         // 전 종목 주문을 틱 순으로 리플레이 — 현금 흐름의 시간 순서를 보존한다
+        let replayedTimeline = !restoredTargets.isEmpty
         if !restoredTargets.isEmpty {
             for log in store?.replayableLogs() ?? [] {
                 // ETF 체결은 기록된 NAV 그대로 원장에만 반영 (호가창 없음)
@@ -173,8 +174,42 @@ final class MarketSession {
         self.etfFunds = funds
         self.startPrices = engines.mapValues { $0.candles.last?.close ?? $0.lastPrice }
 
+        // 미체결 지정가 복원 — 같은 시드·틱으로 되살린 같은 시장에 재접수한다.
+        // (스냅샷 폴백 = 다른 시장이므로 재접수하지 않는다 — 기존 전제 유지)
+        if replayedTimeline {
+            restoreOpenOrders()
+        }
+
         for code in freshCodes {
             persistSymbol(code)
+        }
+    }
+
+    /// 재시작 전에 걸려 있던 지정가를 다시 접수한다. 큐 순번은 근사(맨 뒤 합류)이고,
+    /// 리플레이 근사 오차로 시장이 지정가를 지나쳐 있으면 즉시 체결 — 정상 흐름으로 기록한다.
+    private func restoreOpenOrders() {
+        for spec in SymbolCatalog.all {
+            guard let data = store?.openOrdersData(code: spec.code),
+                  let saved = try? JSONDecoder().decode([PersistedOrder].self, from: data),
+                  let engine = engines[spec.code] else { continue }
+            for order in saved {
+                guard let side = Side(rawValue: order.sideRaw) else { continue }
+                let tag = TradeReasonTag(rawValue: order.tagRaw)
+                    ?? (side == .buy ? .gutBuy : .gutSell)
+                let avgBefore = ledger.avgCost(of: spec.code)
+                guard let result = try? engine.placeLimitOrder(
+                    side: side, price: order.price, qty: order.qty) else { continue }
+                if let resting = result.restingOrder {
+                    limitTags["\(spec.code)#\(resting.id)"] = tag
+                }
+                if let fill = result.immediateFill {
+                    store?.record(fill: fill, tag: tag, symbol: spec.name,
+                                  avgCostBeforeOrder: avgBefore,
+                                  atTick: engine.tick,
+                                  atCandleIndex: engine.candles.count,
+                                  wasLimit: true)
+                }
+            }
         }
     }
 
@@ -311,9 +346,31 @@ final class MarketSession {
 
     // MARK: 연속성
 
+    /// 미체결 지정가의 영속 형태 (SymbolState.openOrdersData)
+    struct PersistedOrder: Codable {
+        let sideRaw: String
+        let price: Int
+        let qty: Int
+        let tagRaw: String
+    }
+
     private func persistSymbol(_ code: String) {
         guard let engine = engines[code], let seed = engineSeeds[code] else { return }
-        store?.persistSymbolState(code: code, seed: seed, tick: engine.tick)
+        store?.persistSymbolState(code: code, seed: seed, tick: engine.tick,
+                                  openOrders: encodedOpenOrders(code: code, engine: engine))
+    }
+
+    private func encodedOpenOrders(code: String, engine: MarketEngine) -> Data? {
+        guard !engine.openOrders.isEmpty else { return nil }
+        let orders = engine.openOrders.map { order in
+            PersistedOrder(
+                sideRaw: order.side.rawValue,
+                price: order.price,
+                qty: order.remainingQty,
+                tagRaw: (limitTags["\(code)#\(order.id)"]
+                         ?? (order.side == .buy ? .gutBuy : .gutSell)).rawValue)
+        }
+        return try? JSONEncoder().encode(orders)
     }
 
     func persistState() {

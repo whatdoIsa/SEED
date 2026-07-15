@@ -52,13 +52,21 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 
 ## 진행 중 / 다음 할 일
 1. **스크린샷 6장 제작** (남은 유일한 개발 제출물) — 샷리스트는 `claudedocs/appstore-메타데이터.md`. 시뮬 캡처로 원본 제작 가능.
-2. **[사용자] ASC 마무리**: ①구독 그룹(SEED Pro) 현지화 채우기(그룹 표시명 — 미채우면 상품이 메타데이터 누락으로 남음) ②연간 구독 `seed.pro.yearly.v2`로 등록(월간 v2는 제출 준비 완료됨) ③`seed.track.etf` 등록 ④개인정보 URL(`arcseed.kr/ko/privacy`)·지원 URL(`/seed`) 입력 ⑤App Privacy 라벨. 구독 심사 스크린샷 = 바탕화면 `iap-screenshot-pro.png`.
+2. **[사용자] 튜터 워커 보안 마무리** (코드리뷰 후속 — `claudedocs/코드리뷰-2026-07.md` 참고): ①console.anthropic.com → Settings → Limits에서 **월 지출 한도** 설정(비용 폭주 최후 방어벽) ②Cloudflare 대시보드에서 `server/tutor-worker.js` 새 버전 재배포(붙여넣기) + Secret `CLIENT_TOKEN` 추가(값 = 로컬 `SEED/SEED/Learn/TutorSecrets.swift`의 clientToken과 동일). 재배포 전까지는 구버전 워커가 새 헤더를 무시하므로 앱 동작에 지장 없음.
+3. **[사용자] ASC 마무리**: ①구독 그룹(SEED Pro) 현지화 채우기(그룹 표시명 — 미채우면 상품이 메타데이터 누락으로 남음) ②연간 구독 `seed.pro.yearly.v2`로 등록(월간 v2는 제출 준비 완료됨) ③`seed.track.etf` 등록 ④개인정보 URL(`arcseed.kr/ko/privacy`)·지원 URL(`/seed`) 입력 ⑤App Privacy 라벨. 구독 심사 스크린샷 = 바탕화면 `iap-screenshot-pro.png`.
 3. **[사용자] 홈페이지 문안 2건 붙여넣기**: `legal-docs-요약.md`의 §1-A(AI 튜터 개인정보 조항→/ko/privacy)·§2-A(구독·환불 조항→/ko/terms). 붙여넣기 전 심사 제출 금지.
 4. **실기기 검증 대기**: 사용자 iPhone 17 Pro에서 **AI 체험 카드**(복기 탭, EmptyView task 앵커 버그 수정 후 재확인 요청한 상태 — 마지막 미확인), 구독 v2 샌드박스, 알림 3종, 위젯 딥링크, **재설치 iCloud 현금 복원**(삭제→재설치→수 초 내 매매기록과 함께 현금·보유 합류 — fix/icloud-cash-restore) + **아침 복습이 진행 트랙 문제를 내는지**(fix/morning-quiz-target). main Archive → TestFlight.
 5. **출시 후 백로그** (우선순위): 친구 대결(결정론 시드 → 도전 링크, 서버 불요) > 차트게임 스낵 모드(§11 프레임 필수) > MetricKit 로컬 진단+문의 첨부 > 트랙3 크립토 > 시즌 누적 프로필. Pro 체험(주간복기 AI 1회 무료)은 구현 완료.
 6. 보류: CloudKit 프로덕션 스키마 배포(icloud.developer.apple.com — TestFlight iCloud 동기화에 필요). 베타 프로모 코드. KPI 게이트: D7 리텐션 20%+.
 
 ## 주의사항
+- **저장소가 public** (github.com/whatdoIsa/SEED) — 시크릿은 절대 커밋 금지. `SEED/SEED/Learn/TutorSecrets.swift`(워커 공유 토큰)는 gitignore 대상이라 **새 장비 체크아웃 시 수동 복원 필요**(없으면 빌드 실패). 값 변경 시 Cloudflare Secret `CLIENT_TOKEN`도 같이 교체.
+- 튜터 크레딧·지급 기록은 `NSUbiquitousKeyValueStore`(iCloud KV, TutorCloudStore) — UserDefaults로 되돌리면 재설치 시 유료 크레딧 증발. entitlements에 kvstore 권한 추가됨.
+- 평단(avgCost) = **매수 수수료 포함 취득원가**(본전가). Σ실현손익 = 현금 변화 불변식이 테스트로 고정돼 있음.
+- 사용자 주문은 자기 대기 주문과 체결되지 않음(STP) — OrderBook의 `excluding` 파라미터. 봇·에이전트 경로는 영향 없음.
+- 미체결 지정가는 SymbolState.openOrdersData로 영속 — 정확 리플레이 경로에서만 재접수(스냅샷 폴백 시 소멸, 의도된 것).
+- 차트 MA는 전체 히스토리로 계산 후 창만 그림 — 창 슬라이스로 계산하면 MA60/120이 사라진다 (ChartCanvas.windowedMA).
+- 복기 탭은 방문 시점 스냅샷(ReportSnapshot) — body에서 store 집계·session을 직접 읽으면 틱마다 재실행된다. 부검(AutopsyView)도 equity 스냅샷 방식. AI 지문(fingerprint)에 틱마다 변하는 값 넣지 말 것.
 - Xcode 스킴에 `queueDebuggingEnabled=No` 필수 유지 (디버거 크래시 방지 — 절대 되돌리지 말 것)
 - `Info.plist`(부분)·`WidgetInfo.plist`·entitlements 2개·`Products.storekit`는 프로젝트 루트/SEED에 있음 — 동기화 폴더 밖 (리소스 충돌 방지)
 - 오늘의 장 완료 기록 = `daily.YYYYMMDD` LessonProgress. 스트릭·패턴은 날짜에서 결정론 재계산

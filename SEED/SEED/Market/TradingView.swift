@@ -16,6 +16,9 @@ struct TradingView: View {
     @State private var miniReviewText: String?
     @State private var hasTraded = true
     @State private var newsBanner: (text: String, positive: Bool, marketWide: Bool)?
+    /// 배너 자동 소멸 세대 — 연속 이벤트 시 앞선 타이머가 새 배너를 조기에 지우는 것 방지
+    @State private var newsBannerGeneration = 0
+    @State private var miniReviewGeneration = 0
     @State private var showsCryptoIntro = false
     @State private var showsWhySynthetic = false
     /// 체결 결과 시트가 닫힌 뒤 요청할 평가 모멘트 (전환 중 요청은 무시되므로)
@@ -193,8 +196,11 @@ struct TradingView: View {
             withAnimation(.snappy(duration: 0.3)) {
                 newsBanner = (NewsHeadlines.text(for: event), event.isPositive, event.isMarketWide)
             }
+            newsBannerGeneration += 1
+            let generation = newsBannerGeneration
             Task {
                 try? await Task.sleep(for: .seconds(5))
+                guard generation == newsBannerGeneration else { return }
                 withAnimation(.easeOut(duration: 0.3)) { newsBanner = nil }
             }
         }
@@ -604,8 +610,11 @@ struct TradingView: View {
 
     private func showMiniReview(_ text: String) {
         miniReviewText = text
+        miniReviewGeneration += 1
+        let generation = miniReviewGeneration
         Task {
             try? await Task.sleep(for: .seconds(4))
+            guard generation == miniReviewGeneration else { return }
             miniReviewText = nil
         }
     }

@@ -397,6 +397,7 @@ struct LessonListView: View {
                 // 레슨 커버가 닫히는 애니메이션과 겹치지 않게 반 박자 늦춰 연다
                 Task {
                     try? await Task.sleep(for: .seconds(0.6))
+                    guard !Task.isCancelled else { return }
                     selectedTrack = TrackCatalog.etf
                 }
             }
@@ -737,6 +738,7 @@ struct TapBullishMissionView: View {
         .task {
             for i in 1...candles.count {
                 try? await Task.sleep(for: .milliseconds(550))
+                guard !Task.isCancelled else { return }
                 revealedCount = i
             }
         }

@@ -488,6 +488,8 @@ final class MarketSession {
     private var limitTags: [String: TradeReasonTag] = [:]
     /// 방금 체결된 대기 주문 알림 (UI 배너)
     private(set) var limitFillNotice: String?
+    /// 배너 소멸 세대 — 연속 체결 시 앞선 타이머가 새 배너를 조기에 지우는 것 방지
+    private var limitFillNoticeGeneration = 0
 
     func placeLimitOrder(side: Side, price: Int, qty: Int, tag: TradeReasonTag)
     -> Result<MarketEngine.LimitOrderResult, OrderError> {
@@ -546,8 +548,11 @@ final class MarketSession {
                                 seeds: engineSeeds)
         }
         if limitFillNotice != nil {
+            limitFillNoticeGeneration += 1
+            let generation = limitFillNoticeGeneration
             Task {
                 try? await Task.sleep(for: .seconds(4))
+                guard generation == limitFillNoticeGeneration else { return }
                 limitFillNotice = nil
             }
         }

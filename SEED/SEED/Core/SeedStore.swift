@@ -515,6 +515,8 @@ final class SeedStore {
         progress = fresh
         completedLessonIds = []
         try? context.save()
+        // 위젯도 초기화 — 안 하면 지워진 스트릭을 무기한 계속 보여준다
+        WidgetBridge.sync(completed: [])
         Analytics.log(.accountReset, ["reason": "erase-all"])
     }
 

@@ -119,6 +119,9 @@ struct TutorView: View {
                 .foregroundStyle(SeedTheme.textSecondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
+            Text("질문은 답변 생성을 위해 AI 서버로 전송돼요")
+                .font(.system(size: 11))
+                .foregroundStyle(SeedTheme.textSecondary.opacity(0.7))
 
             VStack(spacing: 7) {
                 ForEach(starterQuestions, id: \.self) { question in

@@ -135,16 +135,39 @@ public struct SeededRNG: RandomNumberGenerator {
         return z ^ (z >> 31)
     }
 
+    // 구간 매핑·셔플은 stdlib(Double.random/Int.random/shuffled)에 맡기지 않고
+    // 여기 고정 구현한다 — stdlib 알고리즘은 OS에 내장되어 iOS 업데이트로 바뀔 수 있고,
+    // 바뀌는 순간 같은 시드의 리플레이(저장된 전 세션)가 통째로 다른 시장이 된다.
+
+    /// [0, 1) 균등 — 상위 53비트를 가수로 사용하는 표준 기법.
+    public mutating func double01() -> Double {
+        Double(next() >> 11) * 0x1.0p-53
+    }
+
     public mutating func double(in range: ClosedRange<Double>) -> Double {
-        Double.random(in: range, using: &self)
+        range.lowerBound + (range.upperBound - range.lowerBound) * double01()
     }
 
     public mutating func int(in range: ClosedRange<Int>) -> Int {
-        Int.random(in: range, using: &self)
+        // 모듈로 방식 — span < 2^32에서 편향은 2^-32 미만으로 무시 가능. 결정론이 우선.
+        let span = UInt64(bitPattern: Int64(range.upperBound &- range.lowerBound)) &+ 1
+        guard span != 0 else { return Int(bitPattern: UInt(next())) } // 전체 Int 범위 (실사용 없음)
+        return range.lowerBound &+ Int(next() % span)
     }
 
     public mutating func chance(_ p: Double) -> Bool {
-        double(in: 0...1) < p
+        double01() < p
+    }
+
+    /// 자체 Fisher–Yates — stdlib shuffled(using:)의 알고리즘 변경으로부터 격리.
+    public mutating func shuffled<T>(_ array: [T]) -> [T] {
+        var result = array
+        guard result.count > 1 else { return result }
+        for i in stride(from: result.count - 1, through: 1, by: -1) {
+            let j = int(in: 0...i)
+            if i != j { result.swapAt(i, j) }
+        }
+        return result
     }
 }
 

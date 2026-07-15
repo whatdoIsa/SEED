@@ -318,7 +318,7 @@ public final class MarketEngine {
 
         if isInAuction {
             // 주문 수집 구간: 체결 없이 의향만 쌓인다
-            for agent in agents.shuffled(using: &rng) {
+            for agent in rng.shuffled(agents) {
                 for intent in agent.act(ctx, rng: &rng) {
                     switch intent.kind {
                     case .limit(let price, let qty) where qty > 0 && price > 0:
@@ -336,7 +336,7 @@ public final class MarketEngine {
                 runAuctionClearing()
             }
         } else {
-            for agent in agents.shuffled(using: &rng) {
+            for agent in rng.shuffled(agents) {
                 if agent.refreshesQuotes { book.cancelAll(agentId: agent.id) }
                 for intent in agent.act(ctx, rng: &rng) {
                     apply(intent, from: agent.id)

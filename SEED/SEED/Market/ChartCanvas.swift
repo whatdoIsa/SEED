@@ -100,11 +100,17 @@ struct ChartCanvas: View {
             }
             if showsVolumeAndMA {
                 drawVolume(context, m)
-                drawMA(m.all.movingAverage(period: 5), color: Color(hex: 0x22C55E), context, m)
-                drawMA(m.all.movingAverage(period: 20), color: SeedTheme.up, context, m)
+                // MA는 전체 히스토리로 계산하고 보이는 창만 그린다 — 창(기본 40개) 슬라이스로
+                // 계산하면 창보다 긴 주기(60·120)는 한 점도 안 그려지고, 5·20도 왼쪽이 빈다.
+                drawMA(windowedMA(period: 5, windowCount: m.all.count),
+                       color: Color(hex: 0x22C55E), context, m)
+                drawMA(windowedMA(period: 20, windowCount: m.all.count),
+                       color: SeedTheme.up, context, m)
                 if detailed {
-                    drawMA(m.all.movingAverage(period: 60), color: Color(hex: 0xF59E0B), context, m)
-                    drawMA(m.all.movingAverage(period: 120), color: Color(hex: 0x8B5CF6), context, m)
+                    drawMA(windowedMA(period: 60, windowCount: m.all.count),
+                           color: Color(hex: 0xF59E0B), context, m)
+                    drawMA(windowedMA(period: 120, windowCount: m.all.count),
+                           color: Color(hex: 0x8B5CF6), context, m)
                 }
             }
             if detailed {
@@ -172,6 +178,12 @@ struct ChartCanvas: View {
         }
     }
 
+    /// 전체 히스토리 기준 이동평균에서 보이는 창 구간만 잘라낸다.
+    /// m.all(= candles 끝부분 + current)과 인덱스가 1:1로 정렬된다.
+    private func windowedMA(period: Int, windowCount: Int) -> [Double?] {
+        Array((candles + [current]).movingAverage(period: period).suffix(windowCount))
+    }
+
     private func drawMA(_ values: [Double?], color: Color,
                         _ context: GraphicsContext, _ m: Metrics) {
         var path = Path()
@@ -181,7 +193,10 @@ struct ChartCanvas: View {
             let point = CGPoint(x: m.x(i), y: m.yD(value))
             if started { path.addLine(to: point) } else { path.move(to: point); started = true }
         }
-        context.stroke(path, with: .color(color), lineWidth: 1.2)
+        // 전체 히스토리 기준 MA는 보이는 창의 가격 범위를 벗어날 수 있다 — 가격 영역에만 그린다
+        var clipped = context
+        clipped.clip(to: Path(CGRect(x: 0, y: 0, width: m.plotWidth, height: m.chartHeight)))
+        clipped.stroke(path, with: .color(color), lineWidth: 1.2)
     }
 
     // MARK: 거래량
@@ -197,22 +212,30 @@ struct ChartCanvas: View {
         }
         guard detailed else { return }
 
-        // 거래량 이동평균 (초록 선) — 평소 대비 얼마나 뜨거운가
-        let volumes = m.all.map(\.volume)
-        var volMA = Path()
-        var started = false
+        // 거래량 이동평균 (초록 선) — 평소 대비 얼마나 뜨거운가.
+        // 가격 MA와 마찬가지로 전체 히스토리로 계산해 창 왼쪽이 비지 않게 한다.
+        let volumes = (candles + [current]).map(\.volume)
         let period = 20
+        var fullMA: [Double?] = []
         var windowSum = 0
         for (i, volume) in volumes.enumerated() {
             windowSum += volume
             if i >= period { windowSum -= volumes[i - period] }
-            guard i >= period - 1 else { continue }
-            let avg = Double(windowSum) / Double(period)
+            fullMA.append(i >= period - 1 ? Double(windowSum) / Double(period) : nil)
+        }
+        var volMA = Path()
+        var started = false
+        for (i, avg) in fullMA.suffix(m.all.count).enumerated() {
+            guard let avg else { continue }
             let y = m.volumeTop + m.volumeHeight * (1 - CGFloat(avg / Double(m.maxVolume)))
             let point = CGPoint(x: m.x(i), y: y)
             if started { volMA.addLine(to: point) } else { volMA.move(to: point); started = true }
         }
-        context.stroke(volMA, with: .color(Color(hex: 0x22C55E)), lineWidth: 1.2)
+        // 창 밖 캔들이 섞인 평균은 창 최대 거래량을 넘을 수 있다 — 거래량 영역에만 그린다
+        var clippedVolume = context
+        clippedVolume.clip(to: Path(CGRect(x: 0, y: m.volumeTop,
+                                           width: m.plotWidth, height: m.volumeHeight)))
+        clippedVolume.stroke(volMA, with: .color(Color(hex: 0x22C55E)), lineWidth: 1.2)
 
         context.draw(
             Text("거래량 (20)").font(.system(size: 9, weight: .medium))

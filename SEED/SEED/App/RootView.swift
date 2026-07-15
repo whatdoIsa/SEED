@@ -27,6 +27,9 @@ struct RootView: View {
             for delay in [8, 20, 45] {
                 try? await Task.sleep(for: .seconds(delay))
                 store.refreshAfterRemoteImport()
+                // 복원된 시장 상태가 합류했으면 세션(원장·엔진)을 다시 구성 —
+                // 없으면 매매 기록만 보이고 현금은 초기값으로 남는다
+                session.adoptRemoteStateIfNeeded()
             }
         }
         .onChange(of: scenePhase) { _, phase in
@@ -36,6 +39,7 @@ struct RootView: View {
             if phase == .active {
                 // iCloud 복원분(늦게 도착)을 화면에 합류시키고 중복 레코드를 정리
                 store.refreshAfterRemoteImport()
+                session.adoptRemoteStateIfNeeded()
                 SeedNotifications.rescheduleIfAuthorized(
                     weeklyTradeCount: store.weeklyTradeCount(),
                     dailyDoneToday: store.isLessonDone(DailyMarket.id()))

@@ -82,6 +82,7 @@ final class SeedStore {
         log.atTick = atTick
         log.atCandleIndex = atCandleIndex
         log.isLimitFill = wasLimit
+        log.timelineEpoch = currentSeason.timelineEpoch
         context.insert(log)
         try? context.save()
 
@@ -99,25 +100,42 @@ final class SeedStore {
 
     func persistSymbolState(code: String, seed: UInt64, tick: Int) {
         let seasonNumber = currentSeason.number
-        let existing = (try? context.fetch(FetchDescriptor<SymbolState>(
+        let bits = Int64(bitPattern: seed)
+        let states = (try? context.fetch(FetchDescriptor<SymbolState>(
             predicate: #Predicate { $0.code == code && $0.seasonNumber == seasonNumber }
-        )))?.first
-        if let existing {
-            existing.lastTick = tick
-            existing.seedBits = Int64(bitPattern: seed)
+        ))) ?? []
+        if let own = states.first(where: { $0.seedBits == bits }) {
+            own.lastTick = tick
         } else {
+            // 다른 시드의 기존 레코드(iCloud 복원분)는 덮어쓰지 않는다 — 재설치 직후
+            // 임포트 전 창에서 복원 상태를 덮어쓰면 리플레이가 영구 불능이 된다.
+            // 자기 레코드를 새로 만들고, 중복은 refreshAfterRemoteImport가 병합한다.
             context.insert(SymbolState(seasonNumber: seasonNumber, code: code,
-                                       seedBits: Int64(bitPattern: seed), lastTick: tick))
+                                       seedBits: bits, lastTick: tick))
         }
         currentSeason.lastActiveAt = .now
         try? context.save()
     }
 
+    /// 타임라인 리셋(스냅샷 폴백) 전용 — 이 종목의 시장 상태를 의도적으로 새로 교체한다.
+    func replaceSymbolState(code: String, seed: UInt64, tick: Int) {
+        let seasonNumber = currentSeason.number
+        let states = (try? context.fetch(FetchDescriptor<SymbolState>(
+            predicate: #Predicate { $0.code == code && $0.seasonNumber == seasonNumber }
+        ))) ?? []
+        for state in states { context.delete(state) }
+        context.insert(SymbolState(seasonNumber: seasonNumber, code: code,
+                                   seedBits: Int64(bitPattern: seed), lastTick: tick))
+        try? context.save()
+    }
+
     func symbolState(code: String) -> (seed: UInt64, tick: Int)? {
         let seasonNumber = currentSeason.number
-        guard let state = (try? context.fetch(FetchDescriptor<SymbolState>(
+        let states = (try? context.fetch(FetchDescriptor<SymbolState>(
             predicate: #Predicate { $0.code == code && $0.seasonNumber == seasonNumber }
-        )))?.first else { return nil }
+        ))) ?? []
+        // 병합 전 중복이 있으면 진행 틱이 큰 쪽(복원본)을 신뢰한다
+        guard let state = states.max(by: { $0.lastTick < $1.lastTick }) else { return nil }
         return (UInt64(bitPattern: state.seedBits), state.lastTick)
     }
 
@@ -134,10 +152,38 @@ final class SeedStore {
         return seed
     }
 
-    /// 리플레이 대상: 현재 시즌의 본 세션 매매 (시나리오 제외), 틱 순.
-    func replayableLogs() -> [TradeLog] {
+    // MARK: 원장 타임라인 (베이스라인 + 에포크)
+
+    /// 현재 타임라인 번호 — 스냅샷 폴백으로 시장을 리셋할 때마다 +1. (nil = 0)
+    var timelineEpoch: Int { currentSeason.timelineEpoch ?? 0 }
+
+    /// 시즌의 원장 베이스라인 — 타임라인 리셋 시점의 계좌 상태.
+    /// 부팅 시 원장을 여기서 시작하고, 현재 타임라인의 매매만 리플레이하면 된다.
+    func ledgerBaseline() -> LedgerSnapshot? {
+        guard let data = currentSeason.ledgerBaselineData else { return nil }
+        return try? JSONDecoder().decode(LedgerSnapshot.self, from: data)
+    }
+
+    /// 타임라인 리셋: 현재 계좌 상태를 베이스라인으로 못박고 에포크를 올린다.
+    /// 이전 매매는 베이스라인에 반영됐으므로 이후 리플레이에서 제외된다.
+    func beginNewTimeline(baseline: LedgerSnapshot) {
+        currentSeason.timelineEpoch = timelineEpoch + 1
+        currentSeason.ledgerBaselineData = try? JSONEncoder().encode(baseline)
+        try? context.save()
+    }
+
+    /// 이번 시즌의 본 세션 실매매 전부 (시나리오 제외) — 복기·매매지도의 원료.
+    private func seasonRealLogs() -> [TradeLog] {
         seasonLogs()
             .filter { $0.scenarioId == nil && $0.atTick != nil }
+            .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    /// 리플레이 대상: 현재 타임라인의 본 세션 매매, 틱 순.
+    func replayableLogs() -> [TradeLog] {
+        let epoch = timelineEpoch
+        return seasonRealLogs()
+            .filter { ($0.timelineEpoch ?? 0) == epoch }
             .sorted { ($0.atTick ?? 0) < ($1.atTick ?? 0) }
     }
 
@@ -158,9 +204,9 @@ final class SeedStore {
         return (try? context.fetchCount(descriptor)) ?? 0
     }
 
-    /// 왕복 매매 페어링 (A) — 보유 습관의 원료.
+    /// 왕복 매매 페어링 (A) — 보유 습관의 원료. 타임라인과 무관하게 시즌 전체.
     func roundTrips() -> [RoundTrip] {
-        TradePairing.roundTrips(logs: replayableLogs())
+        TradePairing.roundTrips(logs: seasonRealLogs())
     }
 
     func holdingStats() -> HoldingStats? {
@@ -169,7 +215,7 @@ final class SeedStore {
 
     /// 매매 지도 마커 (M4 — 부록 A-4의 aha 모먼트). 종목별.
     func tradeMarks(symbolName: String) -> [(candleIndex: Int, price: Double, side: Side)] {
-        replayableLogs().compactMap { log in
+        seasonRealLogs().compactMap { log in
             guard log.symbol == symbolName, let index = log.atCandleIndex else { return nil }
             return (index, log.avgFillPrice, log.side)
         }
@@ -395,14 +441,20 @@ final class SeedStore {
             progress = first
         }
 
-        // 시즌: 활성(endedAt == nil) 중 복원본(엔진 시드 보유) 우선, 나머지 빈 껍데기 제거
+        // 시즌: 활성(endedAt == nil)이 여러 개면 병합 — 높은 번호 우선, 같은 번호면
+        // 먼저 시작한 쪽(복원 원본)을 남긴다. 새 기기 부트스트랩이 만든 빈 시즌은
+        // startedAt이 더 늦다. 기후 시드·원장 베이스라인이 원본에 있으므로
+        // 원본을 잃으면 리플레이가 어긋난다.
         let seasons = (try? context.fetch(FetchDescriptor<Season>(
             sortBy: [SortDescriptor(\.number, order: .reverse)]
         ))) ?? []
         let active = seasons.filter { $0.endedAt == nil }
         if active.count > 1 {
-            let best = active.first { $0.engineSeedBits != nil } ?? active[0]
-            for extra in active where extra !== best && extra.engineSeedBits == nil {
+            let best = active.min { a, b in
+                if a.number != b.number { return a.number > b.number }
+                return a.startedAt < b.startedAt
+            }!
+            for extra in active where extra !== best {
                 context.delete(extra)
             }
             currentSeason = best

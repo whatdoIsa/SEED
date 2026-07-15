@@ -60,7 +60,9 @@ public final class AccountLedger {
         let cost = result.notional
         let newQty = holding.qty + result.filledQty
         if newQty > 0 {
-            holding.avgCost = (holding.avgCost * Double(holding.qty) + Double(cost)) / Double(newQty)
+            // 취득원가에 매수 수수료 산입 (증권사 관행) — 평단이 '본전가'가 되고,
+            // 매도 시 실현손익이 양쪽 수수료를 모두 반영해 Σ실현손익 = 현금 변화가 성립한다.
+            holding.avgCost = (holding.avgCost * Double(holding.qty) + Double(cost + fee)) / Double(newQty)
         }
         holding.qty = newQty
         holdings[symbol] = holding
@@ -102,7 +104,8 @@ public final class AccountLedger {
         var holding = holding(of: symbol)
         let newQty = holding.qty + fillQty
         if newQty > 0 {
-            holding.avgCost = (holding.avgCost * Double(holding.qty) + Double(cost)) / Double(newQty)
+            // 매수 수수료 취득원가 산입 — applyBuy와 동일 정책
+            holding.avgCost = (holding.avgCost * Double(holding.qty) + Double(cost + fee)) / Double(newQty)
         }
         holding.qty = newQty
         holdings[symbol] = holding

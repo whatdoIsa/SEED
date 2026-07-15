@@ -162,9 +162,17 @@ struct QuantBuilderView: View {
     // MARK: 장별 성적표 — 전략의 강건성이 한 눈에
 
     private func runMatrix() {
+        isRunning = true
         let strategy = currentStrategy
-        matrix = DojoScenario.allCases.map { item in
-            (item.label, BotComparison.run(strategy: strategy, scenario: item.preset))
+        // 백테스트 4회를 버튼 액션에서 동기 실행하면 UI가 그대로 얼어붙는다
+        Task.detached(priority: .userInitiated) {
+            let rows = DojoScenario.allCases.map { item in
+                (item.label, BotComparison.run(strategy: strategy, scenario: item.preset))
+            }
+            await MainActor.run {
+                matrix = rows
+                isRunning = false
+            }
         }
     }
 
@@ -534,10 +542,13 @@ struct QuantBuilderView: View {
         isRunning = true
         let strategy = currentStrategy
         let scenario = scenarios[scenarioIndex].make()
-        Task {
+        // MainActor 상속 Task는 메인 스레드를 그대로 막아 스피너가 한 프레임도 못 돈다
+        Task.detached(priority: .userInitiated) {
             let result = BotComparison.run(strategy: strategy, scenario: scenario)
-            run = result
-            isRunning = false
+            await MainActor.run {
+                run = result
+                isRunning = false
+            }
         }
     }
 

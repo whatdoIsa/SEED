@@ -69,6 +69,17 @@ final class PurchaseStore {
         products.first { $0.id == id }
     }
 
+    /// 연간 구독의 월간×12 대비 할인율(%) — 실제 스토어 가격에서 계산.
+    /// 하드코딩하면 ASC에서 가격을 바꾸는 순간 허위 표시가 된다. 상품 미로드 시 nil.
+    var yearlyDiscountPct: Int? {
+        guard let monthly = product(Self.proMonthlyID)?.price,
+              let yearly = product(Self.proYearlyID)?.price,
+              monthly > 0 else { return nil }
+        let full = monthly * 12
+        let pct = NSDecimalNumber(decimal: (full - yearly) / full * 100).doubleValue
+        return pct >= 1 ? Int(pct.rounded()) : nil
+    }
+
     // MARK: 구매
 
     func purchase(_ product: Product) async {

@@ -54,3 +54,16 @@ final class RealismTests: XCTestCase {
         XCTAssertEqual(a.newsFeed, b.newsFeed, "뉴스도 시드에 종속 — 리플레이 연속성 유지")
     }
 }
+
+/// SeededRNG의 구간 매핑·셔플을 값으로 고정한다.
+/// 이 테스트가 깨지는 변경 = 저장된 전 세션의 리플레이가 깨지는 변경 — 절대 알고리즘을 바꾸지 말 것.
+final class RNGPinningTests: XCTestCase {
+    func testMappingIsPinnedForever() {
+        var rng = SeededRNG(seed: 42)
+        XCTAssertEqual(rng.int(in: 0...100), 23)
+        XCTAssertEqual(rng.double(in: -1...1), -0.6801792142461598, accuracy: 1e-15)
+        XCTAssertEqual(rng.double01(), 0.27860113025513866, accuracy: 1e-15)
+        XCTAssertEqual(rng.int(in: 1_000...52_000), 21_379)
+        XCTAssertEqual(rng.shuffled(Array(1...8)), [1, 7, 8, 6, 4, 2, 5, 3])
+    }
+}

@@ -138,6 +138,9 @@ final class SymbolState {
     var code: String = ""
     var seedBits: Int64 = 0
     var lastTick: Int = 0
+    /// 미체결 지정가 직렬화([MarketSession.PersistedOrder] JSON) — 재시작 시 재접수.
+    /// 없으면 대기 주문이 앱 재시작에서 조용히 증발한다.
+    var openOrdersData: Data?
 
     init(seasonNumber: Int, code: String, seedBits: Int64, lastTick: Int) {
         self.seasonNumber = seasonNumber

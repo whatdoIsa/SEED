@@ -98,7 +98,7 @@ final class SeedStore {
 
     // MARK: 시장 연속성 (종목별 시드 + 틱 + 주문 리플레이)
 
-    func persistSymbolState(code: String, seed: UInt64, tick: Int) {
+    func persistSymbolState(code: String, seed: UInt64, tick: Int, openOrders: Data? = nil) {
         let seasonNumber = currentSeason.number
         let bits = Int64(bitPattern: seed)
         let states = (try? context.fetch(FetchDescriptor<SymbolState>(
@@ -106,15 +106,27 @@ final class SeedStore {
         ))) ?? []
         if let own = states.first(where: { $0.seedBits == bits }) {
             own.lastTick = tick
+            own.openOrdersData = openOrders
         } else {
             // 다른 시드의 기존 레코드(iCloud 복원분)는 덮어쓰지 않는다 — 재설치 직후
             // 임포트 전 창에서 복원 상태를 덮어쓰면 리플레이가 영구 불능이 된다.
             // 자기 레코드를 새로 만들고, 중복은 refreshAfterRemoteImport가 병합한다.
-            context.insert(SymbolState(seasonNumber: seasonNumber, code: code,
-                                       seedBits: bits, lastTick: tick))
+            let fresh = SymbolState(seasonNumber: seasonNumber, code: code,
+                                    seedBits: bits, lastTick: tick)
+            fresh.openOrdersData = openOrders
+            context.insert(fresh)
         }
         currentSeason.lastActiveAt = .now
         try? context.save()
+    }
+
+    /// 미체결 지정가 직렬화 데이터 — 리플레이로 복원된 시장에 재접수할 때 읽는다.
+    func openOrdersData(code: String) -> Data? {
+        let seasonNumber = currentSeason.number
+        let states = (try? context.fetch(FetchDescriptor<SymbolState>(
+            predicate: #Predicate { $0.code == code && $0.seasonNumber == seasonNumber }
+        ))) ?? []
+        return states.max(by: { $0.lastTick < $1.lastTick })?.openOrdersData
     }
 
     /// 타임라인 리셋(스냅샷 폴백) 전용 — 이 종목의 시장 상태를 의도적으로 새로 교체한다.

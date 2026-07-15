@@ -17,3 +17,6 @@ Package.resolved
 # 시크릿 (추후 API 키 등)
 *.xcconfig.local
 .env
+
+# 튜터 워커 공유 토큰 (public 저장소 — 커밋 금지)
+TutorSecrets.swift

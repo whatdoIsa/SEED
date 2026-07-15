@@ -74,6 +74,8 @@ enum TutorService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // 워커와 공유하는 클라이언트 토큰 — 값은 gitignore된 TutorSecrets.swift에만 존재 (저장소가 public)
+        request.setValue(TutorSecrets.clientToken, forHTTPHeaderField: "x-seed-client")
         request.httpBody = try JSONEncoder().encode(
             RequestBody(deviceId: deviceIdentifier, messages: trimmed))
         request.timeoutInterval = 30

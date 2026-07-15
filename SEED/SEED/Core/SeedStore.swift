@@ -307,33 +307,42 @@ final class SeedStore {
         }.count
     }
 
-    /// 복습·실천의 대상 레슨: 본편 + 트랙 2. (하루 1레슨 페이스 카운트와 달리 유료 트랙 포함)
-    private var reviewableLessonIds: Set<String> {
-        Set(LessonCatalog.registered.map(\.id)).union(ETFTrackCatalog.all.map(\.id))
+    /// 복습·실천이 따라가는 트랙: 트랙 1 진행 중엔 트랙 1, 완주 후 트랙 2를 시작했으면 트랙 2.
+    /// completedAt 전역 최신순이 아니라 트랙 진도 기준이라, 다른 트랙 맛보기(무료 1편)나
+    /// iCloud 복원으로 되살아난 옛 기록이 복습을 가로채지 못한다.
+    private var reviewTrackLessonIds: [String] {
+        let track1 = LessonCatalog.all.map(\.id)
+        let track2 = ETFTrackCatalog.all.map(\.id)
+        let track1Done = track1.allSatisfy { completedLessonIds.contains($0) }
+        let track2Started = track2.contains { completedLessonIds.contains($0) }
+        return track1Done && track2Started ? track2 : track1
     }
 
-    /// 오늘 이전에 완료한 가장 최근 레슨 — 아침 복습 퀴즈의 대상.
+    /// lessonId별 가장 최근 완료 시각 — 복원 병합 전의 중복 레코드가 있어도 판정이 흔들리지 않는다.
+    private func latestCompletionDates() -> [String: Date] {
+        let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
+        var latest: [String: Date] = [:]
+        for record in lessons {
+            guard let done = record.completedAt else { continue }
+            latest[record.lessonId] = max(latest[record.lessonId] ?? .distantPast, done)
+        }
+        return latest
+    }
+
+    /// 아침 복습 퀴즈의 대상: 진행 중인 트랙에서 진도상 가장 앞선 완료 편.
+    /// 오늘 완료한 편은 건너뛴다 (배운 건 다음날 꺼내야 하므로) — 그 직전 편으로 물러난다.
     func latestMainLessonCompletedBeforeToday() -> String? {
-        let targetIds = reviewableLessonIds
+        let dates = latestCompletionDates()
         let calendar = Calendar.current
-        let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
-        return lessons
-            .filter { record in
-                guard let done = record.completedAt else { return false }
-                return targetIds.contains(record.lessonId) && !calendar.isDateInToday(done)
-            }
-            .max { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }?
-            .lessonId
+        return reviewTrackLessonIds.reversed().first { id in
+            guard let done = dates[id] else { return false }
+            return !calendar.isDateInToday(done)
+        }
     }
 
-    /// 가장 최근에 완료한 레슨 (오늘 포함) — 오늘의 실천 과제 대상.
+    /// 오늘의 실천 과제 대상: 진행 중인 트랙에서 진도상 가장 앞선 완료 편 (오늘 포함).
     func latestMainLessonCompleted() -> String? {
-        let targetIds = reviewableLessonIds
-        let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
-        return lessons
-            .filter { $0.completedAt != nil && targetIds.contains($0.lessonId) }
-            .max { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }?
-            .lessonId
+        reviewTrackLessonIds.reversed().first { completedLessonIds.contains($0) }
     }
 
     /// 마감된 시즌들 (아카이브) — 번호 순
@@ -353,9 +362,25 @@ final class SeedStore {
     /// 활성화될 때마다 저장소를 다시 읽어 참조를 최신으로 맞추고
     /// (새 기기 부트스트랩이 만든) 중복 레코드를 병합·정리한다. 멱등.
     func refreshAfterRemoteImport() {
-        // 레슨: 완료 집합 재구성 (복원분 합류)
+        // 레슨: 같은 lessonId 중복 병합 — 임포트 도착 전에 새 기기에서 완료한 레코드와
+        // 복원 레코드가 겹칠 수 있다. 완료 시각이 최신인 것을 남긴다
+        // (옛 날짜 레코드가 남으면 오늘 마친 레슨이 아침 복습에 다시 나온다).
         let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
-        completedLessonIds = Set(lessons.filter { $0.completedAt != nil }.map(\.lessonId))
+        var keptLessons: [String: LessonProgress] = [:]
+        for record in lessons {
+            guard let kept = keptLessons[record.lessonId] else {
+                keptLessons[record.lessonId] = record
+                continue
+            }
+            if (record.completedAt ?? .distantPast) > (kept.completedAt ?? .distantPast) {
+                context.delete(kept)
+                keptLessons[record.lessonId] = record
+            } else {
+                context.delete(record)
+            }
+        }
+        // 완료 집합 재구성 (복원분 합류)
+        completedLessonIds = Set(keptLessons.values.filter { $0.completedAt != nil }.map(\.lessonId))
 
         // 진행 상태: 여러 개면 최댓값으로 병합 후 하나만 남긴다
         let allProgress = (try? context.fetch(FetchDescriptor<AppProgress>())) ?? []

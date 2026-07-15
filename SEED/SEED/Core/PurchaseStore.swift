@@ -100,14 +100,14 @@ final class PurchaseStore {
         await transaction.finish()
     }
 
-    /// 소모성 크레딧은 정확히 한 번만 지급 (재시도·중복 전달 방어)
+    /// 소모성 크레딧은 정확히 한 번만 지급 (재시도·중복 전달 방어).
+    /// 지급 기록·잔액은 iCloud KV(TutorCloudStore) — 재설치·기기 이전에도 유료 크레딧이 살아남는다.
     private func grantConsumableOnce(_ transaction: Transaction) {
-        let grantedKey = "seed.iap.granted"
-        var granted = Set(UserDefaults.standard.stringArray(forKey: grantedKey) ?? [])
+        var granted = TutorCloudStore.granted()
         let txID = String(transaction.id)
         guard !granted.contains(txID) else { return }
         granted.insert(txID)
-        UserDefaults.standard.set(Array(granted), forKey: grantedKey)
+        TutorCloudStore.setGranted(granted)
 
         switch transaction.productID {
         case Self.refill10ID: TutorQuota.addCredits(10)
@@ -134,13 +134,13 @@ final class PurchaseStore {
         if pro { grantMonthlyProCreditsIfNeeded() }
     }
 
-    /// Pro: 매월 튜터 40문 지급 (달이 바뀌면 1회)
+    /// Pro: 매월 튜터 40문 지급 (달이 바뀌면 1회 — 기준월도 iCloud KV라 기기 간 중복 지급 없음)
     private func grantMonthlyProCreditsIfNeeded() {
         let key = "seed.pro.creditMonth"
         let parts = Calendar.current.dateComponents([.year, .month], from: .now)
         let month = (parts.year ?? 0) * 100 + (parts.month ?? 0)
-        guard UserDefaults.standard.integer(forKey: key) != month else { return }
-        UserDefaults.standard.set(month, forKey: key)
+        guard TutorCloudStore.int(forKey: key) != month else { return }
+        TutorCloudStore.set(month, forKey: key)
         TutorQuota.addCredits(40)
     }
 }

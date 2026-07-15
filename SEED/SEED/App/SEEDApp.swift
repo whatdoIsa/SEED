@@ -8,6 +8,9 @@ struct SEEDApp: App {
     @State private var store: SeedStore
 
     init() {
+        // 튜터 크레딧 저장소(iCloud KV) — 원격 값 당기기 + 구버전 UserDefaults 병합
+        TutorCloudStore.bootstrap()
+
         // SwiftData의 기본 저장 위치(Application Support)가 첫 실행 시 존재하지 않아
         // 저장소 생성이 실패할 수 있다 — 미리 만들어 두면 실패 경로 자체가 사라진다.
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]

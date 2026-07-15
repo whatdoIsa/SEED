@@ -507,7 +507,8 @@ public final class MarketEngine {
         guard let displayed = displayedPrice(for: side) else { throw OrderError.noLiquidity }
 
         // 실행 전에 정확한 비용을 미리 계산해 잔고를 검증한다 (드라이런).
-        let preview = book.previewMarket(side: side, qty: qty)
+        // 자기 대기 주문은 체결 대상에서 제외 (자기체결 방지 — 수수료 이중 지불·평단 왜곡 방지)
+        let preview = book.previewMarket(side: side, qty: qty, excluding: Self.userAgentId)
         guard !preview.isEmpty else { throw OrderError.noLiquidity }
 
         switch side {
@@ -523,7 +524,8 @@ public final class MarketEngine {
             }
         }
 
-        let (fills, trades) = book.executeMarket(agentId: Self.userAgentId, side: side, qty: qty, tick: tick)
+        let (fills, trades) = book.executeMarket(agentId: Self.userAgentId, side: side, qty: qty,
+                                                 tick: tick, excluding: Self.userAgentId)
         record(trades)
 
         let result = FillResult(side: side, requestedQty: qty, fills: fills, displayedPrice: displayed)
@@ -573,8 +575,8 @@ public final class MarketEngine {
         }
         let displayed = displayedPrice(for: side) ?? price
 
-        // 즉시 교차분 비용 미리 계산 (지정가 이하/이상만 먹는다)
-        let crossable = book.previewMarket(side: side, qty: qty)
+        // 즉시 교차분 비용 미리 계산 (지정가 이하/이상만 먹는다) — 자기 주문 제외
+        let crossable = book.previewMarket(side: side, qty: qty, excluding: Self.userAgentId)
             .filter { side == .buy ? $0.price <= price : $0.price >= price }
         let immediateQty = crossable.reduce(0) { $0 + $1.qty }
         let immediateCost = crossable.reduce(0) { $0 + $1.price * $1.qty }
@@ -594,7 +596,8 @@ public final class MarketEngine {
         }
 
         let (trades, restingId, actualResting) = book.submitLimitTracked(
-            agentId: Self.userAgentId, side: side, price: price, qty: qty, tick: tick)
+            agentId: Self.userAgentId, side: side, price: price, qty: qty, tick: tick,
+            excluding: Self.userAgentId)
         record(trades)
 
         var immediate: FillResult?
@@ -628,6 +631,9 @@ public final class MarketEngine {
 
     /// 대기 주문 취소 — 예약 자금·주식을 돌려준다.
     public func cancelOrder(id: UInt64) {
+        // 취소 전에 이미 체결된 잔량부터 정산 — 정산이 다음 틱으로 밀린 사이 취소하면
+        // 체결분 예약금까지 해제되고 그 체결이 원장에 영영 반영되지 않는 사고 방지.
+        settleUserFills()
         guard let index = openOrders.firstIndex(where: { $0.id == id }) else { return }
         let order = openOrders[index]
         let released = book.cancel(orderId: id, side: order.side, price: order.price)

@@ -449,6 +449,8 @@ final class MarketSession {
 
     func cancelOrder(id: UInt64) {
         engine.cancelOrder(id: id)
+        // 취소 직전에 정산된 체결이 있을 수 있다 — 태그가 살아 있는 동안 먼저 기록
+        processUserFills()
         limitTags["\(activeSymbolCode)#\(id)"] = nil
         persistSymbol(activeSymbolCode)
     }

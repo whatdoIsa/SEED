@@ -120,4 +120,55 @@ final class LimitOrderTests: XCTestCase {
                        52_000 + Double(fee) / 30, accuracy: 0.001)
         XCTAssertEqual(engine.candles, candlesBefore, "복원은 시장을 건드리지 않는다")
     }
+
+    /// 자기체결 방지(STP): 사용자 시장가 주문이 자기 대기 주문을 건너뛴다.
+    /// 자기체결을 허용하면 수수료를 양쪽에서 내고 평단이 왜곡되며,
+    /// 정산 지연 창에서 취소하면 체결 레그가 원장에서 증발한다.
+    func testUserMarketOrderSkipsOwnRestingOrder() throws {
+        let engine = MarketEngine(seed: 11)
+        engine.advance(ticks: 30)
+        _ = try engine.placeMarketOrder(side: .buy, qty: 30)
+
+        // 최우선 매수호가보다 한 틱 위 — 내 주문이 단독 최우선 매수호가가 된다
+        let myBid = engine.book.bestBid! + engine.config.tickSize
+        let result = try engine.placeLimitOrder(side: .buy, price: myBid, qty: 20)
+        let order = try XCTUnwrap(result.restingOrder)
+        XCTAssertEqual(engine.book.bestBid, myBid, "내 주문이 최우선이어야 시나리오가 성립")
+
+        // 이제 시장가 매도 — 자기 매수 주문과 교차하면 안 된다
+        let sell = try engine.placeMarketOrder(side: .sell, qty: 10)
+
+        XCTAssertEqual(engine.book.remainingQty(orderId: order.id, side: .buy, price: myBid),
+                       20, "자기 대기 주문은 소진되지 않아야 한다")
+        XCTAssertTrue(sell.fills.allSatisfy { $0.price < myBid },
+                      "체결은 내 호가를 건너뛴 다음 레벨부터")
+        // 대기 주문 예약금도 그대로여야 한다
+        XCTAssertEqual(engine.portfolio.reservedCash,
+                       myBid * 20 + engine.config.buyFee(on: myBid * 20))
+    }
+
+    /// 취소 전에 미정산 체결이 있으면 먼저 정산한다 — 예약금 과다 해제·체결 증발 방지.
+    func testCancelSettlesPendingFillsFirst() throws {
+        let engine = MarketEngine(seed: 42)
+        engine.advance(ticks: 20)
+        let price = engine.book.bestBid!
+        let result = try engine.placeLimitOrder(side: .buy, price: price, qty: 100)
+        let order = try XCTUnwrap(result.restingOrder)
+
+        // 일부 체결될 때까지 흘린다 (전량 체결 전에 멈춘다)
+        for _ in 0..<4_000 {
+            engine.step()
+            let remaining = engine.book.remainingQty(orderId: order.id, side: .buy, price: price)
+            if remaining < 100 { break }
+        }
+        _ = engine.drainUserFillEvents()
+        let qtyBefore = engine.portfolio.qty
+
+        engine.cancelOrder(id: order.id)
+
+        // 취소 후: 예약 전부 해제 + 체결분은 보유로 남는다 (증발 금지)
+        XCTAssertEqual(engine.portfolio.reservedCash, 0)
+        XCTAssertGreaterThanOrEqual(engine.portfolio.qty, qtyBefore)
+        XCTAssertTrue(engine.openOrders.isEmpty)
+    }
 }

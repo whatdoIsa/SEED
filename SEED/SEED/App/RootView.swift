@@ -68,8 +68,22 @@ struct RootView: View {
             // 위젯 딥링크: seed://daily → 배우기 탭 + 오늘의 장
             guard url.scheme == "seed", url.host() == "daily" else { return }
             selectedTab = 1
+            // 콜드 런치에서는 배우기 탭 콘텐츠가 아직 생성 전이라 동기 post가 유실된다 —
+            // pending 플래그를 함께 남겨 탭의 onAppear가 소비하게 한다 (웜 상태는 post가 즉시 처리)
+            DeepLinkRelay.pendingDailyMarket = true
             NotificationCenter.default.post(name: .seedOpenDailyMarket, object: nil)
         }
+    }
+}
+
+/// 콜드 런치 딥링크 릴레이 — 알림 구독 전에 도착한 딥링크의 유실 대비
+@MainActor
+enum DeepLinkRelay {
+    static var pendingDailyMarket = false
+
+    static func consumePendingDailyMarket() -> Bool {
+        defer { pendingDailyMarket = false }
+        return pendingDailyMarket
     }
 }
 

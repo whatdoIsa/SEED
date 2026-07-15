@@ -21,18 +21,30 @@ struct StreakProvider: TimelineProvider {
     }
 
     private func currentEntry(at date: Date) -> StreakEntry {
+        // 완료 날짜 도장 원본에서 렌더 시점 날짜로 전부 재계산 — 앱이 마지막으로
+        // 열린 날 기준의 낡은 스트릭·주간 점이 남지 않는다 (앱의 DailyMarket과 동일 규칙).
         let defaults = UserDefaults(suiteName: suite)
-        let lastDoneStamp = defaults?.integer(forKey: "seed.widget.lastDoneStamp") ?? 0
-        let streak = defaults?.integer(forKey: "seed.widget.streak") ?? 0
-        let week = (defaults?.array(forKey: "seed.widget.week") as? [Int])?.map { $0 == 1 }
-            ?? Array(repeating: false, count: 7)
-        return StreakEntry(
-            date: date,
-            streak: streak,
-            // '오늘 했는가'는 렌더 시점에 판정 — 자정이 지나면 자동으로 리셋된다
-            doneToday: lastDoneStamp == dayStamp(date),
-            week: week
-        )
+        let stamps = Set((defaults?.array(forKey: "seed.widget.doneStamps") as? [Int]) ?? [])
+        let calendar = Calendar.current
+        let doneToday = stamps.contains(dayStamp(date))
+
+        // 스트릭: 오늘 미완료면 어제부터 센다 (자정에 끊기지 않는다)
+        var cursor = date
+        if !doneToday {
+            cursor = calendar.date(byAdding: .day, value: -1, to: cursor) ?? cursor
+        }
+        var streak = 0
+        while stamps.contains(dayStamp(cursor)) {
+            streak += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = previous
+        }
+
+        let week = (0..<7).reversed().map { offset -> Bool in
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: date) else { return false }
+            return stamps.contains(dayStamp(day))
+        }
+        return StreakEntry(date: date, streak: streak, doneToday: doneToday, week: week)
     }
 
     func placeholder(in context: Context) -> StreakEntry {

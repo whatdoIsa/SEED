@@ -388,7 +388,15 @@ struct LessonListView: View {
     private var deepLinkListener: some View {
         Color.clear
             .frame(height: 0)
+            .onAppear {
+                // 콜드 런치 딥링크: 알림 구독 전에 도착한 seed://daily를 여기서 회수
+                if DeepLinkRelay.consumePendingDailyMarket(),
+                   !store.isLessonDone(DailyMarket.id()) {
+                    showsDailyMarket = true
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: .seedOpenDailyMarket)) { _ in
+                DeepLinkRelay.pendingDailyMarket = false
                 if !store.isLessonDone(DailyMarket.id()) {
                     showsDailyMarket = true
                 }

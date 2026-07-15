@@ -59,6 +59,9 @@ final class TradeLog {
     var atCandleIndex: Int?
     /// 지정가 체결 여부 — 리플레이 시 포트폴리오 복원 경로로 분기
     var isLimitFill: Bool?
+    /// 체결 당시의 타임라인 번호 (nil = 0) — 스냅샷 폴백으로 시장이 리셋되면
+    /// 이전 타임라인의 매매는 베이스라인에 이미 반영돼 있어 리플레이에서 제외된다
+    var timelineEpoch: Int?
 
     var side: Side { Side(rawValue: sideRaw) ?? .buy }
     var reasonTag: TradeReasonTag { TradeReasonTag(rawValue: reasonTagRaw) ?? .gutBuy }
@@ -114,6 +117,11 @@ final class Season {
     var lastActiveAt: Date?
     /// 시장 기후(상관관계) 시드 — 시즌 단위로 고정
     var climateSeedBits: Int64?
+    /// 타임라인 번호 (nil = 0) — 스냅샷 폴백으로 시장을 리셋할 때마다 +1
+    var timelineEpoch: Int?
+    /// 타임라인 리셋 시점의 계좌 상태(LedgerSnapshot JSON) — 이후 매매만 리플레이하면 된다.
+    /// Season 레코드에 실려 iCloud로 동기화되므로 재설치에도 현금·보유가 복원된다.
+    var ledgerBaselineData: Data?
 
     init(number: Int, startedAt: Date = .now, startCash: Int) {
         self.number = number

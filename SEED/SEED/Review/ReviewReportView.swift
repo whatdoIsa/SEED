@@ -8,15 +8,46 @@ struct ReviewReportView: View {
     @Bindable var session: MarketSession
 
     @State private var showsArchive = false
+    /// 방문 시점 스냅샷 — 복기는 회고 화면이라 실시간 갱신이 필요 없다.
+    /// body에서 store 집계·session.engine.candles를 직접 읽으면 캔들 마감마다
+    /// SwiftData 페치 ~8회가 재실행된다. 탭 재방문(onAppear) 때만 새로 계산한다.
+    @State private var snap: ReportSnapshot?
+
+    struct ReportSnapshot {
+        let stats: [SeedStore.TagStat]
+        let tradeCount: Int
+        let winRate: Double?
+        let holdingStats: HoldingStats?
+        let marks: [(candleIndex: Int, price: Double, side: Side)]
+        let candles: [Candle]
+        let pastSeasonCount: Int
+    }
+
+    private func makeSnapshot() -> ReportSnapshot {
+        ReportSnapshot(
+            stats: store.tagStats(),
+            tradeCount: store.tradeCount(),
+            winRate: store.winRate(),
+            holdingStats: store.holdingStats(),
+            marks: store.tradeMarks(symbolName: session.activeSpec.name),
+            candles: session.engine.candles,
+            pastSeasonCount: store.pastSeasons().count
+        )
+    }
 
     var body: some View {
         Group {
             if store.isLessonDone(LessonCatalog.chase.id) {
-                report
+                if let snap {
+                    report(snap)
+                } else {
+                    SeedTheme.background // onAppear가 즉시 스냅샷을 채운다
+                }
             } else {
                 lockedState
             }
         }
+        .onAppear { snap = makeSnapshot() }
         .sheet(isPresented: $showsArchive) {
             SeasonArchiveView(store: store)
         }
@@ -42,10 +73,10 @@ struct ReviewReportView: View {
 
     // MARK: 리포트 본문
 
-    private var report: some View {
-        let stats = store.tagStats()
-        let tradeCount = store.tradeCount()
-        let winRate = store.winRate()
+    private func report(_ snap: ReportSnapshot) -> some View {
+        let stats = snap.stats
+        let tradeCount = snap.tradeCount
+        let winRate = snap.winRate
         let worst = worstStat(in: stats)
 
         return ScrollView {
@@ -90,7 +121,7 @@ struct ReviewReportView: View {
                     AICoachCard(
                         cacheKey: "weekly.\(Calendar.current.component(.year, from: .now))-\(Calendar.current.component(.weekOfYear, from: .now))",
                         fingerprint: "\(tradeCount / 5)",
-                        prompt: reviewPrompt(stats: stats, tradeCount: tradeCount, winRate: winRate),
+                        prompt: reviewPrompt(snap: snap),
                         maxTokens: 300,
                         offersTrial: true
                     )
@@ -103,7 +134,7 @@ struct ReviewReportView: View {
                                    color: avgRealizedColor(stats))
                     }
 
-                    tradeMapSection
+                    tradeMapSection(snap)
                 }
 
                 if !stats.isEmpty {
@@ -141,12 +172,12 @@ struct ReviewReportView: View {
                 }
 
                 if tradeCount > 0 {
-                    holdingHabitSection
+                    holdingHabitSection(snap.holdingStats)
                     coachCard(worst: worst, tradeCount: tradeCount)
                 }
 
                 // 시즌 아카이브 진입 (마감 시즌이 있을 때)
-                if !store.pastSeasons().isEmpty {
+                if snap.pastSeasonCount > 0 {
                     Button {
                         showsArchive = true
                     } label: {
@@ -158,7 +189,7 @@ struct ReviewReportView: View {
                                 Text("시즌 아카이브")
                                     .font(.system(size: 15, weight: .semibold))
                                     .foregroundStyle(SeedTheme.textPrimary)
-                                Text("지난 시즌 \(store.pastSeasons().count)개 — 성장의 기록")
+                                                Text("지난 시즌 \(snap.pastSeasonCount)개 — 성장의 기록")
                                     .font(.system(size: 12))
                                     .foregroundStyle(SeedTheme.textSecondary)
                             }
@@ -202,8 +233,8 @@ struct ReviewReportView: View {
     // MARK: 매매 지도 (부록 A-4의 aha 모먼트 — 어디서 사고 팔았는지 한눈에)
 
     @ViewBuilder
-    private var tradeMapSection: some View {
-        let marks = store.tradeMarks(symbolName: session.activeSpec.name)
+    private func tradeMapSection(_ snap: ReportSnapshot) -> some View {
+        let marks = snap.marks
         if !marks.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
                 Text("내 매매 지도")
@@ -212,7 +243,7 @@ struct ReviewReportView: View {
                 Text("가격 위에 내가 사고 판 자리가 찍혀 있어요.")
                     .font(.system(size: 12))
                     .foregroundStyle(SeedTheme.textSecondary)
-                TradeMapCanvas(candles: session.engine.candles, marks: marks)
+                TradeMapCanvas(candles: snap.candles, marks: marks)
                     .frame(height: 170)
                     .padding(12)
                     .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
@@ -237,8 +268,8 @@ struct ReviewReportView: View {
     // MARK: 보유 습관 (A — 매수·매도 페어링)
 
     @ViewBuilder
-    private var holdingHabitSection: some View {
-        if let stats = store.holdingStats() {
+    private func holdingHabitSection(_ holdingStats: HoldingStats?) -> some View {
+        if let stats = holdingStats {
             VStack(alignment: .leading, spacing: 10) {
                 Text("보유 습관")
                     .font(.system(size: 16, weight: .semibold))
@@ -283,14 +314,14 @@ struct ReviewReportView: View {
     // MARK: 룰베이스 문장 생성 (L1 — API 비용 0원)
 
     /// AI 입력: 원시 로그가 아니라 미리 계산한 요약만 (토큰 다이어트)
-    private func reviewPrompt(stats: [SeedStore.TagStat], tradeCount: Int, winRate: Double?) -> String {
+    private func reviewPrompt(snap: ReportSnapshot) -> String {
         var lines = ["이번 주까지의 매매 기록을 복기해줘. 데이터:"]
-        lines.append("- 총 매매 \(tradeCount)건, 승률 \(winRate.map { "\(Int($0))%" } ?? "미확정")")
-        for stat in stats.prefix(5) {
+        lines.append("- 총 매매 \(snap.tradeCount)건, 승률 \(snap.winRate.map { "\(Int($0))%" } ?? "미확정")")
+        for stat in snap.stats.prefix(5) {
             let avg = stat.avgRealizedReturnPct.map { "\($0 >= 0 ? "+" : "")\($0.formatted(.number.precision(.fractionLength(1))))%" } ?? "미확정"
             lines.append("- '\(stat.tag.label)' 태그: \(stat.count)건, 평균 \(avg)")
         }
-        if let habits = store.holdingStats() {
+        if let habits = snap.holdingStats {
             lines.append("- 평균 보유 \(habits.avgHoldTicks)틱, 왕복 승률 \(Int(habits.winRate))%")
         }
         lines.append("가장 아픈 습관 하나와 잘한 것 하나를 짚고, 다음 주의 한 가지를 제안해줘.")
@@ -374,7 +405,7 @@ struct ReviewReportView: View {
     private func avgRealizedColor(_ stats: [SeedStore.TagStat]) -> Color {
         let averages = stats.compactMap(\.avgRealizedReturnPct)
         guard !averages.isEmpty else { return SeedTheme.textPrimary }
-        return SeedTheme.pnl(averages.reduce(0, +))
+        return SeedTheme.pnl(averages.reduce(0, +) / Double(averages.count))
     }
 
     /// 매수 이유 행 — 성적이 아니라 비중을 보여준다 ("내 매수의 44%가 돌파 기대")

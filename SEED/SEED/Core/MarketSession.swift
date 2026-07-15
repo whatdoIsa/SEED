@@ -83,16 +83,51 @@ final class MarketSession {
             }
         }
 
+        // 합성 ETF — 구성 좌수가 스펙 초기가 기준 상수라 시즌·세션 무관하게 결정론적
+        var funds: [String: ETFFund] = [:]
+        for spec in ETFCatalog.all {
+            funds[spec.code] = spec.makeFund(ledger: ledger)
+        }
+
         // 장기 시즌 가드: 리플레이 총량이 크면(수 초 이상 걸릴 규모)
-        // 차트 연속성을 포기하고 계좌만 스냅샷으로 복원한다 — 시작 지연 방지.
-        // 시드 지문이 맞는 스냅샷만 신뢰한다 — 임포트 전 부트스트랩 세션이 남긴
-        // 초기 계좌 스냅샷을 복원본 위에 씌우는 사고 방지.
+        // 차트 연속성을 포기하고 계좌만 복원한다 — 시작 지연·런치 워치독 방지.
         let totalReplaySteps = restoredTargets.values.reduce(0, +)
         let replayBudgetSteps = 300_000 // 릴리즈 기준 ~1.5초
-        if totalReplaySteps > replayBudgetSteps,
-           let snapshot = LedgerSnapshot.load(seasonNumber: store?.currentSeason.number ?? 1),
-           snapshot.matches(seeds: seeds) {
-            // 타임라인 리셋: 새 시장(워밍업)으로 교체하고 계좌는 스냅샷을 베이스라인으로
+        if totalReplaySteps > replayBudgetSteps {
+            // 시드 지문이 맞는 스냅샷만 신뢰한다 — 임포트 전 부트스트랩 세션이 남긴
+            // 초기 계좌 스냅샷을 복원본 위에 씌우는 사고 방지.
+            if let snapshot = LedgerSnapshot.load(seasonNumber: store?.currentSeason.number ?? 1),
+               snapshot.matches(seeds: seeds) {
+                ledger.restore(cash: snapshot.cash,
+                               realizedPnL: snapshot.realizedPnL,
+                               feesPaid: snapshot.feesPaid,
+                               holdings: snapshot.holdingTuples)
+                // 베이스라인으로 못박아 두면 다음 부팅은 (스냅샷 없이도) 여기서 이어간다
+                store?.beginNewTimeline(baseline: snapshot)
+            } else {
+                // 스냅샷이 없거나(새 기기 iCloud 복원 — 스냅샷은 기기 로컬 UserDefaults) 지문 불일치:
+                // 기록된 체결가로 원장만 재구성한다. 여기서 풀 리플레이를 강행하면
+                // 메인 스레드가 수십 초 블록되어 런치 워치독(0x8badf00d)에 죽는다.
+                for log in store?.replayableLogs() ?? [] {
+                    let price = Int(log.avgFillPrice.rounded())
+                    if let etfCode = ETFCatalog.code(forName: log.symbol) {
+                        funds[etfCode]?.restoreFill(side: log.side, price: price, qty: log.qty)
+                    } else if let code = SymbolCatalog.code(forName: log.symbol) {
+                        engines[code]?.restoreFill(side: log.side, price: price, qty: log.qty)
+                    }
+                }
+                let rebuilt = LedgerSnapshot(
+                    seasonNumber: store?.currentSeason.number ?? 1,
+                    cash: ledger.cash,
+                    realizedPnL: ledger.realizedPnL,
+                    feesPaid: ledger.feesPaid,
+                    holdings: ledger.holdings.mapValues {
+                        LedgerSnapshot.HoldingSnap(qty: $0.qty, avgCost: $0.avgCost)
+                    },
+                    seedsHash: nil)
+                store?.beginNewTimeline(baseline: rebuilt)
+            }
+            // 공통: 타임라인 리셋 — 새 시장(워밍업)으로 교체
             for spec in SymbolCatalog.all where restoredTargets[spec.code] != nil {
                 let seed = UInt64.random(in: 0...UInt64.max)
                 seeds[spec.code] = seed
@@ -104,18 +139,6 @@ final class MarketSession {
                 store?.replaceSymbolState(code: spec.code, seed: seed, tick: engine.tick)
             }
             restoredTargets.removeAll()
-            ledger.restore(cash: snapshot.cash,
-                           realizedPnL: snapshot.realizedPnL,
-                           feesPaid: snapshot.feesPaid,
-                           holdings: snapshot.holdingTuples)
-            // 베이스라인으로 못박아 두면 다음 부팅은 (스냅샷 없이도) 여기서 이어간다
-            store?.beginNewTimeline(baseline: snapshot)
-        }
-
-        // 합성 ETF — 구성 좌수가 스펙 초기가 기준 상수라 시즌·세션 무관하게 결정론적
-        var funds: [String: ETFFund] = [:]
-        for spec in ETFCatalog.all {
-            funds[spec.code] = spec.makeFund(ledger: ledger)
         }
 
         // 전 종목 주문을 틱 순으로 리플레이 — 현금 흐름의 시간 순서를 보존한다
@@ -432,10 +455,12 @@ final class MarketSession {
 
     /// 전 종목의 대기 체결 이벤트를 기록·영속·알림으로 처리.
     func processUserFills() {
+        var hadFills = false
         for spec in SymbolCatalog.all {
             guard let engine = engines[spec.code] else { continue }
             let events = engine.drainUserFillEvents()
             guard !events.isEmpty else { continue }
+            hadFills = true
             for event in events {
                 let key = "\(spec.code)#\(event.orderId)"
                 let fallback: TradeReasonTag = event.side == .buy ? .gutBuy : .gutSell
@@ -454,6 +479,12 @@ final class MarketSession {
                 limitFillNotice = "\(spec.name) 지정가 체결 · \(event.side == .buy ? "매수" : "매도") \(event.qty)주 @ \(event.price.formatted())원"
             }
             persistSymbol(spec.code)
+        }
+        // 지정가 체결도 스냅샷을 갱신 — 백그라운드 전환 없이 죽으면(크래시·잿섬)
+        // 장기 시즌의 스냅샷 폴백 계좌가 체결 이전으로 되돌아가는 구멍 방지.
+        if hadFills {
+            LedgerSnapshot.save(from: ledger, seasonNumber: store?.currentSeason.number ?? 1,
+                                seeds: engineSeeds)
         }
         if limitFillNotice != nil {
             Task {

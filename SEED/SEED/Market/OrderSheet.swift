@@ -217,6 +217,10 @@ struct OrderSheet: View {
         .animation(.snappy(duration: 0.25), value: measuredHeight)
         .onAppear {
             limitPrice = session.engine.displayedPrice(for: side) ?? session.engine.lastPrice
+            // 매도 초기 수량이 보유(가용) 수량을 넘지 않게 — 5주 보유자에게 "10주 팔기"가 뜨는 문제
+            if side == .sell {
+                qty = min(qty, max(session.engine.portfolio.availableShares, 1))
+            }
         }
         .onDisappear { session.orderSheetClosed() }
     }

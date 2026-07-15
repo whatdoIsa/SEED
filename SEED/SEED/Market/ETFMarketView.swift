@@ -394,26 +394,33 @@ struct ETFOrderSheet: View {
             Spacer(minLength: 0)
 
             Button {
-                let chosenTag = tag ?? (side == .buy ? .gutBuy : .gutSell)
+                // 태그는 1탭 필수 (주식 시트와 동일) — 기본값으로 조용히 통과시키면
+                // 복기 통계의 '감으로' 분포가 오염된다
+                guard let chosenTag = tag else { return }
                 let result = side == .buy
                     ? session.buyETF(code: spec.code, qty: qty, tag: chosenTag)
                     : session.sellETF(code: spec.code, qty: qty, tag: chosenTag)
                 onDone(result, chosenTag)
                 dismiss()
             } label: {
-                Text("\(qty)좌 \(side == .buy ? "사기" : "팔기")")
+                Text(tag == nil ? "이유를 하나 골라주세요" : "\(qty)좌 \(side == .buy ? "사기" : "팔기")")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(side == .buy ? SeedTheme.up : SeedTheme.down,
+                    .background(tag == nil ? SeedTheme.textSecondary
+                                : side == .buy ? SeedTheme.up : SeedTheme.down,
                                 in: RoundedRectangle(cornerRadius: 14))
             }
-            .disabled(maxQty < 1)
+            .disabled(maxQty < 1 || tag == nil)
         }
         .padding(20)
         .background(SeedTheme.background)
         .presentationDetents([.height(440)])
+        // NAV가 움직여 최대 가능 수량이 줄면 선택 수량도 따라 내린다 (초과 주문 방지)
+        .onChange(of: maxQty) { _, newMax in
+            if qty > newMax { qty = max(newMax, 1) }
+        }
         .onDisappear { session.orderSheetClosed() }
     }
 }

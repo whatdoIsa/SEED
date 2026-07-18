@@ -664,8 +664,12 @@ public final class MarketEngine {
                 case .buy:
                     let cost = order.price * newlyFilled
                     let fee = config.buyFee(on: cost)
-                    ledger.settleRestingBuy(symbol: symbol, price: order.price, qty: newlyFilled, fee: fee)
-                    order.reservedCashLeft = max(order.reservedCashLeft - cost - fee, 0)
+                    // 해제는 이 주문의 잔여 예약 한도 안에서만 — 청크 반올림 초과분이
+                    // 전역 풀의 다른 주문 예약금을 갉는 것 방지
+                    let release = min(cost + fee, order.reservedCashLeft)
+                    ledger.settleRestingBuy(symbol: symbol, price: order.price,
+                                            qty: newlyFilled, fee: fee, release: release)
+                    order.reservedCashLeft -= release
                 case .sell:
                     let fee = config.sellFee(on: order.price * newlyFilled)
                     ledger.settleRestingSell(symbol: symbol, price: order.price, qty: newlyFilled, fee: fee)

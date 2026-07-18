@@ -688,6 +688,10 @@ public final class MarketEngine {
     /// 리플레이 폴백: 과거 지정가 체결을 호가창 개입 없이 포트폴리오에만 반영한다.
     /// (대기 체결은 정산 틱이 기록되지 않으므로 완전 재현 대신 근사 복원을 택한다.)
     public func restoreFill(side: Side, price: Int, qty: Int) {
+        // 손상된 기록 방어: 보유보다 큰 매도 복원은 보유만큼만 — 음수 보유·현금 오염 방지
+        // (CloudKit 병합 충돌로 중복 레코드가 재생되는 시나리오)
+        let qty = side == .sell ? min(qty, ledger.qty(of: symbol)) : qty
+        guard qty > 0, price > 0 else { return }
         let result = FillResult(side: side, requestedQty: qty,
                                 fills: [Fill(price: price, qty: qty)], displayedPrice: price)
         switch side {

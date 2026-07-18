@@ -154,7 +154,6 @@ public extension BotComparison {
             }
             if engine.candles.count > lastCandleCount {
                 lastCandleCount = engine.candles.count
-                equityCurve.append(engine.portfolio.equity(at: engine.lastPrice))
 
                 let decision = decide(BotContext(
                     candles: engine.candles,
@@ -181,6 +180,9 @@ public extension BotComparison {
                 case nil:
                     break
                 }
+                // 곡선은 그 캔들의 매매까지 반영한 뒤 기록 — 마지막 캔들 매매가
+                // 곡선에서 빠져 finalEquity와 끝값이 어긋나는 문제 방지
+                equityCurve.append(engine.portfolio.equity(at: engine.lastPrice))
             }
         }
 

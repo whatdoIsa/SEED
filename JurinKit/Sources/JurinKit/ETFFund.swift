@@ -55,6 +55,11 @@ public final class ETFFund {
             return Component(symbol: entry.symbol,
                              unitsPerShare: Double(inceptionNAV) * entry.weight / Double(price))
         }
+        // 카탈로그 오타 조기 발견 — 구성종목이 조용히 탈락하면 NAV가 통째로 낮은 ETF가 출시된다
+        assert(components.count == weights.count,
+               "ETF \(symbol): 상장가 없는 구성종목이 탈락함 — inceptionPrices 확인")
+        assert(abs(weights.reduce(0) { $0 + $1.weight } - 1) < 0.001,
+               "ETF \(symbol): 비중 합이 1이 아님")
     }
 
     // MARK: NAV
@@ -123,6 +128,9 @@ public final class ETFFund {
 
     /// 세션 복원 리플레이: 과거 체결을 기록된 가격 그대로 원장에만 반영한다.
     public func restoreFill(side: Side, price: Int, qty: Int) {
+        // 손상된 기록 방어: 보유 초과 매도 복원은 보유만큼만 (음수 보유 방지)
+        let qty = side == .sell ? min(qty, ledger.qty(of: symbol)) : qty
+        guard qty > 0, price > 0 else { return }
         let result = FillResult(side: side, requestedQty: qty,
                                 fills: [Fill(price: price, qty: qty)], displayedPrice: price)
         switch side {

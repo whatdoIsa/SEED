@@ -49,7 +49,10 @@ public final class AccountLedger {
     /// 총평가: 종목별 현재가를 받아 현금 + 전체 보유 가치를 계산.
     public func totalEquity(prices: [String: Int]) -> Int {
         cash + holdings.reduce(0) { sum, entry in
-            sum + entry.value.qty * (prices[entry.key] ?? 0)
+            // 보유 종목의 가격 누락은 호출 측 버그 — 총자산이 조용히 줄어 보인다
+            assert(entry.value.qty == 0 || prices[entry.key] != nil,
+                   "totalEquity: '\(entry.key)' 가격 누락")
+            return sum + entry.value.qty * (prices[entry.key] ?? 0)
         }
     }
 

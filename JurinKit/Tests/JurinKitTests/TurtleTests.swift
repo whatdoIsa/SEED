@@ -52,13 +52,18 @@ final class TurtleTests: XCTestCase {
         // 꾸준히 오르는 손수 캔들: 돌파 → 추가 → 상한 도달
         var candles: [Candle] = []
         var actions: [TurtleStrategy.Action] = []
+        var held = 0 // 주문이 전량 성공한다고 가정한 시뮬 보유 (상태 교정 로직에 전달)
         for i in 0..<12 {
             let base = 100 + i * 8
             var candle = Candle(open: base, index: i)
             candle.apply(Trade(price: base - 2, qty: 1, tick: i, aggressor: .sell))
             candle.apply(Trade(price: base + 6, qty: 1, tick: i, aggressor: .buy))
             candles.append(candle)
-            if let decision = strategy.onCandleClose(candles: candles, avgCost: 100) {
+            if let decision = strategy.onCandleClose(candles: candles, avgCost: 100, holdingQty: held) {
+                switch decision.action {
+                case .buyUnit(let qty): held += qty
+                case .sellAll(let qty): held -= qty
+                }
                 actions.append(decision.action)
                 XCTAssertFalse(decision.reason.isEmpty, "모든 매매엔 이유가 붙는다")
             }

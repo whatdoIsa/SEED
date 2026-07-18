@@ -275,6 +275,22 @@ public final class OrderBook {
         return queue.first { $0.id == orderId }?.qty ?? 0
     }
 
+    /// 주문 잔량 부분 감소 (동시호가 배분용). 실제 감소량을 반환한다.
+    @discardableResult
+    public func reduce(orderId: UInt64, side: Side, price: Int, by qty: Int) -> Int {
+        var queue = (side == .buy ? bids[price] : asks[price]) ?? []
+        guard let index = queue.firstIndex(where: { $0.id == orderId }) else { return 0 }
+        let taken = min(queue[index].qty, qty)
+        queue[index].qty -= taken
+        let cleaned = queue.filter { $0.qty > 0 }
+        if side == .buy {
+            bids[price] = cleaned.isEmpty ? nil : cleaned
+        } else {
+            asks[price] = cleaned.isEmpty ? nil : cleaned
+        }
+        return taken
+    }
+
     /// 주문 취소. 남은 잔량을 반환한다.
     @discardableResult
     public func cancel(orderId: UInt64, side: Side, price: Int) -> Int {

@@ -83,8 +83,8 @@ enum SeedNotifications {
         guard isEnabled(.morning) else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "아침 루틴이 준비됐어요"
-        content.body = "복습 1문제, 그리고 오늘의 장 한 판 — 3분이면 충분해요."
+        content.title = "☀️ 아침 루틴이 준비됐어요"
+        content.body = "복습 1문제, 오늘의 장 한 판 — 커피 한 모금이면 끝나요."
         content.sound = .default
 
         var date = DateComponents()
@@ -114,8 +114,8 @@ enum SeedNotifications {
             if let fireDate = calendar.date(from: date), fireDate <= .now { continue }
 
             let content = UNMutableNotificationContent()
-            content.title = "오늘의 장이 아직 열려 있어요"
-            content.body = "하루 한 판이 스트릭을 지켜요 — 3분이면 돼요."
+            content.title = "🌙 오늘의 장이 아직 열려 있어요"
+            content.body = "하루 한 판이 🔥 스트릭을 지켜요 — 3분이면 돼요."
             content.sound = .default
             let trigger = UNCalendarNotificationTrigger(dateMatching: date, repeats: false)
             try? await center.add(UNNotificationRequest(
@@ -129,7 +129,7 @@ enum SeedNotifications {
         guard isEnabled(.weekly) else { return }
 
         let content = UNMutableNotificationContent()
-        content.title = "주간 복기가 준비됐어요"
+        content.title = "📊 이번 주 복기가 준비됐어요"
         content.body = weeklyTradeCount > 0
             ? "이번 주 매매 \(weeklyTradeCount)건 — 내 패턴을 확인해보세요."
             : "이번 주 시장을 돌아보고, 다음 주의 한 가지를 정해보세요."

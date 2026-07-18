@@ -29,6 +29,8 @@ final class LiveLoop {
                     engine.step()
                     if engine.pendingDecision != nil { engine.resolveDecision() }
                     if engine.isScenarioFinished {
+                        // task를 비워야 이후 start()가 무시되지 않는다 (자연 종료 경로)
+                        self.task = nil
                         onFinish()
                         return
                     }

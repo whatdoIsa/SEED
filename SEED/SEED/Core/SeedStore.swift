@@ -42,11 +42,21 @@ final class SeedStore {
             context.insert(fresh)
             progress = fresh
         }
-        try? context.save()
+        saveContext()
 
         // 완료 레슨 집합을 메모리로 로드 (이후 판정은 이 관찰 property로)
         let doneLessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
         completedLessonIds = Set(doneLessons.filter { $0.completedAt != nil }.map(\.lessonId))
+    }
+
+    /// 저장 실패를 조용히 삼키지 않는다 — CloudKit 백엔드 실패가 관측 불가하면
+    /// 데이터 유실 원인을 영영 못 찾는다. 실패해도 앱은 계속 동작한다.
+    private func saveContext() {
+        do { try context.save() } catch {
+            #if DEBUG
+            print("[SeedStore] context.save 실패: \(error)")
+            #endif
+        }
     }
 
     // MARK: 매매 기록 (M2-3 태그 시트가 호출)
@@ -84,7 +94,7 @@ final class SeedStore {
         log.isLimitFill = wasLimit
         log.timelineEpoch = currentSeason.timelineEpoch
         context.insert(log)
-        try? context.save()
+        saveContext()
 
         Analytics.log(.tradePlaced, [
             "side": fill.side.rawValue,
@@ -117,7 +127,7 @@ final class SeedStore {
             context.insert(fresh)
         }
         currentSeason.lastActiveAt = .now
-        try? context.save()
+        saveContext()
     }
 
     /// 미체결 지정가 직렬화 데이터 — 리플레이로 복원된 시장에 재접수할 때 읽는다.
@@ -138,7 +148,7 @@ final class SeedStore {
         for state in states { context.delete(state) }
         context.insert(SymbolState(seasonNumber: seasonNumber, code: code,
                                    seedBits: Int64(bitPattern: seed), lastTick: tick))
-        try? context.save()
+        saveContext()
     }
 
     func symbolState(code: String) -> (seed: UInt64, tick: Int)? {
@@ -160,7 +170,7 @@ final class SeedStore {
         }
         let seed = UInt64.random(in: 0...UInt64.max)
         currentSeason.climateSeedBits = Int64(bitPattern: seed)
-        try? context.save()
+        saveContext()
         return seed
     }
 
@@ -181,7 +191,7 @@ final class SeedStore {
     func beginNewTimeline(baseline: LedgerSnapshot) {
         currentSeason.timelineEpoch = timelineEpoch + 1
         currentSeason.ledgerBaselineData = try? JSONEncoder().encode(baseline)
-        try? context.save()
+        saveContext()
     }
 
     /// 이번 시즌의 본 세션 실매매 전부 (시나리오 제외) — 복기·매매지도의 원료.
@@ -323,7 +333,7 @@ final class SeedStore {
     /// 진행 중인 시즌의 약속(규칙)을 설정 — 시즌 1처럼 부검을 거치지 않은 시즌용.
     func setSeasonRule(_ rule: String?) {
         currentSeason.carriedRule = rule
-        try? context.save()
+        saveContext()
     }
 
     func startNextSeason(endEquity: Int, carriedRule: String?) -> Season {
@@ -338,7 +348,7 @@ final class SeedStore {
         next.carriedRule = carriedRule
         context.insert(next)
         currentSeason = next
-        try? context.save()
+        saveContext()
         return next
     }
 
@@ -348,7 +358,7 @@ final class SeedStore {
     func completeOnboarding(startLevel: Int) {
         progress.unlockLevel = max(progress.unlockLevel, startLevel)
         progress.onboardingDone = true
-        try? context.save()
+        saveContext()
         Analytics.log(.onboardingLevelChoice,
                       ["choice": startLevel == 0 ? "beginner" : "experienced"])
     }
@@ -490,7 +500,7 @@ final class SeedStore {
                 seen[key] = state
             }
         }
-        try? context.save()
+        saveContext()
         WidgetBridge.sync(completed: completedLessonIds)
     }
 
@@ -514,7 +524,7 @@ final class SeedStore {
         context.insert(fresh)
         progress = fresh
         completedLessonIds = []
-        try? context.save()
+        saveContext()
         // 위젯도 초기화 — 안 하면 지워진 스트릭을 무기한 계속 보여준다
         WidgetBridge.sync(completed: [])
         Analytics.log(.accountReset, ["reason": "erase-all"])
@@ -524,7 +534,7 @@ final class SeedStore {
     /// 개발용: 차트 도구 레벨만 강제 조정 (레슨 완료 상태는 건드리지 않음).
     func debugSetUnlockLevel(_ level: Int) {
         progress.unlockLevel = level
-        try? context.save()
+        saveContext()
     }
 
     /// 개발용: 모든 레슨 완료 처리 + 전체 해금 — 오늘의 장·복기·봇·퀀트·후속 레슨이
@@ -538,7 +548,7 @@ final class SeedStore {
         completedLessonIds = Set(LessonCatalog.registered.map(\.id))
         progress.unlockLevel = UnlockLevel.max
         progress.onboardingDone = true
-        try? context.save()
+        saveContext()
     }
 
     /// 개발용: 진행 상태 전체 초기화 (레슨·해금·온보딩) — 처음부터 흐름 점검용.
@@ -547,7 +557,7 @@ final class SeedStore {
         for lesson in lessons { context.delete(lesson) }
         completedLessonIds = []
         progress.unlockLevel = UnlockLevel.lineOnly
-        try? context.save()
+        saveContext()
     }
     #endif
 
@@ -566,7 +576,7 @@ final class SeedStore {
             progress.unlockLevel = level
             Analytics.log(.toolUnlocked, ["level": "\(level)"])
         }
-        try? context.save()
+        saveContext()
         Analytics.log(.lessonComplete, ["lessonId": lessonId])
         WidgetBridge.sync(completed: completedLessonIds)
     }

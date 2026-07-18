@@ -275,19 +275,25 @@ public final class MarketEngine {
 
     /// 동시호가 청산: 체결량을 최대화하는 단일가를 찾아 한 번에 체결한다.
     /// 동률이면 기준가에 가까운 가격 — 실제 KRX 단일가 원칙의 단순화.
+    /// 사용자 대기 지정가도 수요·공급에 참여하고, 교차하면 청산가로 체결된다
+    /// (매수는 주문가보다 청산가가 낮으면 가격 개선 — 실제 단일가 매매와 동일).
     private func runAuctionClearing() {
         defer {
             auctionBuffer.removeAll()
             seedInitialBook() // 청산가 주변으로 호가 재구축 → 연속 매매 재개
         }
-        let candidates = Set(auctionBuffer.map(\.price)).sorted()
+        var entries = auctionBuffer
+        for order in openOrders where order.remainingQty > 0 {
+            entries.append((order.side, order.price, order.remainingQty))
+        }
+        let candidates = Set(entries.map(\.price)).sorted()
         guard !candidates.isEmpty else { return }
 
         var best: (price: Int, volume: Int)?
         for price in candidates {
-            let demand = auctionBuffer.filter { $0.side == .buy && $0.price >= price }
+            let demand = entries.filter { $0.side == .buy && $0.price >= price }
                 .reduce(0) { $0 + $1.qty }
-            let supply = auctionBuffer.filter { $0.side == .sell && $0.price <= price }
+            let supply = entries.filter { $0.side == .sell && $0.price <= price }
                 .reduce(0) { $0 + $1.qty }
             let volume = min(demand, supply)
             if volume > (best?.volume ?? 0) {
@@ -298,8 +304,55 @@ public final class MarketEngine {
             }
         }
         guard let clearing = best, clearing.volume > 0 else { return }
-        record([Trade(price: clampToBand(clearing.price), qty: clearing.volume,
+        let clearingPrice = clampToBand(clearing.price)
+        record([Trade(price: clearingPrice, qty: clearing.volume,
                       tick: tick, aggressor: .buy)])
+        settleUserAuctionFills(clearingPrice: clearingPrice, maxVolume: clearing.volume)
+    }
+
+    /// 단일가 청산에 교차한 사용자 대기 주문을 청산가로 체결·정산한다.
+    private func settleUserAuctionFills(clearingPrice: Int, maxVolume: Int) {
+        guard !openOrders.isEmpty else { return }
+        var available = maxVolume
+        var updated: [UserOrder] = []
+        for var order in openOrders {
+            let crosses = order.side == .buy
+                ? order.price >= clearingPrice
+                : order.price <= clearingPrice
+            let fillQty = crosses ? min(order.remainingQty, max(available, 0)) : 0
+            if fillQty > 0 {
+                available -= fillQty
+                // 호가창 잔량도 함께 줄여야 settleUserFills의 잔량 대조가 어긋나지 않는다
+                book.reduce(orderId: order.id, side: order.side, price: order.price, by: fillQty)
+                let avgCostBefore = ledger.avgCost(of: symbol)
+                switch order.side {
+                case .buy:
+                    let fee = config.buyFee(on: clearingPrice * fillQty)
+                    // 예약은 주문가 기준 — 그 몫만큼 해제하면 청산가가 유리할 때 차액이 가용으로 복귀
+                    let reservedPortion = order.price * fillQty
+                        + config.buyFee(on: order.price * fillQty)
+                    let release = min(reservedPortion, order.reservedCashLeft)
+                    ledger.settleRestingBuy(symbol: symbol, price: clearingPrice,
+                                            qty: fillQty, fee: fee, release: release)
+                    order.reservedCashLeft -= release
+                case .sell:
+                    let fee = config.sellFee(on: clearingPrice * fillQty)
+                    ledger.settleRestingSell(symbol: symbol, price: clearingPrice,
+                                             qty: fillQty, fee: fee)
+                }
+                order.filledQty += fillQty
+                userFillEvents.append(UserFillEvent(
+                    orderId: order.id, side: order.side, price: clearingPrice,
+                    qty: fillQty, avgCostBefore: avgCostBefore))
+            }
+            if order.remainingQty > 0 {
+                updated.append(order)
+            } else if order.side == .buy && order.reservedCashLeft > 0 {
+                // 전량 체결 — 반올림·가격 개선 잔액까지 정확히 해제
+                ledger.releaseCash(order.reservedCashLeft)
+            }
+        }
+        openOrders = updated
     }
 
     // MARK: 틱 루프

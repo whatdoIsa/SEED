@@ -261,7 +261,7 @@ struct LessonListView: View {
                         Text(subtitle)
                             .font(.system(size: 11))
                             .foregroundStyle(SeedTheme.textSecondary)
-                            .lineLimit(2)
+                            .lineLimit(1) // 행 높이 균일 — 실천 문구가 길면 말줄임
                     }
                 }
                 Spacer()
@@ -590,10 +590,13 @@ struct ConceptPageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // 본문이 짧은 페이지에서 위쪽 몰림 + 하단 거대 공백이 생기지 않게,
+            // 읽기 블록을 위·아래 스페이서 사이에 둔다 (시각 자료가 크면 자연히 붙는다)
+            Spacer(minLength: 16)
+
             Text(lesson.title)
                 .font(.system(size: 23, weight: .semibold))
                 .foregroundStyle(SeedTheme.textPrimary)
-                .padding(.top, 22)
 
             Text(attributed(page.text))
                 .font(.system(size: 15))
@@ -604,7 +607,7 @@ struct ConceptPageView: View {
             conceptVisual
                 .padding(.top, 16)
 
-            Spacer()
+            Spacer(minLength: 24)
 
             Button(action: onNext) {
                 Text(isLast ? "미션 하러 가기" : "다음")

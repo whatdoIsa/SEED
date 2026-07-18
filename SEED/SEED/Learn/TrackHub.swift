@@ -122,6 +122,8 @@ struct TrackDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var activeLesson: LessonDef?
     @State private var summaryLesson: LessonDef?
+    /// 요약 시트 '전체 다시 보기' 예약 — 시트 dismiss 완료 후 커버로 연다
+    @State private var pendingReread: LessonDef?
     @State private var showsTrackPaywall = false
 
     var body: some View {
@@ -159,9 +161,16 @@ struct TrackDetailView: View {
         .fullScreenCover(item: $activeLesson) { lesson in
             LessonFlowView(lesson: lesson, store: store)
         }
-        .sheet(item: $summaryLesson) { lesson in
+        .sheet(item: $summaryLesson, onDismiss: {
+            // dismiss 애니메이션과 같은 런루프에서 커버를 올리면 간헐적으로 무시된다 —
+            // 시트가 완전히 닫힌 뒤(onDismiss) 예약분을 제시한다
+            if let pending = pendingReread {
+                pendingReread = nil
+                activeLesson = pending
+            }
+        }) { lesson in
             LessonSummarySheet(lesson: lesson) {
-                activeLesson = lesson
+                pendingReread = lesson
             }
         }
         .sheet(isPresented: $showsTrackPaywall) {
@@ -371,6 +380,8 @@ struct LibraryView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var activeLesson: LessonDef?
     @State private var summaryLesson: LessonDef?
+    /// 요약 시트 '전체 다시 보기' 예약 — 시트 dismiss 완료 후 커버로 연다
+    @State private var pendingReread: LessonDef?
     @State private var showsTutor = false
     @State private var showsGlossary = false
     @State private var showsBotCompare = false
@@ -435,9 +446,16 @@ struct LibraryView: View {
         .fullScreenCover(item: $activeLesson) { lesson in
             LessonFlowView(lesson: lesson, store: store)
         }
-        .sheet(item: $summaryLesson) { lesson in
+        .sheet(item: $summaryLesson, onDismiss: {
+            // dismiss 애니메이션과 같은 런루프에서 커버를 올리면 간헐적으로 무시된다 —
+            // 시트가 완전히 닫힌 뒤(onDismiss) 예약분을 제시한다
+            if let pending = pendingReread {
+                pendingReread = nil
+                activeLesson = pending
+            }
+        }) { lesson in
             LessonSummarySheet(lesson: lesson) {
-                activeLesson = lesson
+                pendingReread = lesson
             }
         }
         .sheet(isPresented: $showsTutor) { TutorView() }

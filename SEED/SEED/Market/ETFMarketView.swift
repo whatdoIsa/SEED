@@ -12,6 +12,9 @@ struct ETFDetailView: View {
     @State private var orderSide: Side?
     @State private var lastFill: FillResult?
     @State private var orderErrorMessage: String?
+    /// NAV 시리즈 캐시 — 캔들이 닫힐 때만 변하는데 body는 틱마다 재평가되므로,
+    /// 매 틱 120포인트 × 구성종목 재계산을 피한다
+    @State private var cachedSeries: [Int] = []
 
     private var nav: Int { session.etfNAV(spec.code) }
     private var referenceNAV: Int { session.etfReferenceNAV(spec.code) }
@@ -39,6 +42,10 @@ struct ETFDetailView: View {
             orderButtons
         }
         .background(SeedTheme.background)
+        .onAppear { cachedSeries = session.etfNAVSeries(spec.code) }
+        .onChange(of: session.engines[SymbolCatalog.all[0].code]?.candles.count ?? 0) { _, _ in
+            cachedSeries = session.etfNAVSeries(spec.code)
+        }
         .sheet(item: $orderSide) { side in
             ETFOrderSheet(session: session, spec: spec, side: side) { result, _ in
                 switch result {
@@ -117,7 +124,7 @@ struct ETFDetailView: View {
     // MARK: NAV 라인차트 — 구성 종목 종가에서 재구성
 
     private var navChart: some View {
-        let series = session.etfNAVSeries(spec.code)
+        let series = cachedSeries
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("NAV 흐름")

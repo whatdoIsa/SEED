@@ -135,16 +135,39 @@ public struct SeededRNG: RandomNumberGenerator {
         return z ^ (z >> 31)
     }
 
+    // 구간 매핑·셔플은 stdlib(Double.random/Int.random/shuffled)에 맡기지 않고
+    // 여기 고정 구현한다 — stdlib 알고리즘은 OS에 내장되어 iOS 업데이트로 바뀔 수 있고,
+    // 바뀌는 순간 같은 시드의 리플레이(저장된 전 세션)가 통째로 다른 시장이 된다.
+
+    /// [0, 1) 균등 — 상위 53비트를 가수로 사용하는 표준 기법.
+    public mutating func double01() -> Double {
+        Double(next() >> 11) * 0x1.0p-53
+    }
+
     public mutating func double(in range: ClosedRange<Double>) -> Double {
-        Double.random(in: range, using: &self)
+        range.lowerBound + (range.upperBound - range.lowerBound) * double01()
     }
 
     public mutating func int(in range: ClosedRange<Int>) -> Int {
-        Int.random(in: range, using: &self)
+        // 모듈로 방식 — span < 2^32에서 편향은 2^-32 미만으로 무시 가능. 결정론이 우선.
+        let span = UInt64(bitPattern: Int64(range.upperBound &- range.lowerBound)) &+ 1
+        guard span != 0 else { return Int(bitPattern: UInt(next())) } // 전체 Int 범위 (실사용 없음)
+        return range.lowerBound &+ Int(next() % span)
     }
 
     public mutating func chance(_ p: Double) -> Bool {
-        double(in: 0...1) < p
+        double01() < p
+    }
+
+    /// 자체 Fisher–Yates — stdlib shuffled(using:)의 알고리즘 변경으로부터 격리.
+    public mutating func shuffled<T>(_ array: [T]) -> [T] {
+        var result = array
+        guard result.count > 1 else { return result }
+        for i in stride(from: result.count - 1, through: 1, by: -1) {
+            let j = int(in: 0...i)
+            if i != j { result.swapAt(i, j) }
+        }
+        return result
     }
 }
 
@@ -212,16 +235,19 @@ public final class OrderBook {
     }
 
     /// 지정가 주문 + 잔여분의 주문 ID 반환 — 사용자 미체결 추적용.
-    public func submitLimitTracked(agentId: String, side: Side, price: Int, qty: Int, tick: Int)
+    /// excluding: 자기체결 방지(STP) — 이 참여자의 대기 주문은 건너뛰고 체결한다.
+    public func submitLimitTracked(agentId: String, side: Side, price: Int, qty: Int, tick: Int,
+                                   excluding excludedAgent: String? = nil)
     -> (trades: [Trade], restingOrderId: UInt64?, restingQty: Int) {
         var remaining = qty
         var trades: [Trade] = []
 
         while remaining > 0 {
-            guard let touch = (side == .buy ? bestAsk : bestBid) else { break }
+            guard let touch = nextTouch(for: side, excluding: excludedAgent) else { break }
             let crossed = side == .buy ? touch <= price : touch >= price
             guard crossed else { break }
-            let fills = consume(side: side.opposite, price: touch, upTo: remaining)
+            let fills = consume(side: side.opposite, price: touch, upTo: remaining,
+                                excluding: excludedAgent)
             for fill in fills {
                 trades.append(Trade(price: fill.price, qty: fill.qty, tick: tick, aggressor: side))
                 remaining -= fill.qty
@@ -249,6 +275,22 @@ public final class OrderBook {
         return queue.first { $0.id == orderId }?.qty ?? 0
     }
 
+    /// 주문 잔량 부분 감소 (동시호가 배분용). 실제 감소량을 반환한다.
+    @discardableResult
+    public func reduce(orderId: UInt64, side: Side, price: Int, by qty: Int) -> Int {
+        var queue = (side == .buy ? bids[price] : asks[price]) ?? []
+        guard let index = queue.firstIndex(where: { $0.id == orderId }) else { return 0 }
+        let taken = min(queue[index].qty, qty)
+        queue[index].qty -= taken
+        let cleaned = queue.filter { $0.qty > 0 }
+        if side == .buy {
+            bids[price] = cleaned.isEmpty ? nil : cleaned
+        } else {
+            asks[price] = cleaned.isEmpty ? nil : cleaned
+        }
+        return taken
+    }
+
     /// 주문 취소. 남은 잔량을 반환한다.
     @discardableResult
     public func cancel(orderId: UInt64, side: Side, price: Int) -> Int {
@@ -265,13 +307,15 @@ public final class OrderBook {
     }
 
     /// 시장가 미리보기: 호가창을 바꾸지 않고 체결 내역만 계산 (잔고 검증용).
-    public func previewMarket(side: Side, qty: Int) -> [Fill] {
+    /// excluding: 자기체결 방지 — 실행(executeMarket)과 같은 기준으로 계산해야 검증이 정확하다.
+    public func previewMarket(side: Side, qty: Int, excluding excludedAgent: String? = nil) -> [Fill] {
         var remaining = qty
         var fills: [Fill] = []
         let book = side == .buy ? asks : bids
         let prices = side == .buy ? book.keys.sorted() : book.keys.sorted(by: >)
         outer: for price in prices {
             for order in book[price]! {
+                if let excludedAgent, order.agentId == excludedAgent { continue }
                 let take = min(order.qty, remaining)
                 fills.append(Fill(price: price, qty: take))
                 remaining -= take
@@ -282,14 +326,17 @@ public final class OrderBook {
     }
 
     /// 시장가 실행: 반대편 호가를 가격 순으로 먹는다. 슬리피지가 여기서 발생한다.
-    public func executeMarket(agentId: String, side: Side, qty: Int, tick: Int) -> ([Fill], [Trade]) {
+    /// excluding: 자기체결 방지(STP) — 자기 대기 주문은 건너뛰고 다음 호가로 넘어간다.
+    public func executeMarket(agentId: String, side: Side, qty: Int, tick: Int,
+                              excluding excludedAgent: String? = nil) -> ([Fill], [Trade]) {
         var remaining = qty
         var fills: [Fill] = []
         var trades: [Trade] = []
 
         while remaining > 0 {
-            guard let touch = (side == .buy ? bestAsk : bestBid) else { break }
-            let consumed = consume(side: side.opposite, price: touch, upTo: remaining)
+            guard let touch = nextTouch(for: side, excluding: excludedAgent) else { break }
+            let consumed = consume(side: side.opposite, price: touch, upTo: remaining,
+                                   excluding: excludedAgent)
             if consumed.isEmpty { break }
             for fill in consumed {
                 fills.append(fill)
@@ -300,8 +347,20 @@ public final class OrderBook {
         return (mergeFills(fills), trades)
     }
 
-    /// 한 가격 레벨에서 FIFO로 소진.
-    private func consume(side: Side, price: Int, upTo qty: Int) -> [Fill] {
+    /// 주문자(side) 기준 다음 체결 가능 반대 호가 — 제외 대상만 있는 레벨은 지나친다.
+    /// 정렬 소비라 결정론이 유지된다.
+    private func nextTouch(for side: Side, excluding excludedAgent: String?) -> Int? {
+        let book = side == .buy ? asks : bids
+        let prices = side == .buy ? book.keys.sorted() : book.keys.sorted(by: >)
+        guard let excludedAgent else { return prices.first }
+        return prices.first { price in
+            book[price]!.contains { $0.agentId != excludedAgent }
+        }
+    }
+
+    /// 한 가격 레벨에서 FIFO로 소진. excluding의 주문은 자리(우선순위)를 지킨 채 건너뛴다.
+    private func consume(side: Side, price: Int, upTo qty: Int,
+                         excluding excludedAgent: String? = nil) -> [Fill] {
         var remaining = qty
         var fills: [Fill] = []
         let isBidSide = side == .buy
@@ -309,6 +368,10 @@ public final class OrderBook {
         var queue = (isBidSide ? bids[price] : asks[price]) ?? []
         var index = 0
         while remaining > 0 && index < queue.count {
+            if let excludedAgent, queue[index].agentId == excludedAgent {
+                index += 1
+                continue
+            }
             let take = min(queue[index].qty, remaining)
             fills.append(Fill(price: price, qty: take))
             queue[index].qty -= take

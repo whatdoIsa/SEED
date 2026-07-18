@@ -75,7 +75,8 @@ struct TrackPaywallSheet: View {
 
                     HStack(spacing: 8) {
                         proButton(id: PurchaseStore.proMonthlyID, label: "월간")
-                        proButton(id: PurchaseStore.proYearlyID, label: "연간 · 44% 할인")
+                        proButton(id: PurchaseStore.proYearlyID,
+                                  label: "연간" + (purchases.yearlyDiscountPct.map { " · \($0)% 할인" } ?? ""))
                     }
                 }
 

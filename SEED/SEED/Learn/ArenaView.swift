@@ -119,7 +119,7 @@ struct ArenaView: View {
     private var liveStandings: some View {
         let rows = currentStandings()
         return VStack(spacing: 4) {
-            ForEach(Array(rows.enumerated()), id: \.element.name) { index, row in
+            ForEach(Array(rows.enumerated()), id: \.element.key) { index, row in
                 HStack(spacing: 8) {
                     Text("\(index + 1)")
                         .font(.system(size: 11, weight: .bold))
@@ -145,6 +145,8 @@ struct ArenaView: View {
     }
 
     private struct StandingRow {
+        /// ForEach 식별자 — 이름은 사용자 전략명이 거장·'나'와 겹칠 수 있어 못 쓴다
+        let key: String
         let name: String
         let icon: String
         let returnPct: Double
@@ -153,7 +155,7 @@ struct ArenaView: View {
 
     private func currentStandings() -> [StandingRow] {
         let candleIndex = engine.candles.count
-        var rows = [StandingRow(name: "나", icon: "person.fill",
+        var rows = [StandingRow(key: "me", name: "나", icon: "person.fill",
                                 returnPct: myReturnPct, isMe: true)]
         for entry in botRuns {
             // 봇의 같은 시점 평가액 (완주 곡선에서 조회)
@@ -161,7 +163,8 @@ struct ArenaView: View {
             let equity = curve.isEmpty ? entry.run.startCash
                 : curve[min(max(candleIndex - 1, 0), curve.count - 1)]
             let pct = Double(equity - entry.run.startCash) / Double(entry.run.startCash) * 100
-            rows.append(StandingRow(name: entry.profile.shortName,
+            rows.append(StandingRow(key: entry.profile.id,
+                                    name: entry.profile.shortName,
                                     icon: entry.profile.icon,
                                     returnPct: pct, isMe: false))
         }
@@ -172,7 +175,7 @@ struct ArenaView: View {
 
     private var resultBody: some View {
         let rows = currentStandings()
-        let myRank = (rows.firstIndex { $0.isMe } ?? 5) + 1
+        let myRank = (rows.firstIndex { $0.isMe } ?? (rows.count - 1)) + 1
         let pattern = DailyMarket.pattern(stamp: stamp)
 
         return ScrollView {
@@ -186,7 +189,7 @@ struct ArenaView: View {
                     .foregroundStyle(SeedTheme.textSecondary)
 
                 VStack(spacing: 5) {
-                    ForEach(Array(rows.enumerated()), id: \.element.name) { index, row in
+                    ForEach(Array(rows.enumerated()), id: \.element.key) { index, row in
                         HStack(spacing: 8) {
                             Text(medal(for: index))
                                 .font(.system(size: 14))
@@ -301,7 +304,7 @@ struct ArenaView: View {
     private func finishMatch() {
         phase = .result
         let rows = currentStandings()
-        let myRank = (rows.firstIndex { $0.isMe } ?? 5) + 1
+        let myRank = (rows.firstIndex { $0.isMe } ?? (rows.count - 1)) + 1
         ArenaRecord.record(rank: myRank)
     }
 

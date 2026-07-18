@@ -44,21 +44,30 @@ final class AuctionTests: XCTestCase {
         }
     }
 
-    func testLimitOrderAcceptedDuringAuctionAndFillsAfter() throws {
+    /// 사용자 지정가는 단일가 청산에 참여한다 — 상한가 매수를 걸어두면
+    /// 청산가(주문가보다 유리)로 체결되고 차액 예약금이 돌아온다.
+    func testLimitOrderParticipatesInAuctionClearing() throws {
         let engine = makeEngine()
         engine.advance(ticks: engine.config.ticksPerCandle * engine.config.candlesPerDay + 1)
         XCTAssertTrue(engine.isInAuction)
 
-        // 동시호가 중에도 지정가는 접수된다 — 넉넉히 높은 매수가로 걸어두면
         let result = try engine.placeLimitOrder(side: .buy,
                                                 price: engine.upperLimitPrice,
                                                 qty: 10)
         XCTAssertNil(result.immediateFill, "수집 구간엔 즉시 체결이 없다")
 
-        // 청산 후 연속 매매가 재개되면 체결된다
-        engine.advance(ticks: engine.config.auctionTicks + 40)
-        _ = engine.drainUserFillEvents()
-        XCTAssertEqual(engine.portfolio.qty, 10, "청산 뒤 대기 지정가가 체결된다")
+        // 청산 틱을 지나면 단일가로 체결된다 (연속 매매 재개 전)
+        engine.advance(ticks: engine.config.auctionTicks)
+        let events = engine.drainUserFillEvents()
+        XCTAssertEqual(events.reduce(0) { $0 + $1.qty }, 10, "단일가 청산에서 체결된다")
+        if let first = events.first {
+            XCTAssertLessThan(first.price, engine.upperLimitPrice,
+                              "상한가 매수는 청산가로 가격 개선된다")
+        }
+        XCTAssertEqual(engine.portfolio.qty, 10)
+        XCTAssertEqual(engine.portfolio.reservedCash, 0,
+                       "가격 개선 차액까지 예약금이 전부 해제된다")
+        XCTAssertTrue(engine.openOrders.isEmpty)
     }
 
     func testAuctionIsDeterministic() {

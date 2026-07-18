@@ -275,19 +275,25 @@ public final class MarketEngine {
 
     /// 동시호가 청산: 체결량을 최대화하는 단일가를 찾아 한 번에 체결한다.
     /// 동률이면 기준가에 가까운 가격 — 실제 KRX 단일가 원칙의 단순화.
+    /// 사용자 대기 지정가도 수요·공급에 참여하고, 교차하면 청산가로 체결된다
+    /// (매수는 주문가보다 청산가가 낮으면 가격 개선 — 실제 단일가 매매와 동일).
     private func runAuctionClearing() {
         defer {
             auctionBuffer.removeAll()
             seedInitialBook() // 청산가 주변으로 호가 재구축 → 연속 매매 재개
         }
-        let candidates = Set(auctionBuffer.map(\.price)).sorted()
+        var entries = auctionBuffer
+        for order in openOrders where order.remainingQty > 0 {
+            entries.append((order.side, order.price, order.remainingQty))
+        }
+        let candidates = Set(entries.map(\.price)).sorted()
         guard !candidates.isEmpty else { return }
 
         var best: (price: Int, volume: Int)?
         for price in candidates {
-            let demand = auctionBuffer.filter { $0.side == .buy && $0.price >= price }
+            let demand = entries.filter { $0.side == .buy && $0.price >= price }
                 .reduce(0) { $0 + $1.qty }
-            let supply = auctionBuffer.filter { $0.side == .sell && $0.price <= price }
+            let supply = entries.filter { $0.side == .sell && $0.price <= price }
                 .reduce(0) { $0 + $1.qty }
             let volume = min(demand, supply)
             if volume > (best?.volume ?? 0) {
@@ -298,8 +304,55 @@ public final class MarketEngine {
             }
         }
         guard let clearing = best, clearing.volume > 0 else { return }
-        record([Trade(price: clampToBand(clearing.price), qty: clearing.volume,
+        let clearingPrice = clampToBand(clearing.price)
+        record([Trade(price: clearingPrice, qty: clearing.volume,
                       tick: tick, aggressor: .buy)])
+        settleUserAuctionFills(clearingPrice: clearingPrice, maxVolume: clearing.volume)
+    }
+
+    /// 단일가 청산에 교차한 사용자 대기 주문을 청산가로 체결·정산한다.
+    private func settleUserAuctionFills(clearingPrice: Int, maxVolume: Int) {
+        guard !openOrders.isEmpty else { return }
+        var available = maxVolume
+        var updated: [UserOrder] = []
+        for var order in openOrders {
+            let crosses = order.side == .buy
+                ? order.price >= clearingPrice
+                : order.price <= clearingPrice
+            let fillQty = crosses ? min(order.remainingQty, max(available, 0)) : 0
+            if fillQty > 0 {
+                available -= fillQty
+                // 호가창 잔량도 함께 줄여야 settleUserFills의 잔량 대조가 어긋나지 않는다
+                book.reduce(orderId: order.id, side: order.side, price: order.price, by: fillQty)
+                let avgCostBefore = ledger.avgCost(of: symbol)
+                switch order.side {
+                case .buy:
+                    let fee = config.buyFee(on: clearingPrice * fillQty)
+                    // 예약은 주문가 기준 — 그 몫만큼 해제하면 청산가가 유리할 때 차액이 가용으로 복귀
+                    let reservedPortion = order.price * fillQty
+                        + config.buyFee(on: order.price * fillQty)
+                    let release = min(reservedPortion, order.reservedCashLeft)
+                    ledger.settleRestingBuy(symbol: symbol, price: clearingPrice,
+                                            qty: fillQty, fee: fee, release: release)
+                    order.reservedCashLeft -= release
+                case .sell:
+                    let fee = config.sellFee(on: clearingPrice * fillQty)
+                    ledger.settleRestingSell(symbol: symbol, price: clearingPrice,
+                                             qty: fillQty, fee: fee)
+                }
+                order.filledQty += fillQty
+                userFillEvents.append(UserFillEvent(
+                    orderId: order.id, side: order.side, price: clearingPrice,
+                    qty: fillQty, avgCostBefore: avgCostBefore))
+            }
+            if order.remainingQty > 0 {
+                updated.append(order)
+            } else if order.side == .buy && order.reservedCashLeft > 0 {
+                // 전량 체결 — 반올림·가격 개선 잔액까지 정확히 해제
+                ledger.releaseCash(order.reservedCashLeft)
+            }
+        }
+        openOrders = updated
     }
 
     // MARK: 틱 루프
@@ -318,7 +371,7 @@ public final class MarketEngine {
 
         if isInAuction {
             // 주문 수집 구간: 체결 없이 의향만 쌓인다
-            for agent in agents.shuffled(using: &rng) {
+            for agent in rng.shuffled(agents) {
                 for intent in agent.act(ctx, rng: &rng) {
                     switch intent.kind {
                     case .limit(let price, let qty) where qty > 0 && price > 0:
@@ -336,7 +389,7 @@ public final class MarketEngine {
                 runAuctionClearing()
             }
         } else {
-            for agent in agents.shuffled(using: &rng) {
+            for agent in rng.shuffled(agents) {
                 if agent.refreshesQuotes { book.cancelAll(agentId: agent.id) }
                 for intent in agent.act(ctx, rng: &rng) {
                     apply(intent, from: agent.id)
@@ -507,7 +560,8 @@ public final class MarketEngine {
         guard let displayed = displayedPrice(for: side) else { throw OrderError.noLiquidity }
 
         // 실행 전에 정확한 비용을 미리 계산해 잔고를 검증한다 (드라이런).
-        let preview = book.previewMarket(side: side, qty: qty)
+        // 자기 대기 주문은 체결 대상에서 제외 (자기체결 방지 — 수수료 이중 지불·평단 왜곡 방지)
+        let preview = book.previewMarket(side: side, qty: qty, excluding: Self.userAgentId)
         guard !preview.isEmpty else { throw OrderError.noLiquidity }
 
         switch side {
@@ -523,7 +577,8 @@ public final class MarketEngine {
             }
         }
 
-        let (fills, trades) = book.executeMarket(agentId: Self.userAgentId, side: side, qty: qty, tick: tick)
+        let (fills, trades) = book.executeMarket(agentId: Self.userAgentId, side: side, qty: qty,
+                                                 tick: tick, excluding: Self.userAgentId)
         record(trades)
 
         let result = FillResult(side: side, requestedQty: qty, fills: fills, displayedPrice: displayed)
@@ -573,8 +628,8 @@ public final class MarketEngine {
         }
         let displayed = displayedPrice(for: side) ?? price
 
-        // 즉시 교차분 비용 미리 계산 (지정가 이하/이상만 먹는다)
-        let crossable = book.previewMarket(side: side, qty: qty)
+        // 즉시 교차분 비용 미리 계산 (지정가 이하/이상만 먹는다) — 자기 주문 제외
+        let crossable = book.previewMarket(side: side, qty: qty, excluding: Self.userAgentId)
             .filter { side == .buy ? $0.price <= price : $0.price >= price }
         let immediateQty = crossable.reduce(0) { $0 + $1.qty }
         let immediateCost = crossable.reduce(0) { $0 + $1.price * $1.qty }
@@ -594,7 +649,8 @@ public final class MarketEngine {
         }
 
         let (trades, restingId, actualResting) = book.submitLimitTracked(
-            agentId: Self.userAgentId, side: side, price: price, qty: qty, tick: tick)
+            agentId: Self.userAgentId, side: side, price: price, qty: qty, tick: tick,
+            excluding: Self.userAgentId)
         record(trades)
 
         var immediate: FillResult?
@@ -628,6 +684,9 @@ public final class MarketEngine {
 
     /// 대기 주문 취소 — 예약 자금·주식을 돌려준다.
     public func cancelOrder(id: UInt64) {
+        // 취소 전에 이미 체결된 잔량부터 정산 — 정산이 다음 틱으로 밀린 사이 취소하면
+        // 체결분 예약금까지 해제되고 그 체결이 원장에 영영 반영되지 않는 사고 방지.
+        settleUserFills()
         guard let index = openOrders.firstIndex(where: { $0.id == id }) else { return }
         let order = openOrders[index]
         let released = book.cancel(orderId: id, side: order.side, price: order.price)
@@ -658,8 +717,12 @@ public final class MarketEngine {
                 case .buy:
                     let cost = order.price * newlyFilled
                     let fee = config.buyFee(on: cost)
-                    ledger.settleRestingBuy(symbol: symbol, price: order.price, qty: newlyFilled, fee: fee)
-                    order.reservedCashLeft = max(order.reservedCashLeft - cost - fee, 0)
+                    // 해제는 이 주문의 잔여 예약 한도 안에서만 — 청크 반올림 초과분이
+                    // 전역 풀의 다른 주문 예약금을 갉는 것 방지
+                    let release = min(cost + fee, order.reservedCashLeft)
+                    ledger.settleRestingBuy(symbol: symbol, price: order.price,
+                                            qty: newlyFilled, fee: fee, release: release)
+                    order.reservedCashLeft -= release
                 case .sell:
                     let fee = config.sellFee(on: order.price * newlyFilled)
                     ledger.settleRestingSell(symbol: symbol, price: order.price, qty: newlyFilled, fee: fee)
@@ -682,6 +745,10 @@ public final class MarketEngine {
     /// 리플레이 폴백: 과거 지정가 체결을 호가창 개입 없이 포트폴리오에만 반영한다.
     /// (대기 체결은 정산 틱이 기록되지 않으므로 완전 재현 대신 근사 복원을 택한다.)
     public func restoreFill(side: Side, price: Int, qty: Int) {
+        // 손상된 기록 방어: 보유보다 큰 매도 복원은 보유만큼만 — 음수 보유·현금 오염 방지
+        // (CloudKit 병합 충돌로 중복 레코드가 재생되는 시나리오)
+        let qty = side == .sell ? min(qty, ledger.qty(of: symbol)) : qty
+        guard qty > 0, price > 0 else { return }
         let result = FillResult(side: side, requestedQty: qty,
                                 fills: [Fill(price: price, qty: qty)], displayedPrice: price)
         switch side {

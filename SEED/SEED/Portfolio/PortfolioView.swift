@@ -125,7 +125,9 @@ struct PortfolioView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 28)
                 } else {
-                    VStack(spacing: 8) {
+                    // Lazy — body가 틱마다 재평가돼도(실시간 평가액) 보이는 행만 만든다.
+                    // 매매 수백 건 시즌에서 틱당 전체 행 리빌드를 막는다.
+                    LazyVStack(spacing: 8) {
                         ForEach(seasonLogs) { log in
                             logRow(log)
                         }

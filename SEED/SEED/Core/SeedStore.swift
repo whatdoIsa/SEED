@@ -42,11 +42,21 @@ final class SeedStore {
             context.insert(fresh)
             progress = fresh
         }
-        try? context.save()
+        saveContext()
 
         // 완료 레슨 집합을 메모리로 로드 (이후 판정은 이 관찰 property로)
         let doneLessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
         completedLessonIds = Set(doneLessons.filter { $0.completedAt != nil }.map(\.lessonId))
+    }
+
+    /// 저장 실패를 조용히 삼키지 않는다 — CloudKit 백엔드 실패가 관측 불가하면
+    /// 데이터 유실 원인을 영영 못 찾는다. 실패해도 앱은 계속 동작한다.
+    private func saveContext() {
+        do { try context.save() } catch {
+            #if DEBUG
+            print("[SeedStore] context.save 실패: \(error)")
+            #endif
+        }
     }
 
     // MARK: 매매 기록 (M2-3 태그 시트가 호출)
@@ -82,8 +92,9 @@ final class SeedStore {
         log.atTick = atTick
         log.atCandleIndex = atCandleIndex
         log.isLimitFill = wasLimit
+        log.timelineEpoch = currentSeason.timelineEpoch
         context.insert(log)
-        try? context.save()
+        saveContext()
 
         Analytics.log(.tradePlaced, [
             "side": fill.side.rawValue,
@@ -97,27 +108,56 @@ final class SeedStore {
 
     // MARK: 시장 연속성 (종목별 시드 + 틱 + 주문 리플레이)
 
-    func persistSymbolState(code: String, seed: UInt64, tick: Int) {
+    func persistSymbolState(code: String, seed: UInt64, tick: Int, openOrders: Data? = nil) {
         let seasonNumber = currentSeason.number
-        let existing = (try? context.fetch(FetchDescriptor<SymbolState>(
+        let bits = Int64(bitPattern: seed)
+        let states = (try? context.fetch(FetchDescriptor<SymbolState>(
             predicate: #Predicate { $0.code == code && $0.seasonNumber == seasonNumber }
-        )))?.first
-        if let existing {
-            existing.lastTick = tick
-            existing.seedBits = Int64(bitPattern: seed)
+        ))) ?? []
+        if let own = states.first(where: { $0.seedBits == bits }) {
+            own.lastTick = tick
+            own.openOrdersData = openOrders
         } else {
-            context.insert(SymbolState(seasonNumber: seasonNumber, code: code,
-                                       seedBits: Int64(bitPattern: seed), lastTick: tick))
+            // 다른 시드의 기존 레코드(iCloud 복원분)는 덮어쓰지 않는다 — 재설치 직후
+            // 임포트 전 창에서 복원 상태를 덮어쓰면 리플레이가 영구 불능이 된다.
+            // 자기 레코드를 새로 만들고, 중복은 refreshAfterRemoteImport가 병합한다.
+            let fresh = SymbolState(seasonNumber: seasonNumber, code: code,
+                                    seedBits: bits, lastTick: tick)
+            fresh.openOrdersData = openOrders
+            context.insert(fresh)
         }
         currentSeason.lastActiveAt = .now
-        try? context.save()
+        saveContext()
+    }
+
+    /// 미체결 지정가 직렬화 데이터 — 리플레이로 복원된 시장에 재접수할 때 읽는다.
+    func openOrdersData(code: String) -> Data? {
+        let seasonNumber = currentSeason.number
+        let states = (try? context.fetch(FetchDescriptor<SymbolState>(
+            predicate: #Predicate { $0.code == code && $0.seasonNumber == seasonNumber }
+        ))) ?? []
+        return states.max(by: { $0.lastTick < $1.lastTick })?.openOrdersData
+    }
+
+    /// 타임라인 리셋(스냅샷 폴백) 전용 — 이 종목의 시장 상태를 의도적으로 새로 교체한다.
+    func replaceSymbolState(code: String, seed: UInt64, tick: Int) {
+        let seasonNumber = currentSeason.number
+        let states = (try? context.fetch(FetchDescriptor<SymbolState>(
+            predicate: #Predicate { $0.code == code && $0.seasonNumber == seasonNumber }
+        ))) ?? []
+        for state in states { context.delete(state) }
+        context.insert(SymbolState(seasonNumber: seasonNumber, code: code,
+                                   seedBits: Int64(bitPattern: seed), lastTick: tick))
+        saveContext()
     }
 
     func symbolState(code: String) -> (seed: UInt64, tick: Int)? {
         let seasonNumber = currentSeason.number
-        guard let state = (try? context.fetch(FetchDescriptor<SymbolState>(
+        let states = (try? context.fetch(FetchDescriptor<SymbolState>(
             predicate: #Predicate { $0.code == code && $0.seasonNumber == seasonNumber }
-        )))?.first else { return nil }
+        ))) ?? []
+        // 병합 전 중복이 있으면 진행 틱이 큰 쪽(복원본)을 신뢰한다
+        guard let state = states.max(by: { $0.lastTick < $1.lastTick }) else { return nil }
         return (UInt64(bitPattern: state.seedBits), state.lastTick)
     }
 
@@ -130,14 +170,42 @@ final class SeedStore {
         }
         let seed = UInt64.random(in: 0...UInt64.max)
         currentSeason.climateSeedBits = Int64(bitPattern: seed)
-        try? context.save()
+        saveContext()
         return seed
     }
 
-    /// 리플레이 대상: 현재 시즌의 본 세션 매매 (시나리오 제외), 틱 순.
-    func replayableLogs() -> [TradeLog] {
+    // MARK: 원장 타임라인 (베이스라인 + 에포크)
+
+    /// 현재 타임라인 번호 — 스냅샷 폴백으로 시장을 리셋할 때마다 +1. (nil = 0)
+    var timelineEpoch: Int { currentSeason.timelineEpoch ?? 0 }
+
+    /// 시즌의 원장 베이스라인 — 타임라인 리셋 시점의 계좌 상태.
+    /// 부팅 시 원장을 여기서 시작하고, 현재 타임라인의 매매만 리플레이하면 된다.
+    func ledgerBaseline() -> LedgerSnapshot? {
+        guard let data = currentSeason.ledgerBaselineData else { return nil }
+        return try? JSONDecoder().decode(LedgerSnapshot.self, from: data)
+    }
+
+    /// 타임라인 리셋: 현재 계좌 상태를 베이스라인으로 못박고 에포크를 올린다.
+    /// 이전 매매는 베이스라인에 반영됐으므로 이후 리플레이에서 제외된다.
+    func beginNewTimeline(baseline: LedgerSnapshot) {
+        currentSeason.timelineEpoch = timelineEpoch + 1
+        currentSeason.ledgerBaselineData = try? JSONEncoder().encode(baseline)
+        saveContext()
+    }
+
+    /// 이번 시즌의 본 세션 실매매 전부 (시나리오 제외) — 복기·매매지도의 원료.
+    private func seasonRealLogs() -> [TradeLog] {
         seasonLogs()
             .filter { $0.scenarioId == nil && $0.atTick != nil }
+            .sorted { $0.timestamp < $1.timestamp }
+    }
+
+    /// 리플레이 대상: 현재 타임라인의 본 세션 매매, 틱 순.
+    func replayableLogs() -> [TradeLog] {
+        let epoch = timelineEpoch
+        return seasonRealLogs()
+            .filter { ($0.timelineEpoch ?? 0) == epoch }
             .sorted { ($0.atTick ?? 0) < ($1.atTick ?? 0) }
     }
 
@@ -158,9 +226,9 @@ final class SeedStore {
         return (try? context.fetchCount(descriptor)) ?? 0
     }
 
-    /// 왕복 매매 페어링 (A) — 보유 습관의 원료.
+    /// 왕복 매매 페어링 (A) — 보유 습관의 원료. 타임라인과 무관하게 시즌 전체.
     func roundTrips() -> [RoundTrip] {
-        TradePairing.roundTrips(logs: replayableLogs())
+        TradePairing.roundTrips(logs: seasonRealLogs())
     }
 
     func holdingStats() -> HoldingStats? {
@@ -169,7 +237,7 @@ final class SeedStore {
 
     /// 매매 지도 마커 (M4 — 부록 A-4의 aha 모먼트). 종목별.
     func tradeMarks(symbolName: String) -> [(candleIndex: Int, price: Double, side: Side)] {
-        replayableLogs().compactMap { log in
+        seasonRealLogs().compactMap { log in
             guard log.symbol == symbolName, let index = log.atCandleIndex else { return nil }
             return (index, log.avgFillPrice, log.side)
         }
@@ -265,7 +333,7 @@ final class SeedStore {
     /// 진행 중인 시즌의 약속(규칙)을 설정 — 시즌 1처럼 부검을 거치지 않은 시즌용.
     func setSeasonRule(_ rule: String?) {
         currentSeason.carriedRule = rule
-        try? context.save()
+        saveContext()
     }
 
     func startNextSeason(endEquity: Int, carriedRule: String?) -> Season {
@@ -280,7 +348,7 @@ final class SeedStore {
         next.carriedRule = carriedRule
         context.insert(next)
         currentSeason = next
-        try? context.save()
+        saveContext()
         return next
     }
 
@@ -290,7 +358,7 @@ final class SeedStore {
     func completeOnboarding(startLevel: Int) {
         progress.unlockLevel = max(progress.unlockLevel, startLevel)
         progress.onboardingDone = true
-        try? context.save()
+        saveContext()
         Analytics.log(.onboardingLevelChoice,
                       ["choice": startLevel == 0 ? "beginner" : "experienced"])
     }
@@ -307,33 +375,42 @@ final class SeedStore {
         }.count
     }
 
-    /// 복습·실천의 대상 레슨: 본편 + 트랙 2. (하루 1레슨 페이스 카운트와 달리 유료 트랙 포함)
-    private var reviewableLessonIds: Set<String> {
-        Set(LessonCatalog.registered.map(\.id)).union(ETFTrackCatalog.all.map(\.id))
+    /// 복습·실천이 따라가는 트랙: 트랙 1 진행 중엔 트랙 1, 완주 후 트랙 2를 시작했으면 트랙 2.
+    /// completedAt 전역 최신순이 아니라 트랙 진도 기준이라, 다른 트랙 맛보기(무료 1편)나
+    /// iCloud 복원으로 되살아난 옛 기록이 복습을 가로채지 못한다.
+    private var reviewTrackLessonIds: [String] {
+        let track1 = LessonCatalog.all.map(\.id)
+        let track2 = ETFTrackCatalog.all.map(\.id)
+        let track1Done = track1.allSatisfy { completedLessonIds.contains($0) }
+        let track2Started = track2.contains { completedLessonIds.contains($0) }
+        return track1Done && track2Started ? track2 : track1
     }
 
-    /// 오늘 이전에 완료한 가장 최근 레슨 — 아침 복습 퀴즈의 대상.
+    /// lessonId별 가장 최근 완료 시각 — 복원 병합 전의 중복 레코드가 있어도 판정이 흔들리지 않는다.
+    private func latestCompletionDates() -> [String: Date] {
+        let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
+        var latest: [String: Date] = [:]
+        for record in lessons {
+            guard let done = record.completedAt else { continue }
+            latest[record.lessonId] = max(latest[record.lessonId] ?? .distantPast, done)
+        }
+        return latest
+    }
+
+    /// 아침 복습 퀴즈의 대상: 진행 중인 트랙에서 진도상 가장 앞선 완료 편.
+    /// 오늘 완료한 편은 건너뛴다 (배운 건 다음날 꺼내야 하므로) — 그 직전 편으로 물러난다.
     func latestMainLessonCompletedBeforeToday() -> String? {
-        let targetIds = reviewableLessonIds
+        let dates = latestCompletionDates()
         let calendar = Calendar.current
-        let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
-        return lessons
-            .filter { record in
-                guard let done = record.completedAt else { return false }
-                return targetIds.contains(record.lessonId) && !calendar.isDateInToday(done)
-            }
-            .max { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }?
-            .lessonId
+        return reviewTrackLessonIds.reversed().first { id in
+            guard let done = dates[id] else { return false }
+            return !calendar.isDateInToday(done)
+        }
     }
 
-    /// 가장 최근에 완료한 레슨 (오늘 포함) — 오늘의 실천 과제 대상.
+    /// 오늘의 실천 과제 대상: 진행 중인 트랙에서 진도상 가장 앞선 완료 편 (오늘 포함).
     func latestMainLessonCompleted() -> String? {
-        let targetIds = reviewableLessonIds
-        let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
-        return lessons
-            .filter { $0.completedAt != nil && targetIds.contains($0.lessonId) }
-            .max { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) }?
-            .lessonId
+        reviewTrackLessonIds.reversed().first { completedLessonIds.contains($0) }
     }
 
     /// 마감된 시즌들 (아카이브) — 번호 순
@@ -353,9 +430,25 @@ final class SeedStore {
     /// 활성화될 때마다 저장소를 다시 읽어 참조를 최신으로 맞추고
     /// (새 기기 부트스트랩이 만든) 중복 레코드를 병합·정리한다. 멱등.
     func refreshAfterRemoteImport() {
-        // 레슨: 완료 집합 재구성 (복원분 합류)
+        // 레슨: 같은 lessonId 중복 병합 — 임포트 도착 전에 새 기기에서 완료한 레코드와
+        // 복원 레코드가 겹칠 수 있다. 완료 시각이 최신인 것을 남긴다
+        // (옛 날짜 레코드가 남으면 오늘 마친 레슨이 아침 복습에 다시 나온다).
         let lessons = (try? context.fetch(FetchDescriptor<LessonProgress>())) ?? []
-        completedLessonIds = Set(lessons.filter { $0.completedAt != nil }.map(\.lessonId))
+        var keptLessons: [String: LessonProgress] = [:]
+        for record in lessons {
+            guard let kept = keptLessons[record.lessonId] else {
+                keptLessons[record.lessonId] = record
+                continue
+            }
+            if (record.completedAt ?? .distantPast) > (kept.completedAt ?? .distantPast) {
+                context.delete(kept)
+                keptLessons[record.lessonId] = record
+            } else {
+                context.delete(record)
+            }
+        }
+        // 완료 집합 재구성 (복원분 합류)
+        completedLessonIds = Set(keptLessons.values.filter { $0.completedAt != nil }.map(\.lessonId))
 
         // 진행 상태: 여러 개면 최댓값으로 병합 후 하나만 남긴다
         let allProgress = (try? context.fetch(FetchDescriptor<AppProgress>())) ?? []
@@ -370,14 +463,20 @@ final class SeedStore {
             progress = first
         }
 
-        // 시즌: 활성(endedAt == nil) 중 복원본(엔진 시드 보유) 우선, 나머지 빈 껍데기 제거
+        // 시즌: 활성(endedAt == nil)이 여러 개면 병합 — 높은 번호 우선, 같은 번호면
+        // 먼저 시작한 쪽(복원 원본)을 남긴다. 새 기기 부트스트랩이 만든 빈 시즌은
+        // startedAt이 더 늦다. 기후 시드·원장 베이스라인이 원본에 있으므로
+        // 원본을 잃으면 리플레이가 어긋난다.
         let seasons = (try? context.fetch(FetchDescriptor<Season>(
             sortBy: [SortDescriptor(\.number, order: .reverse)]
         ))) ?? []
         let active = seasons.filter { $0.endedAt == nil }
         if active.count > 1 {
-            let best = active.first { $0.engineSeedBits != nil } ?? active[0]
-            for extra in active where extra !== best && extra.engineSeedBits == nil {
+            let best = active.min { a, b in
+                if a.number != b.number { return a.number > b.number }
+                return a.startedAt < b.startedAt
+            }!
+            for extra in active where extra !== best {
                 context.delete(extra)
             }
             currentSeason = best
@@ -401,7 +500,7 @@ final class SeedStore {
                 seen[key] = state
             }
         }
-        try? context.save()
+        saveContext()
         WidgetBridge.sync(completed: completedLessonIds)
     }
 
@@ -425,7 +524,9 @@ final class SeedStore {
         context.insert(fresh)
         progress = fresh
         completedLessonIds = []
-        try? context.save()
+        saveContext()
+        // 위젯도 초기화 — 안 하면 지워진 스트릭을 무기한 계속 보여준다
+        WidgetBridge.sync(completed: [])
         Analytics.log(.accountReset, ["reason": "erase-all"])
     }
 
@@ -433,7 +534,7 @@ final class SeedStore {
     /// 개발용: 차트 도구 레벨만 강제 조정 (레슨 완료 상태는 건드리지 않음).
     func debugSetUnlockLevel(_ level: Int) {
         progress.unlockLevel = level
-        try? context.save()
+        saveContext()
     }
 
     /// 개발용: 모든 레슨 완료 처리 + 전체 해금 — 오늘의 장·복기·봇·퀀트·후속 레슨이
@@ -447,7 +548,7 @@ final class SeedStore {
         completedLessonIds = Set(LessonCatalog.registered.map(\.id))
         progress.unlockLevel = UnlockLevel.max
         progress.onboardingDone = true
-        try? context.save()
+        saveContext()
     }
 
     /// 개발용: 진행 상태 전체 초기화 (레슨·해금·온보딩) — 처음부터 흐름 점검용.
@@ -456,7 +557,7 @@ final class SeedStore {
         for lesson in lessons { context.delete(lesson) }
         completedLessonIds = []
         progress.unlockLevel = UnlockLevel.lineOnly
-        try? context.save()
+        saveContext()
     }
     #endif
 
@@ -475,7 +576,7 @@ final class SeedStore {
             progress.unlockLevel = level
             Analytics.log(.toolUnlocked, ["level": "\(level)"])
         }
-        try? context.save()
+        saveContext()
         Analytics.log(.lessonComplete, ["lessonId": lessonId])
         WidgetBridge.sync(completed: completedLessonIds)
     }

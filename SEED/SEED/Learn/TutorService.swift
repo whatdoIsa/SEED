@@ -74,6 +74,8 @@ enum TutorService {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // 워커와 공유하는 클라이언트 토큰 — 값은 gitignore된 TutorSecrets.swift에만 존재 (저장소가 public)
+        request.setValue(TutorSecrets.clientToken, forHTTPHeaderField: "x-seed-client")
         request.httpBody = try JSONEncoder().encode(
             RequestBody(deviceId: deviceIdentifier, messages: trimmed))
         request.timeoutInterval = 30
@@ -99,27 +101,70 @@ enum TutorService {
     }
 }
 
-// MARK: - 쿼터 (무료 총 5문 — 리필·Pro는 수익화 단계에서 크레딧 추가)
+// MARK: - 크레딧 영속 저장소 (iCloud Key-Value Store)
+
+/// 튜터 크레딧·지급 기록의 저장소 — iCloud KV.
+/// 소모성 리필은 finish 후 StoreKit이 재전달하지 않아(구매 복원 불가) 이 잔액이 유일한 기록이다.
+/// UserDefaults에만 두면 재설치·기기 이전 때 유료 크레딧이 증발한다 ("영구 크레딧" 카피 위반).
+/// iCloud 미로그인 기기에서도 로컬 디스크에 저장돼 동작은 유지된다.
+enum TutorCloudStore {
+    private static let cloud = NSUbiquitousKeyValueStore.default
+    private static let migratedFlag = "seed.tutor.cloudMigrated"
+    static let grantedKey = "seed.iap.granted"
+
+    /// 앱 시작 시 1회: 원격 값 당겨오기 + 구버전 UserDefaults 값 병합 (기기당 1회).
+    static func bootstrap() {
+        cloud.synchronize()
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: migratedFlag) else { return }
+        defaults.set(true, forKey: migratedFlag)
+        // 로컬 레거시와 클라우드 중 큰 쪽을 남긴다 — 레거시 크레딧 구제 + 이중 반영 방지
+        for key in ["seed.tutor.used", "seed.tutor.credits", "seed.pro.creditMonth"] {
+            let local = defaults.integer(forKey: key)
+            if local > int(forKey: key) { set(local, forKey: key) }
+        }
+        let localGranted = Set(defaults.stringArray(forKey: grantedKey) ?? [])
+        if !localGranted.isEmpty {
+            setGranted(granted().union(localGranted))
+        }
+    }
+
+    static func int(forKey key: String) -> Int { Int(cloud.longLong(forKey: key)) }
+
+    static func set(_ value: Int, forKey key: String) {
+        cloud.set(Int64(value), forKey: key)
+        cloud.synchronize()
+    }
+
+    /// 지급 완료된 소모성 트랜잭션 ID 집합 (중복 지급 방어)
+    static func granted() -> Set<String> {
+        Set(cloud.array(forKey: grantedKey) as? [String] ?? [])
+    }
+
+    static func setGranted(_ ids: Set<String>) {
+        cloud.set(Array(ids), forKey: grantedKey)
+        cloud.synchronize()
+    }
+}
+
+// MARK: - 쿼터 (무료 총 5문 + 리필·Pro 크레딧)
 
 enum TutorQuota {
     private static let usedKey = "seed.tutor.used"
-    private static let creditsKey = "seed.tutor.credits" // 리필·Pro가 충전 (Phase 2)
+    private static let creditsKey = "seed.tutor.credits" // 리필·Pro가 충전
 
     static let freeTotal = 5
 
     static var remaining: Int {
-        let defaults = UserDefaults.standard
-        return max(0, freeTotal + defaults.integer(forKey: creditsKey)
-                   - defaults.integer(forKey: usedKey))
+        max(0, freeTotal + TutorCloudStore.int(forKey: creditsKey)
+            - TutorCloudStore.int(forKey: usedKey))
     }
 
     static func consume() {
-        let defaults = UserDefaults.standard
-        defaults.set(defaults.integer(forKey: usedKey) + 1, forKey: usedKey)
+        TutorCloudStore.set(TutorCloudStore.int(forKey: usedKey) + 1, forKey: usedKey)
     }
 
     static func addCredits(_ amount: Int) {
-        let defaults = UserDefaults.standard
-        defaults.set(defaults.integer(forKey: creditsKey) + amount, forKey: creditsKey)
+        TutorCloudStore.set(TutorCloudStore.int(forKey: creditsKey) + amount, forKey: creditsKey)
     }
 }

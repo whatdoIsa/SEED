@@ -12,6 +12,9 @@ struct ETFDetailView: View {
     @State private var orderSide: Side?
     @State private var lastFill: FillResult?
     @State private var orderErrorMessage: String?
+    /// NAV 시리즈 캐시 — 캔들이 닫힐 때만 변하는데 body는 틱마다 재평가되므로,
+    /// 매 틱 120포인트 × 구성종목 재계산을 피한다
+    @State private var cachedSeries: [Int] = []
 
     private var nav: Int { session.etfNAV(spec.code) }
     private var referenceNAV: Int { session.etfReferenceNAV(spec.code) }
@@ -39,6 +42,10 @@ struct ETFDetailView: View {
             orderButtons
         }
         .background(SeedTheme.background)
+        .onAppear { cachedSeries = session.etfNAVSeries(spec.code) }
+        .onChange(of: session.engines[SymbolCatalog.all[0].code]?.candles.count ?? 0) { _, _ in
+            cachedSeries = session.etfNAVSeries(spec.code)
+        }
         .sheet(item: $orderSide) { side in
             ETFOrderSheet(session: session, spec: spec, side: side) { result, _ in
                 switch result {
@@ -117,7 +124,7 @@ struct ETFDetailView: View {
     // MARK: NAV 라인차트 — 구성 종목 종가에서 재구성
 
     private var navChart: some View {
-        let series = session.etfNAVSeries(spec.code)
+        let series = cachedSeries
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("NAV 흐름")
@@ -394,26 +401,33 @@ struct ETFOrderSheet: View {
             Spacer(minLength: 0)
 
             Button {
-                let chosenTag = tag ?? (side == .buy ? .gutBuy : .gutSell)
+                // 태그는 1탭 필수 (주식 시트와 동일) — 기본값으로 조용히 통과시키면
+                // 복기 통계의 '감으로' 분포가 오염된다
+                guard let chosenTag = tag else { return }
                 let result = side == .buy
                     ? session.buyETF(code: spec.code, qty: qty, tag: chosenTag)
                     : session.sellETF(code: spec.code, qty: qty, tag: chosenTag)
                 onDone(result, chosenTag)
                 dismiss()
             } label: {
-                Text("\(qty)좌 \(side == .buy ? "사기" : "팔기")")
+                Text(tag == nil ? "이유를 하나 골라주세요" : "\(qty)좌 \(side == .buy ? "사기" : "팔기")")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(side == .buy ? SeedTheme.up : SeedTheme.down,
+                    .background(tag == nil ? SeedTheme.textSecondary
+                                : side == .buy ? SeedTheme.up : SeedTheme.down,
                                 in: RoundedRectangle(cornerRadius: 14))
             }
-            .disabled(maxQty < 1)
+            .disabled(maxQty < 1 || tag == nil)
         }
         .padding(20)
         .background(SeedTheme.background)
         .presentationDetents([.height(440)])
+        // NAV가 움직여 최대 가능 수량이 줄면 선택 수량도 따라 내린다 (초과 주문 방지)
+        .onChange(of: maxQty) { _, newMax in
+            if qty > newMax { qty = max(newMax, 1) }
+        }
         .onDisappear { session.orderSheetClosed() }
     }
 }

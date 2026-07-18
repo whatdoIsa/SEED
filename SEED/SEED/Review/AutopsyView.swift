@@ -8,6 +8,9 @@ struct AutopsyView: View {
     @Bindable var session: MarketSession
     @Environment(\.dismiss) private var dismiss
     @State private var selectedRule: String?
+    /// 진입 시점 총자산 스냅샷 — session.totalEquity를 body에서 직접 읽으면 아래 세션이 계속 돌아
+    /// 매 틱 body가 재평가되고, AI 지문이 틱마다 바뀌어 온디바이스 생성이 무한 재시작된다 (시뮬 미재현).
+    @State private var equitySnapshot: Int?
 
     static let rulePresets = [
         "한 종목에 30% 이상 넣지 않기",
@@ -16,7 +19,7 @@ struct AutopsyView: View {
     ]
 
     var body: some View {
-        let equity = session.totalEquity
+        let equity = equitySnapshot ?? session.totalEquity
         let startCash = store.currentSeason.startCash
         let returnPct = Double(equity - startCash) / Double(startCash) * 100
 
@@ -38,7 +41,7 @@ struct AutopsyView: View {
                     halfLossMath(equity: equity, startCash: startCash)
                 }
                 carrySection
-            carryOverSection
+                carryOverSection
                 confirmButton(equity: equity)
                 Text("교육용 복기 · 투자 권유 아님")
                     .font(.system(size: 10))
@@ -48,6 +51,9 @@ struct AutopsyView: View {
             }
         }
         .background(SeedTheme.background)
+        .onAppear {
+            if equitySnapshot == nil { equitySnapshot = session.totalEquity }
+        }
     }
 
     // MARK: 헤더 — 사망 원인

@@ -388,7 +388,15 @@ struct LessonListView: View {
     private var deepLinkListener: some View {
         Color.clear
             .frame(height: 0)
+            .onAppear {
+                // 콜드 런치 딥링크: 알림 구독 전에 도착한 seed://daily를 여기서 회수
+                if DeepLinkRelay.consumePendingDailyMarket(),
+                   !store.isLessonDone(DailyMarket.id()) {
+                    showsDailyMarket = true
+                }
+            }
             .onReceive(NotificationCenter.default.publisher(for: .seedOpenDailyMarket)) { _ in
+                DeepLinkRelay.pendingDailyMarket = false
                 if !store.isLessonDone(DailyMarket.id()) {
                     showsDailyMarket = true
                 }
@@ -397,6 +405,7 @@ struct LessonListView: View {
                 // 레슨 커버가 닫히는 애니메이션과 겹치지 않게 반 박자 늦춰 연다
                 Task {
                     try? await Task.sleep(for: .seconds(0.6))
+                    guard !Task.isCancelled else { return }
                     selectedTrack = TrackCatalog.etf
                 }
             }
@@ -737,6 +746,7 @@ struct TapBullishMissionView: View {
         .task {
             for i in 1...candles.count {
                 try? await Task.sleep(for: .milliseconds(550))
+                guard !Task.isCancelled else { return }
                 revealedCount = i
             }
         }

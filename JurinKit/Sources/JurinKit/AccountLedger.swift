@@ -49,7 +49,10 @@ public final class AccountLedger {
     /// 총평가: 종목별 현재가를 받아 현금 + 전체 보유 가치를 계산.
     public func totalEquity(prices: [String: Int]) -> Int {
         cash + holdings.reduce(0) { sum, entry in
-            sum + entry.value.qty * (prices[entry.key] ?? 0)
+            // 보유 종목의 가격 누락은 호출 측 버그 — 총자산이 조용히 줄어 보인다
+            assert(entry.value.qty == 0 || prices[entry.key] != nil,
+                   "totalEquity: '\(entry.key)' 가격 누락")
+            return sum + entry.value.qty * (prices[entry.key] ?? 0)
         }
     }
 
@@ -60,7 +63,9 @@ public final class AccountLedger {
         let cost = result.notional
         let newQty = holding.qty + result.filledQty
         if newQty > 0 {
-            holding.avgCost = (holding.avgCost * Double(holding.qty) + Double(cost)) / Double(newQty)
+            // 취득원가에 매수 수수료 산입 (증권사 관행) — 평단이 '본전가'가 되고,
+            // 매도 시 실현손익이 양쪽 수수료를 모두 반영해 Σ실현손익 = 현금 변화가 성립한다.
+            holding.avgCost = (holding.avgCost * Double(holding.qty) + Double(cost + fee)) / Double(newQty)
         }
         holding.qty = newQty
         holdings[symbol] = holding
@@ -96,13 +101,17 @@ public final class AccountLedger {
         holdings[symbol] = holding
     }
 
-    func settleRestingBuy(symbol: String, price: Int, qty fillQty: Int, fee: Int) {
+    /// release: 전역 예약 풀에서 해제할 금액 — 호출 측(엔진)이 이 주문의 잔여 예약 한도로
+    /// 캡을 씌워 넘긴다. 청크별 수수료 반올림 합이 예약분을 넘어 다른 주문의 예약금을
+    /// 갉아먹는 것을 막는다.
+    func settleRestingBuy(symbol: String, price: Int, qty fillQty: Int, fee: Int, release: Int) {
         let cost = price * fillQty
-        releaseCash(cost + fee)
+        releaseCash(release)
         var holding = holding(of: symbol)
         let newQty = holding.qty + fillQty
         if newQty > 0 {
-            holding.avgCost = (holding.avgCost * Double(holding.qty) + Double(cost)) / Double(newQty)
+            // 매수 수수료 취득원가 산입 — applyBuy와 동일 정책
+            holding.avgCost = (holding.avgCost * Double(holding.qty) + Double(cost + fee)) / Double(newQty)
         }
         holding.qty = newQty
         holdings[symbol] = holding

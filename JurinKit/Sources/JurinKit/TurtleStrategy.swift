@@ -73,8 +73,19 @@ public struct TurtleStrategy {
     /// 이유는 봇 매매 일지에 그대로 실린다 — 규칙이 추상이 아니라 행동이 되도록.
     /// - Parameter candles: 방금 마감된 캔들을 포함한 전체 이력
     /// - Parameter avgCost: 현재 평단 (포지션 없으면 0)
-    public mutating func onCandleClose(candles: [Candle], avgCost: Double) -> (action: Action, reason: String)? {
+    public mutating func onCandleClose(candles: [Candle], avgCost: Double,
+                                       holdingQty: Int) -> (action: Action, reason: String)? {
         guard let closed = candles.last else { return nil }
+        // 실보유와 대조해 내부 상태를 교정 — 직전 매수 주문이 현금 부족으로 실패했거나
+        // 부분 체결됐을 수 있다. 교정 없이는 유령 유닛으로 손절선이 음수(avgCost 0)가 되어
+        // 손절도 재진입도 못 하는 식물 봇이 된다.
+        if units > 0 {
+            let actualUnits = holdingQty / max(unitQty, 1)
+            if actualUnits < units {
+                units = holdingQty > 0 ? max(actualUnits, 1) : 0
+                if units == 0 { lastEntryPrice = 0 }
+            }
+        }
         // 채널은 '직전까지'의 캔들로 계산한다 — 자기 자신 돌파 방지
         let history = Array(candles.dropLast())
         guard let atr = history.atr(period: atrPeriod) else { return nil }
@@ -166,7 +177,8 @@ public enum BotComparison {
             turtle.unitQty = max(1, 2_300_000 / max(scenario.initialPrice, 1))
         }
         return runCustom(name: "터틀 봇", scenario: scenario) { ctx in
-            turtle.onCandleClose(candles: ctx.candles, avgCost: ctx.avgCost)
+            turtle.onCandleClose(candles: ctx.candles, avgCost: ctx.avgCost,
+                                 holdingQty: ctx.holdingQty)
         }
     }
 

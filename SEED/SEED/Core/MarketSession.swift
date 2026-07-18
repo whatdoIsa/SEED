@@ -40,7 +40,22 @@ final class MarketSession {
     var enginesList: [MarketEngine] { SymbolCatalog.all.compactMap { engines[$0.code] } }
 
     init(store: SeedStore?) {
+        self.ledger = AccountLedger(cash: 10_000_000)
+        self.store = store
+        bootstrap()
+    }
+
+    /// 저장소에서 시장·계좌를 (재)구성한다. 원장 복원 순서:
+    /// 시즌 베이스라인 → (장기 시즌이면 스냅샷 폴백 = 타임라인 리셋) → 현재 타임라인 리플레이.
+    private func bootstrap() {
         let ledger = AccountLedger(cash: 10_000_000)
+        // 타임라인 리셋 이전의 매매는 베이스라인에 반영돼 있다 — 원장을 여기서 시작한다.
+        if let baseline = store?.ledgerBaseline() {
+            ledger.restore(cash: baseline.cash,
+                           realizedPnL: baseline.realizedPnL,
+                           feesPaid: baseline.feesPaid,
+                           holdings: baseline.holdingTuples)
+        }
         // 시장 기후: 시즌 고정 시드 — 모든 종목이 같은 기후를 공유해 상관되어 움직인다.
         let climate = MarketClimate(seed: store?.climateSeed() ?? .random(in: 0...UInt64.max))
         var engines: [String: MarketEngine] = [:]
@@ -68,13 +83,51 @@ final class MarketSession {
             }
         }
 
+        // 합성 ETF — 구성 좌수가 스펙 초기가 기준 상수라 시즌·세션 무관하게 결정론적
+        var funds: [String: ETFFund] = [:]
+        for spec in ETFCatalog.all {
+            funds[spec.code] = spec.makeFund(ledger: ledger)
+        }
+
         // 장기 시즌 가드: 리플레이 총량이 크면(수 초 이상 걸릴 규모)
-        // 차트 연속성을 포기하고 계좌만 스냅샷으로 복원한다 — 시작 지연 방지.
+        // 차트 연속성을 포기하고 계좌만 복원한다 — 시작 지연·런치 워치독 방지.
         let totalReplaySteps = restoredTargets.values.reduce(0, +)
         let replayBudgetSteps = 300_000 // 릴리즈 기준 ~1.5초
-        if totalReplaySteps > replayBudgetSteps,
-           let snapshot = LedgerSnapshot.load(seasonNumber: store?.currentSeason.number ?? 1) {
-            // 새 시장(워밍업)으로 교체하고 계좌만 복원
+        if totalReplaySteps > replayBudgetSteps {
+            // 시드 지문이 맞는 스냅샷만 신뢰한다 — 임포트 전 부트스트랩 세션이 남긴
+            // 초기 계좌 스냅샷을 복원본 위에 씌우는 사고 방지.
+            if let snapshot = LedgerSnapshot.load(seasonNumber: store?.currentSeason.number ?? 1),
+               snapshot.matches(seeds: seeds) {
+                ledger.restore(cash: snapshot.cash,
+                               realizedPnL: snapshot.realizedPnL,
+                               feesPaid: snapshot.feesPaid,
+                               holdings: snapshot.holdingTuples)
+                // 베이스라인으로 못박아 두면 다음 부팅은 (스냅샷 없이도) 여기서 이어간다
+                store?.beginNewTimeline(baseline: snapshot)
+            } else {
+                // 스냅샷이 없거나(새 기기 iCloud 복원 — 스냅샷은 기기 로컬 UserDefaults) 지문 불일치:
+                // 기록된 체결가로 원장만 재구성한다. 여기서 풀 리플레이를 강행하면
+                // 메인 스레드가 수십 초 블록되어 런치 워치독(0x8badf00d)에 죽는다.
+                for log in store?.replayableLogs() ?? [] {
+                    let price = Int(log.avgFillPrice.rounded())
+                    if let etfCode = ETFCatalog.code(forName: log.symbol) {
+                        funds[etfCode]?.restoreFill(side: log.side, price: price, qty: log.qty)
+                    } else if let code = SymbolCatalog.code(forName: log.symbol) {
+                        engines[code]?.restoreFill(side: log.side, price: price, qty: log.qty)
+                    }
+                }
+                let rebuilt = LedgerSnapshot(
+                    seasonNumber: store?.currentSeason.number ?? 1,
+                    cash: ledger.cash,
+                    realizedPnL: ledger.realizedPnL,
+                    feesPaid: ledger.feesPaid,
+                    holdings: ledger.holdings.mapValues {
+                        LedgerSnapshot.HoldingSnap(qty: $0.qty, avgCost: $0.avgCost)
+                    },
+                    seedsHash: nil)
+                store?.beginNewTimeline(baseline: rebuilt)
+            }
+            // 공통: 타임라인 리셋 — 새 시장(워밍업)으로 교체
             for spec in SymbolCatalog.all where restoredTargets[spec.code] != nil {
                 let seed = UInt64.random(in: 0...UInt64.max)
                 seeds[spec.code] = seed
@@ -83,22 +136,13 @@ final class MarketSession {
                     config: spec.config, symbol: spec.code, ledger: ledger, climate: climate)
                 engine.advance(ticks: spec.config.ticksPerCandle * warmupCandles)
                 engines[spec.code] = engine
-                freshCodes.append(spec.code)
+                store?.replaceSymbolState(code: spec.code, seed: seed, tick: engine.tick)
             }
             restoredTargets.removeAll()
-            ledger.restore(cash: snapshot.cash,
-                           realizedPnL: snapshot.realizedPnL,
-                           feesPaid: snapshot.feesPaid,
-                           holdings: snapshot.holdingTuples)
-        }
-
-        // 합성 ETF — 구성 좌수가 스펙 초기가 기준 상수라 시즌·세션 무관하게 결정론적
-        var funds: [String: ETFFund] = [:]
-        for spec in ETFCatalog.all {
-            funds[spec.code] = spec.makeFund(ledger: ledger)
         }
 
         // 전 종목 주문을 틱 순으로 리플레이 — 현금 흐름의 시간 순서를 보존한다
+        let replayedTimeline = !restoredTargets.isEmpty
         if !restoredTargets.isEmpty {
             for log in store?.replayableLogs() ?? [] {
                 // ETF 체결은 기록된 NAV 그대로 원장에만 반영 (호가창 없음)
@@ -129,11 +173,61 @@ final class MarketSession {
         self.engineSeeds = seeds
         self.etfFunds = funds
         self.startPrices = engines.mapValues { $0.candles.last?.close ?? $0.lastPrice }
-        self.store = store
+
+        // 미체결 지정가 복원 — 같은 시드·틱으로 되살린 같은 시장에 재접수한다.
+        // (스냅샷 폴백 = 다른 시장이므로 재접수하지 않는다 — 기존 전제 유지)
+        if replayedTimeline {
+            restoreOpenOrders()
+        }
 
         for code in freshCodes {
             persistSymbol(code)
         }
+    }
+
+    /// 재시작 전에 걸려 있던 지정가를 다시 접수한다. 큐 순번은 근사(맨 뒤 합류)이고,
+    /// 리플레이 근사 오차로 시장이 지정가를 지나쳐 있으면 즉시 체결 — 정상 흐름으로 기록한다.
+    private func restoreOpenOrders() {
+        for spec in SymbolCatalog.all {
+            guard let data = store?.openOrdersData(code: spec.code),
+                  let saved = try? JSONDecoder().decode([PersistedOrder].self, from: data),
+                  let engine = engines[spec.code] else { continue }
+            for order in saved {
+                guard let side = Side(rawValue: order.sideRaw) else { continue }
+                let tag = TradeReasonTag(rawValue: order.tagRaw)
+                    ?? (side == .buy ? .gutBuy : .gutSell)
+                let avgBefore = ledger.avgCost(of: spec.code)
+                guard let result = try? engine.placeLimitOrder(
+                    side: side, price: order.price, qty: order.qty) else { continue }
+                if let resting = result.restingOrder {
+                    limitTags["\(spec.code)#\(resting.id)"] = tag
+                }
+                if let fill = result.immediateFill {
+                    store?.record(fill: fill, tag: tag, symbol: spec.name,
+                                  avgCostBeforeOrder: avgBefore,
+                                  atTick: engine.tick,
+                                  atCandleIndex: engine.candles.count,
+                                  wasLimit: true)
+                }
+            }
+        }
+    }
+
+    /// iCloud 임포트가 세션 생성 뒤에 도착했을 때: 저장소의 시장 상태가 지금 세션과
+    /// 다르면(= 복원본이 합류했으면) 세션을 다시 구성한다. 이게 없으면 매매 기록은
+    /// 보이는데 현금은 초기값 그대로인 화면이 된다.
+    func adoptRemoteStateIfNeeded() {
+        guard store != nil else { return }
+        let mismatch = SymbolCatalog.all.contains { spec in
+            guard let state = store?.symbolState(code: spec.code) else { return false }
+            return state.seed != engineSeeds[spec.code]
+        }
+        guard mismatch else { return }
+        let wasRunning = isRunning
+        stop()
+        limitTags = [:]
+        bootstrap()
+        if wasRunning { start() }
     }
 
     // MARK: 등락·자산
@@ -252,14 +346,37 @@ final class MarketSession {
 
     // MARK: 연속성
 
+    /// 미체결 지정가의 영속 형태 (SymbolState.openOrdersData)
+    struct PersistedOrder: Codable {
+        let sideRaw: String
+        let price: Int
+        let qty: Int
+        let tagRaw: String
+    }
+
     private func persistSymbol(_ code: String) {
         guard let engine = engines[code], let seed = engineSeeds[code] else { return }
-        store?.persistSymbolState(code: code, seed: seed, tick: engine.tick)
+        store?.persistSymbolState(code: code, seed: seed, tick: engine.tick,
+                                  openOrders: encodedOpenOrders(code: code, engine: engine))
+    }
+
+    private func encodedOpenOrders(code: String, engine: MarketEngine) -> Data? {
+        guard !engine.openOrders.isEmpty else { return nil }
+        let orders = engine.openOrders.map { order in
+            PersistedOrder(
+                sideRaw: order.side.rawValue,
+                price: order.price,
+                qty: order.remainingQty,
+                tagRaw: (limitTags["\(code)#\(order.id)"]
+                         ?? (order.side == .buy ? .gutBuy : .gutSell)).rawValue)
+        }
+        return try? JSONEncoder().encode(orders)
     }
 
     func persistState() {
         for code in engines.keys { persistSymbol(code) }
-        LedgerSnapshot.save(from: ledger, seasonNumber: store?.currentSeason.number ?? 1)
+        LedgerSnapshot.save(from: ledger, seasonNumber: store?.currentSeason.number ?? 1,
+                            seeds: engineSeeds)
     }
 
     /// 씬 전환 처리: 백그라운드 진입 시 상태 저장, 복귀 시 경과분 따라잡기 (catch-up).
@@ -371,6 +488,8 @@ final class MarketSession {
     private var limitTags: [String: TradeReasonTag] = [:]
     /// 방금 체결된 대기 주문 알림 (UI 배너)
     private(set) var limitFillNotice: String?
+    /// 배너 소멸 세대 — 연속 체결 시 앞선 타이머가 새 배너를 조기에 지우는 것 방지
+    private var limitFillNoticeGeneration = 0
 
     func placeLimitOrder(side: Side, price: Int, qty: Int, tag: TradeReasonTag)
     -> Result<MarketEngine.LimitOrderResult, OrderError> {
@@ -389,16 +508,20 @@ final class MarketSession {
 
     func cancelOrder(id: UInt64) {
         engine.cancelOrder(id: id)
+        // 취소 직전에 정산된 체결이 있을 수 있다 — 태그가 살아 있는 동안 먼저 기록
+        processUserFills()
         limitTags["\(activeSymbolCode)#\(id)"] = nil
         persistSymbol(activeSymbolCode)
     }
 
     /// 전 종목의 대기 체결 이벤트를 기록·영속·알림으로 처리.
     func processUserFills() {
+        var hadFills = false
         for spec in SymbolCatalog.all {
             guard let engine = engines[spec.code] else { continue }
             let events = engine.drainUserFillEvents()
             guard !events.isEmpty else { continue }
+            hadFills = true
             for event in events {
                 let key = "\(spec.code)#\(event.orderId)"
                 let fallback: TradeReasonTag = event.side == .buy ? .gutBuy : .gutSell
@@ -418,9 +541,18 @@ final class MarketSession {
             }
             persistSymbol(spec.code)
         }
+        // 지정가 체결도 스냅샷을 갱신 — 백그라운드 전환 없이 죽으면(크래시·잿섬)
+        // 장기 시즌의 스냅샷 폴백 계좌가 체결 이전으로 되돌아가는 구멍 방지.
+        if hadFills {
+            LedgerSnapshot.save(from: ledger, seasonNumber: store?.currentSeason.number ?? 1,
+                                seeds: engineSeeds)
+        }
         if limitFillNotice != nil {
+            limitFillNoticeGeneration += 1
+            let generation = limitFillNoticeGeneration
             Task {
                 try? await Task.sleep(for: .seconds(4))
+                guard generation == limitFillNoticeGeneration else { return }
                 limitFillNotice = nil
             }
         }
@@ -445,20 +577,33 @@ struct LedgerSnapshot: Codable {
     let realizedPnL: Double
     let feesPaid: Int
     let holdings: [String: HoldingSnap]
+    /// 저장 당시 엔진 시드들의 XOR 지문 — 다른 시장의 스냅샷(임포트 전 부트스트랩
+    /// 세션이 남긴 초기 계좌)을 복원본에 씌우는 것을 막는다. nil = 구버전 저장분(수용).
+    var seedsHash: UInt64?
 
     var holdingTuples: [String: (qty: Int, avgCost: Double)] {
         holdings.mapValues { ($0.qty, $0.avgCost) }
     }
 
+    func matches(seeds: [String: UInt64]) -> Bool {
+        guard let seedsHash else { return true }
+        return seedsHash == Self.hash(of: seeds)
+    }
+
+    static func hash(of seeds: [String: UInt64]) -> UInt64 {
+        seeds.values.reduce(0, ^)
+    }
+
     private static let key = "seed.ledgerSnapshot"
 
-    static func save(from ledger: AccountLedger, seasonNumber: Int) {
+    static func save(from ledger: AccountLedger, seasonNumber: Int, seeds: [String: UInt64]) {
         let snap = LedgerSnapshot(
             seasonNumber: seasonNumber,
             cash: ledger.cash,
             realizedPnL: ledger.realizedPnL,
             feesPaid: ledger.feesPaid,
-            holdings: ledger.holdings.mapValues { HoldingSnap(qty: $0.qty, avgCost: $0.avgCost) }
+            holdings: ledger.holdings.mapValues { HoldingSnap(qty: $0.qty, avgCost: $0.avgCost) },
+            seedsHash: hash(of: seeds)
         )
         if let data = try? JSONEncoder().encode(snap) {
             UserDefaults.standard.set(data, forKey: key)

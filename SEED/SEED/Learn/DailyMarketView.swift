@@ -215,7 +215,8 @@ struct DailyMarketView: View {
                 lessonLine: pattern.lessonLine,
                 pnl: pnl,
                 streak: DailyMarket.streak(
-                    completed: store.completedLessonIds.union([scenarioId]))
+                    completed: store.completedLessonIds.union([scenarioId])),
+                closes: engine.candles.map { Double($0.close) }
             ) {
                 ShareLink(item: card,
                           preview: SharePreview("오늘의 장 · \(pattern.revealName)", image: card)) {

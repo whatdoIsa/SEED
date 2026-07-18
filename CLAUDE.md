@@ -46,18 +46,19 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 ## 수익 모델 (확정)
 - 무료 영원히: 트랙1(12편)+시장+오늘의장+아레나+룰기반 복기
 - **트랙 단품** 각 ₩5,000 일회성(영구소장, AI 미포함) / **Pro** 월 ₩3,300·연 ₩22,000(전 트랙+AI코멘트+튜터 월40문) / **리필** 10문 ₩1,100·30문 ₩2,900(소모성)
-- 상품 ID: `seed.pro.monthly.v2` `seed.pro.yearly.v2`(초기 ID는 ASC 삭제로 영구 잠김) `seed.tutor.refill10` `seed.tutor.refill30` `seed.track.etf`(트랙2 단품 ₩5,000 비소모성 — **App Store Connect 미등록, 등록 필요**) — `Core/PurchaseStore.swift`(ownsETFTrack = Pro ∨ 단품), `Learn/RefillSheet.swift`·`Learn/TrackPaywallSheet.swift`(정직 페이월), 개발용 `SEED/Products.storekit`+스킴 연결
+- 상품 ID: `seed.pro.monthly.v2` `seed.pro.yearly.v2`(초기 ID는 ASC 삭제로 영구 잠김) `seed.tutor.refill10` `seed.tutor.refill30` `seed.track.etf`(트랙2 단품 ₩5,000 비소모성) — **5종 전부 ASC 등록 완료(2026-07-18, '제출 준비 중')** — `Core/PurchaseStore.swift`(ownsETFTrack = Pro ∨ 단품), `Learn/RefillSheet.swift`·`Learn/TrackPaywallSheet.swift`(정직 페이월), 개발용 `SEED/Products.storekit`+스킴 연결
 - 결제 트리거 (구현 완료): 졸업 완료 화면 CTA→트랙 2 목차→1편 무료→페이월 / 배우기 히어로·시장 ETF 칩·목차 잠금 행 / 튜터 소진 / 아카이브 잠금. 계측: paywall_shown(sheet·source별)·purchase_completed·track_promo_tapped — 전환율 = purchase/paywall_shown
 - 유저당 AI 하드캡 ~200원/월 설계. 손익분기 = 유료 5명.
 
 ## 진행 중 / 다음 할 일
 1. **스크린샷 6장 제작** (남은 유일한 개발 제출물) — 샷리스트는 `claudedocs/appstore-메타데이터.md`. 시뮬 캡처로 원본 제작 가능.
-2. **[사용자] 튜터 워커 보안 마무리** — 재배포는 완료됐으나 **`CLIENT_TOKEN` Secret이 미등록** (2026-07-18 curl 검증: 올바른 토큰도 401 → **현재 앱 튜터 전면 차단 상태, 출시 전 필수**). Cloudflare 대시보드 → 워커 → Settings → Variables and Secrets에 `CLIENT_TOKEN` = 로컬 `SEED/SEED/Learn/TutorSecrets.swift`의 clientToken 값(공백·줄바꿈 없이) 등록. 검증: 토큰 헤더 넣은 curl POST가 200으로 답하면 됨. + console.anthropic.com → Settings → Limits **월 지출 한도** 설정(비용 폭주 최후 방어벽). 코드리뷰 처리 현황은 `claudedocs/코드리뷰-2026-07.md` 상단 참고 (P0·P1·P2 전부 수정 완료).
-3. **[사용자] ASC 마무리**: ①구독 그룹(SEED Pro) 현지화 채우기(그룹 표시명 — 미채우면 상품이 메타데이터 누락으로 남음) ②연간 구독 `seed.pro.yearly.v2`로 등록(월간 v2는 제출 준비 완료됨) ③`seed.track.etf` 등록 ④개인정보 URL(`arcseed.kr/ko/privacy`)·지원 URL(`/seed`) 입력 ⑤App Privacy 라벨. 구독 심사 스크린샷 = 바탕화면 `iap-screenshot-pro.png`.
-3. **[사용자] 홈페이지 문안 2건 붙여넣기**: `legal-docs-요약.md`의 §1-A(AI 튜터 개인정보 조항→/ko/privacy)·§2-A(구독·환불 조항→/ko/terms). 붙여넣기 전 심사 제출 금지.
+2. **튜터 워커 — 완료·검증됨** (2026-07-18 종단 재검증: 인증 헤더는 **`x-seed-client`** — 토큰 없이 401, 올바른 토큰+정상 body(`deviceId` UUID + `messages` 배열, 마지막 role=user)로 200 실답변). 남은 것: **[사용자] console.anthropic.com → Settings → Limits 월 지출 한도** 설정(비용 폭주 최후 방어벽). 코드리뷰 처리 현황은 `claudedocs/코드리뷰-2026-07.md` 상단 참고 (P0·P1·P2 전부 수정 완료).
+3. **ASC 마무리 — 거의 완료** (2026-07-18 브라우저로 처리): 구독 그룹 현지화·연간 `seed.pro.yearly.v2`(₩22,000)·`seed.tutor.refill30`(₩2,900)·`seed.track.etf`(₩5,000) 등록, 개인정보 URL(`arcseed.kr/seed/privacy`)·지원 URL(`/seed`)·저작권(2026 Arcseed)·App Privacy 라벨(사용자 콘텐츠>기타/앱 기능/신원 연결 안 함/추적 안 함) 게시. **[사용자] 남은 클릭 2번**: ASC 앱 내 구입 → 튜터 리필 30문·트랙 2 ETF 각각 심사 정보 > 스크린샷에 바탕화면 `iap-screenshot-pro.png` 업로드. 최종 제출 시 버전 페이지에 구독·IAP 연결(배너로 안내됨). 입력값 전체는 `claudedocs/ASC-입력값-시트.md`.
+   - 법률 문안: `/seed/privacy`·`/seed/terms`에 AI 튜터·구독 조항 포함본이 **이미 라이브** — 앱 링크도 여기로 수정 완료(SeedLinks). /ko/* 붙여넣기 불필요.
 4. **실기기 검증 대기**: 사용자 iPhone 17 Pro에서 **AI 체험 카드**(복기 탭, EmptyView task 앵커 버그 수정 후 재확인 요청한 상태 — 마지막 미확인), 구독 v2 샌드박스, 알림 3종, 위젯 딥링크, **재설치 iCloud 현금 복원**(삭제→재설치→수 초 내 매매기록과 함께 현금·보유 합류 — fix/icloud-cash-restore) + **아침 복습이 진행 트랙 문제를 내는지**(fix/morning-quiz-target). main Archive → TestFlight.
 5. **출시 후 백로그** (우선순위): 친구 대결(결정론 시드 → 도전 링크, 서버 불요) > 차트게임 스낵 모드(§11 프레임 필수) > MetricKit 로컬 진단+문의 첨부 > 트랙3 크립토 > 시즌 누적 프로필. Pro 체험(주간복기 AI 1회 무료)은 구현 완료.
-6. 보류: CloudKit 프로덕션 스키마 배포(icloud.developer.apple.com — TestFlight iCloud 동기화에 필요). 베타 프로모 코드. KPI 게이트: D7 리텐션 20%+.
+6. **CloudKit 프로덕션 스키마 배포 완료** (2026-07-18 — 레코드 5종+인덱스 Production 반영). **단, `CD_SymbolState.openOrdersData`가 개발 스키마에 아직 미생성** (nil 아닌 값이 iCloud로 동기화돼야 필드가 잡히는데 지정가 미체결 상태로 동기화된 적이 없음) → **출시 전: 실기기에서 지정가 1건 걸어둔 채 동기화 → CloudKit Console에서 필드 생성 확인 → Deploy Schema Changes 재실행** (추가 배포는 언제든 안전). 그 전까지 프로덕션 환경에서 미체결 주문의 iCloud 내보내기만 지연되고 재시도됨(데이터 유실 없음).
+7. 보류: 베타 프로모 코드. KPI 게이트: D7 리텐션 20%+.
 
 ## 주의사항
 - **저장소가 public** (github.com/whatdoIsa/SEED) — 시크릿은 절대 커밋 금지. `SEED/SEED/Learn/TutorSecrets.swift`(워커 공유 토큰)는 gitignore 대상이라 **새 장비 체크아웃 시 수동 복원 필요**(없으면 빌드 실패). 값 변경 시 Cloudflare Secret `CLIENT_TOKEN`도 같이 교체.

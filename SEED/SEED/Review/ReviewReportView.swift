@@ -8,6 +8,9 @@ struct ReviewReportView: View {
     @Bindable var session: MarketSession
 
     @State private var showsArchive = false
+    /// 상세(지도·습관) 접기 — 첫 화면의 정보량을 문장·숫자·행동 하나로 절제한다
+    @State private var showsDetail = false
+    @Environment(PurchaseStore.self) private var purchases
     /// 방문 시점 스냅샷 — 복기는 회고 화면이라 실시간 갱신이 필요 없다.
     /// body에서 store 집계·session.engine.candles를 직접 읽으면 캔들 마감마다
     /// SwiftData 페치 ~8회가 재실행된다. 탭 재방문(onAppear) 때만 새로 계산한다.
@@ -119,12 +122,17 @@ struct ReviewReportView: View {
                 if tradeCount > 0 {
                     // AI 코치: 주 1회 생성, 매매 5건마다 갱신 허용 (캐시 정책)
                     AICoachCard(
-                        cacheKey: "weekly.\(Calendar.current.component(.year, from: .now))-\(Calendar.current.component(.weekOfYear, from: .now))",
-                        fingerprint: "\(tradeCount / 5)",
+                        cacheKey: weeklyCacheKey,
+                        fingerprint: weeklyFingerprint(tradeCount: tradeCount),
                         prompt: reviewPrompt(snap: snap),
                         maxTokens: 300,
                         offersTrial: true
                     )
+                    // 룰 코치는 AI 코멘트가 보이는 상황에선 숨긴다 — 같은 얘기 두 번 금지.
+                    // (비Pro·미지원 기기에선 이 카드가 유일한 코칭이므로 유지)
+                    if !aiCoachShowsComment(tradeCount: tradeCount) {
+                        coachCard(worst: worst, tradeCount: tradeCount)
+                    }
 
                     HStack(spacing: 10) {
                         metricCard("매매", "\(tradeCount)건")
@@ -134,46 +142,28 @@ struct ReviewReportView: View {
                                    color: avgRealizedColor(stats))
                     }
 
-                    tradeMapSection(snap)
-                }
-
-                if !stats.isEmpty {
-                    // 매수 이유는 '분포'가 정보고, 손익은 매도에서만 확정된다 —
-                    // 한 리스트에 섞으면 매수 행이 영원히 빈 막대·미확정으로 남는다.
-                    let buyStats = stats
-                        .filter { TradeReasonTag.tags(for: .buy).contains($0.tag) }
-                        .sorted { $0.count > $1.count }
-                    let sellStats = stats
-                        .filter { TradeReasonTag.tags(for: .sell).contains($0.tag) }
-                        .sorted { $0.count > $1.count }
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("습관 분석")
-                            .font(.system(size: 16, weight: .semibold))
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("다음, 딱 한 가지")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(SeedTheme.violetDeep)
+                        Text(nextOneThing(worst: worst))
+                            .font(.system(size: 15, weight: .medium))
                             .foregroundStyle(SeedTheme.textPrimary)
-                        if !buyStats.isEmpty {
-                            Text("사는 이유 — 어떤 마음으로 샀나")
-                                .font(.system(size: 12))
-                                .foregroundStyle(SeedTheme.textSecondary)
-                            let totalBuys = buyStats.reduce(0) { $0 + $1.count }
-                            ForEach(buyStats) { stat in
-                                buyHabitRow(stat, totalBuys: totalBuys)
-                            }
-                        }
-                        if !sellStats.isEmpty {
-                            Text("파는 이유 — 매도가 손익을 확정해요")
-                                .font(.system(size: 12))
-                                .foregroundStyle(SeedTheme.textSecondary)
-                                .padding(.top, buyStats.isEmpty ? 0 : 6)
-                            ForEach(sellStats) { stat in
-                                habitRow(stat)
-                            }
-                        }
+                            .lineSpacing(4)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                            .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 13))
+                            .overlay(RoundedRectangle(cornerRadius: 13)
+                                .stroke(SeedTheme.violet.opacity(0.5), lineWidth: 1))
                     }
-                }
 
-                if tradeCount > 0 {
-                    holdingHabitSection(snap.holdingStats)
-                    coachCard(worst: worst, tradeCount: tradeCount)
+                    // 상세(지도·습관)는 접어둔다 — 첫 화면은 문장·숫자·행동 하나면 충분하다
+                    detailToggle
+                    if showsDetail {
+                        tradeMapSection(snap)
+                        habitSection(stats)
+                        holdingHabitSection(snap.holdingStats)
+                    }
                 }
 
                 // 시즌 아카이브 진입 (마감 시즌이 있을 때)
@@ -204,20 +194,6 @@ struct ReviewReportView: View {
                     .buttonStyle(.plain)
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("다음, 딱 한 가지")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(SeedTheme.violetDeep)
-                    Text(nextOneThing(worst: worst))
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(SeedTheme.textPrimary)
-                        .lineSpacing(4)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(14)
-                        .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 13))
-                        .overlay(RoundedRectangle(cornerRadius: 13).stroke(SeedTheme.violet.opacity(0.5), lineWidth: 1))
-                }
-
                 Text("교육용 복기 · 투자 권유 아님")
                     .font(.system(size: 10))
                     .foregroundStyle(SeedTheme.textSecondary.opacity(0.6))
@@ -228,6 +204,86 @@ struct ReviewReportView: View {
         }
         .background(SeedTheme.background)
         .onAppear { Analytics.log(.reviewReportOpened) }
+    }
+
+    // MARK: AI 코치 가시성 (룰 코치와의 중복 판정)
+
+    private var weeklyCacheKey: String {
+        "weekly.\(Calendar.current.component(.year, from: .now))-\(Calendar.current.component(.weekOfYear, from: .now))"
+    }
+
+    private func weeklyFingerprint(tradeCount: Int) -> String { "\(tradeCount / 5)" }
+
+    /// AICoachCard가 실제 코멘트를 그리는 상황인가 — Pro+지원 기기, 또는 체험 캐시 보유.
+    /// (비Pro의 체험 제안 카드는 '판매'지 코칭이 아니므로 룰 코치와 중복이 아니다)
+    private func aiCoachShowsComment(tradeCount: Int) -> Bool {
+        guard AICoach.isAvailable else { return false }
+        if purchases.isPro { return true }
+        return AICommentCache.load(key: weeklyCacheKey,
+                                   fingerprint: weeklyFingerprint(tradeCount: tradeCount)) != nil
+    }
+
+    // MARK: 상세 접기
+
+    private var detailToggle: some View {
+        Button {
+            withAnimation(.snappy(duration: 0.25)) { showsDetail.toggle() }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "chart.xyaxis.line")
+                    .font(.system(size: 14))
+                    .foregroundStyle(SeedTheme.violet)
+                Text(showsDetail ? "상세 접기" : "자세히 보기 — 매매 지도·습관 분석")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Spacer()
+                Image(systemName: showsDetail ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 12))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+            .padding(14)
+            .background(SeedTheme.card, in: RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: 습관 분석 (상세)
+
+    @ViewBuilder
+    private func habitSection(_ stats: [SeedStore.TagStat]) -> some View {
+        if !stats.isEmpty {
+            // 매수 이유는 '분포'가 정보고, 손익은 매도에서만 확정된다 —
+            // 한 리스트에 섞으면 매수 행이 영원히 빈 막대·미확정으로 남는다.
+            let buyStats = stats
+                .filter { TradeReasonTag.tags(for: .buy).contains($0.tag) }
+                .sorted { $0.count > $1.count }
+            let sellStats = stats
+                .filter { TradeReasonTag.tags(for: .sell).contains($0.tag) }
+                .sorted { $0.count > $1.count }
+            VStack(alignment: .leading, spacing: 10) {
+                Text("습관 분석")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(SeedTheme.textPrimary)
+                if !buyStats.isEmpty {
+                    Text("사는 이유 — 어떤 마음으로 샀나")
+                        .font(.system(size: 12))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                    let totalBuys = buyStats.reduce(0) { $0 + $1.count }
+                    ForEach(buyStats) { stat in
+                        buyHabitRow(stat, totalBuys: totalBuys)
+                    }
+                }
+                if !sellStats.isEmpty {
+                    Text("파는 이유 — 매도가 손익을 확정해요")
+                        .font(.system(size: 12))
+                        .foregroundStyle(SeedTheme.textSecondary)
+                        .padding(.top, buyStats.isEmpty ? 0 : 6)
+                    ForEach(sellStats) { stat in
+                        habitRow(stat)
+                    }
+                }
+            }
+        }
     }
 
     // MARK: 매매 지도 (부록 A-4의 aha 모먼트 — 어디서 사고 팔았는지 한눈에)
@@ -278,13 +334,9 @@ struct ReviewReportView: View {
                     .font(.system(size: 12))
                     .foregroundStyle(SeedTheme.textSecondary)
 
-                HStack(spacing: 10) {
-                    holdingMetric("평균 보유", TradePairing.holdText(ticks: stats.avgHoldTicks))
-                    holdingMetric("왕복 승률", "\(Int(stats.winRate))%")
-                    holdingMetric("왕복 평균",
-                                  "\(stats.avgReturnPct >= 0 ? "+" : "")\(stats.avgReturnPct.formatted(.number.precision(.fractionLength(1))))%",
-                                  color: SeedTheme.pnl(stats.avgReturnPct))
-                }
+                // 왕복 승률·평균은 상단 지표(승률·확정 손익률)와 사실상 중복이라 뺐다 —
+                // 여기서만 알 수 있는 '평균 보유 기간'만 남긴다
+                holdingMetric("평균 보유", TradePairing.holdText(ticks: stats.avgHoldTicks))
 
                 if let quick = stats.quickTripAvgPct, let patient = stats.patientTripAvgPct {
                     Text(quick < patient

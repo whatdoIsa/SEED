@@ -101,9 +101,12 @@ public final class AccountLedger {
         holdings[symbol] = holding
     }
 
-    func settleRestingBuy(symbol: String, price: Int, qty fillQty: Int, fee: Int) {
+    /// release: 전역 예약 풀에서 해제할 금액 — 호출 측(엔진)이 이 주문의 잔여 예약 한도로
+    /// 캡을 씌워 넘긴다. 청크별 수수료 반올림 합이 예약분을 넘어 다른 주문의 예약금을
+    /// 갉아먹는 것을 막는다.
+    func settleRestingBuy(symbol: String, price: Int, qty fillQty: Int, fee: Int, release: Int) {
         let cost = price * fillQty
-        releaseCash(cost + fee)
+        releaseCash(release)
         var holding = holding(of: symbol)
         let newQty = holding.qty + fillQty
         if newQty > 0 {

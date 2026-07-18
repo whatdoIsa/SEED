@@ -124,6 +124,8 @@ struct GlossaryView: View {
                     }
                 }
                 .padding(16)
+                // 하단 플로팅 검색바가 마지막 카드를 가리지 않게
+                .padding(.bottom, 64)
             }
             .background(SeedTheme.background)
             .navigationTitle("용어사전")
@@ -131,8 +133,7 @@ struct GlossaryView: View {
             .searchable(text: $query, prompt: "용어 검색")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("닫기") { dismiss() }
-                        .foregroundStyle(SeedTheme.violet)
+                    SheetCloseButton { dismiss() }
                 }
             }
         }

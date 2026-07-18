@@ -36,7 +36,7 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("닫기") { dismiss() }
+                    SheetCloseButton { dismiss() }
                         .foregroundStyle(SeedTheme.violet)
                 }
             }

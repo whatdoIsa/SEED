@@ -65,3 +65,21 @@ extension UIColor {
         )
     }
 }
+
+// MARK: - 시트 닫기 버튼 (공용)
+
+/// 시트 우상단 X 닫기 — 화면마다 "닫기" 텍스트/X 아이콘이 갈리던 것을 아이콘으로 통일.
+struct SheetCloseButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(SeedTheme.textSecondary)
+                .frame(width: 30, height: 30)
+                .background(SeedTheme.card, in: Circle())
+        }
+        .accessibilityLabel("닫기")
+    }
+}

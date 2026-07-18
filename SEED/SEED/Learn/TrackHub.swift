@@ -131,6 +131,19 @@ struct TrackDetailView: View {
             VStack(alignment: .leading, spacing: 14) {
                 header
                 progressBar
+                if track.kind == .etf && !purchases.ownsETFTrack {
+                    // 잠금 안내는 행마다 반복하지 않고 여기 한 번만
+                    HStack(spacing: 5) {
+                        Image(systemName: "lock.fill").font(.system(size: 10))
+                        Text("잠긴 편은 단품 소장 또는 Pro로 열려요 — 1편은 무료")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(SeedTheme.violetDeep)
+                    .padding(.horizontal, 11).padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(SeedTheme.violetTint.opacity(0.6),
+                                in: RoundedRectangle(cornerRadius: 10))
+                }
 
                 // 페이스 판정은 SwiftData fetch를 동반하므로 행마다가 아니라 렌더당 1회만
                 let paceExhausted = track.kind == .main
@@ -278,7 +291,7 @@ struct TrackDetailView: View {
                     Text(lesson.title)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(available ? SeedTheme.textPrimary : SeedTheme.textSecondary)
-                    Text(done ? lesson.unlockLabel + " 완료"
+                    Text(done ? lesson.unlockLabel
                          : (waitsForTomorrow
                             ? "내일 열려요 — 오늘 배운 걸 오늘의 장에서 먼저 써보세요"
                             : lesson.subtitle))
@@ -347,8 +360,7 @@ struct TrackDetailView: View {
                                 .background(SeedTheme.violetTint, in: Capsule())
                         }
                     }
-                    Text(done ? lesson.unlockLabel + " 완료"
-                         : (!owned ? "단품 소장 또는 Pro로 열려요" : lesson.subtitle))
+                    Text(done ? lesson.unlockLabel : lesson.subtitle)
                         .font(.system(size: 12))
                         .foregroundStyle(SeedTheme.textSecondary)
                 }

@@ -52,7 +52,7 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 
 ## 진행 중 / 다음 할 일
 1. **스크린샷 6장 제작** (남은 유일한 개발 제출물) — 샷리스트는 `claudedocs/appstore-메타데이터.md`. 시뮬 캡처로 원본 제작 가능.
-2. **[사용자] 튜터 워커 보안 마무리** (코드리뷰 후속 — `claudedocs/코드리뷰-2026-07.md` 참고): ①console.anthropic.com → Settings → Limits에서 **월 지출 한도** 설정(비용 폭주 최후 방어벽) ②Cloudflare 대시보드에서 `server/tutor-worker.js` 새 버전 재배포(붙여넣기) + Secret `CLIENT_TOKEN` 추가(값 = 로컬 `SEED/SEED/Learn/TutorSecrets.swift`의 clientToken과 동일). 재배포 전까지는 구버전 워커가 새 헤더를 무시하므로 앱 동작에 지장 없음.
+2. **[사용자] 튜터 워커 보안 마무리** — 재배포는 완료됐으나 **`CLIENT_TOKEN` Secret이 미등록** (2026-07-18 curl 검증: 올바른 토큰도 401 → **현재 앱 튜터 전면 차단 상태, 출시 전 필수**). Cloudflare 대시보드 → 워커 → Settings → Variables and Secrets에 `CLIENT_TOKEN` = 로컬 `SEED/SEED/Learn/TutorSecrets.swift`의 clientToken 값(공백·줄바꿈 없이) 등록. 검증: 토큰 헤더 넣은 curl POST가 200으로 답하면 됨. + console.anthropic.com → Settings → Limits **월 지출 한도** 설정(비용 폭주 최후 방어벽). 코드리뷰 처리 현황은 `claudedocs/코드리뷰-2026-07.md` 상단 참고 (P0·P1·P2 전부 수정 완료).
 3. **[사용자] ASC 마무리**: ①구독 그룹(SEED Pro) 현지화 채우기(그룹 표시명 — 미채우면 상품이 메타데이터 누락으로 남음) ②연간 구독 `seed.pro.yearly.v2`로 등록(월간 v2는 제출 준비 완료됨) ③`seed.track.etf` 등록 ④개인정보 URL(`arcseed.kr/ko/privacy`)·지원 URL(`/seed`) 입력 ⑤App Privacy 라벨. 구독 심사 스크린샷 = 바탕화면 `iap-screenshot-pro.png`.
 3. **[사용자] 홈페이지 문안 2건 붙여넣기**: `legal-docs-요약.md`의 §1-A(AI 튜터 개인정보 조항→/ko/privacy)·§2-A(구독·환불 조항→/ko/terms). 붙여넣기 전 심사 제출 금지.
 4. **실기기 검증 대기**: 사용자 iPhone 17 Pro에서 **AI 체험 카드**(복기 탭, EmptyView task 앵커 버그 수정 후 재확인 요청한 상태 — 마지막 미확인), 구독 v2 샌드박스, 알림 3종, 위젯 딥링크, **재설치 iCloud 현금 복원**(삭제→재설치→수 초 내 매매기록과 함께 현금·보유 합류 — fix/icloud-cash-restore) + **아침 복습이 진행 트랙 문제를 내는지**(fix/morning-quiz-target). main Archive → TestFlight.

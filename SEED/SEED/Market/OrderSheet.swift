@@ -159,28 +159,34 @@ struct OrderSheet: View {
                 Text(side == .buy ? "왜 사시나요?" : "왜 파시나요?")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(SeedTheme.textSecondary)
-                HStack(spacing: 6) {
-                    ForEach(TradeReasonTag.tags(for: side), id: \.rawValue) { tag in
-                        Button {
-                            selectedTag = tag
-                            Analytics.log(.tagSelected, ["tag": tag.rawValue])
-                        } label: {
-                            Text(tag.label)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(selectedTag == tag ? SeedTheme.inverse : SeedTheme.textPrimary)
-                                .padding(.horizontal, 10).padding(.vertical, 7)
-                                .background(
-                                    selectedTag == tag ? SeedTheme.textPrimary : SeedTheme.card,
-                                    in: Capsule()
-                                )
+                // 가로 스크롤 — 작은 화면(SE)에서 칩 5개가 잘리지 않게 (ETF 시트와 동일 문법)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(TradeReasonTag.tags(for: side), id: \.rawValue) { tag in
+                            Button {
+                                selectedTag = tag
+                                Analytics.log(.tagSelected, ["tag": tag.rawValue])
+                            } label: {
+                                Text(tag.label)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(selectedTag == tag ? SeedTheme.inverse : SeedTheme.textPrimary)
+                                    .padding(.horizontal, 10).padding(.vertical, 7)
+                                    .background(
+                                        selectedTag == tag ? SeedTheme.textPrimary : SeedTheme.card,
+                                        in: Capsule()
+                                    )
+                            }
                         }
                     }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
+            // 팔기인데 가용 주식이 0이면(전량이 대기 매도에 예약) 제출을 막는다 —
+            // 에러 알럿을 보는 것보다 버튼이 이유를 말해주는 쪽이 낫다
+            let sellBlocked = side == .sell && session.engine.portfolio.availableShares == 0
             Button {
-                guard let tag = selectedTag else { return }
+                guard let tag = selectedTag, !sellBlocked else { return }
                 let avgCostBefore = session.engine.portfolio.avgCost
                 let result: Result<OrderOutcome, OrderError>
                 if isLimit {
@@ -194,17 +200,19 @@ struct OrderSheet: View {
                 dismiss()
                 onComplete(result, tag, avgCostBefore)
             } label: {
-                Text(selectedTag == nil ? "이유를 하나 골라주세요" : "\(qty)주 \(isLimit ? "지정가 " : "")\(title)")
+                Text(sellBlocked ? "팔 수 있는 주식이 없어요 — 대기 주문에 걸려 있어요"
+                     : selectedTag == nil ? "이유를 하나 골라주세요"
+                     : "\(qty)주 \(isLimit ? "지정가 " : "")\(title)")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background(
-                        selectedTag == nil ? SeedTheme.textSecondary : accent,
+                        selectedTag == nil || sellBlocked ? SeedTheme.textSecondary : accent,
                         in: RoundedRectangle(cornerRadius: 14)
                     )
             }
-            .disabled(selectedTag == nil)
+            .disabled(selectedTag == nil || sellBlocked)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 16)

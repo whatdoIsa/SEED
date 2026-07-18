@@ -12,6 +12,9 @@ struct RefillSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var isPurchasing = false
 
+    /// 콘텐츠 실측 높이 — 시트가 내용만큼만 뜬다 (하단 빈 공간 제거)
+    @State private var measuredHeight: CGFloat = 640
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -100,9 +103,14 @@ struct RefillSheet: View {
                 #endif
             }
             .padding(20)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.size.height
+            } action: { height in
+                measuredHeight = height
+            }
         }
         .background(SeedTheme.background)
-        .presentationDetents([.large])
+        .presentationDetents([.height(min(measuredHeight + 24, 780))]) // 콘텐츠만큼만 — 하단 빈 공간 제거
         .onAppear { Analytics.log(.paywallShown, ["sheet": "refill", "source": source]) }
         .task { if purchases.products.isEmpty { await purchases.loadProducts() } }
     }
@@ -151,13 +159,19 @@ struct RefillSheet: View {
             VStack(spacing: 2) {
                 Text(label)
                     .font(.system(size: 13, weight: .semibold))
-                Text(product?.displayPrice ?? "—")
-                    .font(.system(size: 15, weight: .bold))
+                if let product {
+                    Text(product.displayPrice)
+                        .font(.system(size: 15, weight: .bold))
+                } else {
+                    // 가격 미로드 — "—"가 눌리는 모양새로 보이면 결제 신뢰를 깎는다
+                    ProgressView().controlSize(.mini).tint(.white)
+                }
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .background(SeedTheme.violet, in: RoundedRectangle(cornerRadius: 13))
+            .background(product == nil ? SeedTheme.textSecondary : SeedTheme.violet,
+                        in: RoundedRectangle(cornerRadius: 13))
         }
         .disabled(product == nil || isPurchasing)
     }

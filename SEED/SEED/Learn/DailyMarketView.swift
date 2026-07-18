@@ -105,7 +105,7 @@ struct DailyMarketView: View {
                         candlesPerDay: 0)
                 .frame(maxHeight: .infinity)
                 .padding(.horizontal, 14)
-                .padding(.top, 6)
+                .padding(.top, 16) // 최고 콜아웃·첫 캔들이 헤더 가격과 겹치지 않게
 
             if isFinished {
                 resultCard

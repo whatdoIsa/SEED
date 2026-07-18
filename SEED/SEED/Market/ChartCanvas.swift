@@ -345,7 +345,7 @@ struct ChartCanvas: View {
             context.draw(
                 Text("최고 \(highest.element.high.formatted())")
                     .font(.system(size: 9, weight: .semibold)).foregroundStyle(SeedTheme.up),
-                at: CGPoint(x: x, y: max(m.y(highest.element.high) - 9, 6))
+                at: CGPoint(x: x, y: max(m.y(highest.element.high) - 9, 14))
             )
         }
         if let lowest {

@@ -37,7 +37,8 @@ struct ShareCardFrame<Content: View>: View {
         .padding(26)
         .frame(width: 340, alignment: .leading)
         .background(ShareCardBackground())
-        .clipShape(RoundedRectangle(cornerRadius: 24))
+        // 모서리는 직각 꽉 참 — 이미지에 라운딩을 구워 넣으면 카톡 등 뷰어가
+        // 자체 라운딩을 겹쳐 모서리가 비거나 어색해진다 (라운딩은 받는 앱의 몫)
     }
 }
 

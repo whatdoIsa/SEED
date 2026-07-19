@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var morningOn = SeedNotifications.isEnabled(.morning)
     @State private var eveningOn = SeedNotifications.isEnabled(.evening)
     @State private var weeklyOn = SeedNotifications.isEnabled(.weekly)
+    @State private var fillsOn = SeedNotifications.isEnabled(.fills)
     @State private var confirmsErase = false
     @State private var showsManageSubscriptions = false
     @State private var isRestoring = false
@@ -156,6 +157,9 @@ struct SettingsView: View {
                     Divider().padding(.vertical, 9)
                     notifToggle("주간 복기", "일요일 19:00 · 한 주 매매 정리",
                                 kind: .weekly, isOn: $weeklyOn)
+                    Divider().padding(.vertical, 9)
+                    notifToggle("체결 알림", "매수·매도 체결 즉시 · 종목/수량/가격",
+                                kind: .fills, isOn: $fillsOn)
                     if notificationStatus == .notDetermined {
                         Divider().padding(.vertical, 9)
                         Text("첫 매매를 하면 알림 허용 여부를 물어볼게요.")

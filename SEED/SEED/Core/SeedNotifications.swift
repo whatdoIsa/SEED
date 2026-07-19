@@ -24,6 +24,7 @@ enum SeedNotifications {
         case morning = "seed.notif.morning"
         case evening = "seed.notif.evening"
         case weekly = "seed.notif.weekly"
+        case fills = "seed.notif.fills"
     }
 
     static func isEnabled(_ kind: Kind) -> Bool {
@@ -66,6 +67,25 @@ enum SeedNotifications {
     static func cancelTodayEveningReminder() {
         UNUserNotificationCenter.current()
             .removePendingNotificationRequests(withIdentifiers: [eveningId(for: .now)])
+    }
+
+    /// 체결 확인 — 증권앱 문법의 매매 영수증. 시장 탭·ETF의 사용자 체결에만 발사한다
+    /// (오늘의 장·아레나 같은 게임 모드는 몇 초짜리 장이라 알림이 스팸이 된다).
+    /// 즉시 전달이라 예약 갱신(scheduleAll)과 무관 — 토글만 따로 본다.
+    static func notifyFill(symbolName: String, isBuy: Bool,
+                           qty: Int, avgPrice: Double, total: Int) {
+        guard isEnabled(.fills), qty > 0 else { return }
+        Task {
+            let center = UNUserNotificationCenter.current()
+            guard await center.notificationSettings().authorizationStatus == .authorized
+            else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "🧾 \(symbolName) \(qty)주 \(isBuy ? "매수" : "매도") 체결"
+            content.body = "주당 \(Int(avgPrice.rounded()).formatted())원 · 총 \(total.formatted())원"
+            content.sound = .default
+            try? await center.add(UNNotificationRequest(
+                identifier: "seed.fill.\(UUID().uuidString)", content: content, trigger: nil))
+        }
     }
 
     // MARK: 스케줄링
@@ -148,5 +168,19 @@ enum SeedNotifications {
         let parts = Calendar.current.dateComponents([.year, .month, .day], from: day)
         return eveningPrefix + String(format: "%04d%02d%02d",
                                       parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+}
+
+/// 포그라운드 배너 — 델리게이트가 없으면 앱이 떠 있는 동안(모든 체결이 이때 일어난다)
+/// 알림이 조용히 알림 센터로만 들어가 사용자가 영영 못 본다.
+/// 소리는 포그라운드에선 뺀다 — 주문 직후 배너와 소리가 겹치면 과하다.
+final class SeedNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = SeedNotificationDelegate()
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification
+    ) async -> UNNotificationPresentationOptions {
+        [.banner, .list]
     }
 }

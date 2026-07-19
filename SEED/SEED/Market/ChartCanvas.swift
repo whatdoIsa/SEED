@@ -342,20 +342,30 @@ struct ChartCanvas: View {
         let lowest = m.all.enumerated().min { $0.element.low < $1.element.low }
         if let highest {
             let x = min(max(m.x(highest.offset), 30), m.plotWidth - 30)
-            context.draw(
-                Text("최고 \(highest.element.high.formatted())")
-                    .font(.system(size: 9, weight: .semibold)).foregroundStyle(SeedTheme.up),
-                at: CGPoint(x: x, y: max(m.y(highest.element.high) - 9, 14))
-            )
+            drawCallout(context, text: "최고 \(highest.element.high.formatted())",
+                        color: SeedTheme.up,
+                        at: CGPoint(x: x, y: max(m.y(highest.element.high) - 14, 12)))
         }
         if let lowest {
             let x = min(max(m.x(lowest.offset), 30), m.plotWidth - 30)
-            context.draw(
-                Text("최저 \(lowest.element.low.formatted())")
-                    .font(.system(size: 9, weight: .semibold)).foregroundStyle(SeedTheme.down),
-                at: CGPoint(x: x, y: min(m.y(lowest.element.low) + 9, m.chartHeight - 6))
-            )
+            drawCallout(context, text: "최저 \(lowest.element.low.formatted())",
+                        color: SeedTheme.down,
+                        at: CGPoint(x: x, y: min(m.y(lowest.element.low) + 14, m.chartHeight - 8)))
         }
+    }
+
+    /// 극값 콜아웃 — 배경 칩 없이 그리면 극값 캔들의 꼬리와 글자가 뒤엉킨다
+    private func drawCallout(_ context: GraphicsContext, text: String,
+                             color: Color, at point: CGPoint) {
+        let resolved = context.resolve(
+            Text(text).font(.system(size: 9, weight: .semibold)).foregroundStyle(color))
+        let size = resolved.measure(in: CGSize(width: 200, height: 20))
+        let chip = CGRect(x: point.x - size.width / 2 - 5,
+                          y: point.y - size.height / 2 - 2.5,
+                          width: size.width + 10, height: size.height + 5)
+        context.fill(Path(roundedRect: chip, cornerRadius: chip.height / 2),
+                     with: .color(SeedTheme.background.opacity(0.85)))
+        context.draw(resolved, at: point)
     }
 
     private func drawDaySeparators(_ context: GraphicsContext, _ m: Metrics) {

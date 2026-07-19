@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 @main
 struct SEEDApp: App {
@@ -8,6 +9,9 @@ struct SEEDApp: App {
     @State private var store: SeedStore
 
     init() {
+        // 포그라운드에서도 체결 배너가 보이게 — 델리게이트는 런치 직후 한 번만
+        UNUserNotificationCenter.current().delegate = SeedNotificationDelegate.shared
+
         // 튜터 크레딧 저장소(iCloud KV) — 원격 값 당기기 + 구버전 UserDefaults 병합
         TutorCloudStore.bootstrap()
 

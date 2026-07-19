@@ -51,7 +51,7 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 - 유저당 AI 하드캡 ~200원/월 설계. 손익분기 = 유료 5명.
 
 ## 진행 중 / 다음 할 일
-1. **스크린샷 6장 제작** (남은 유일한 개발 제출물) — 샷리스트는 `claudedocs/appstore-메타데이터.md`. 시뮬 캡처로 원본 제작 가능.
+1. **스크린샷 6장 — 완성** (2026-07-19): `~/Desktop/appstore-screenshots/` 1290×2796 PNG 6장, ASC 6.9형 슬롯에 순서대로 업로드만 하면 됨. 제작 파이프라인·재생산법은 `claudedocs/appstore-메타데이터.md` 스크린샷 절 참고.
 2. **튜터 워커 — 완료·검증됨** (2026-07-18 종단 재검증: 인증 헤더는 **`x-seed-client`** — 토큰 없이 401, 올바른 토큰+정상 body(`deviceId` UUID + `messages` 배열, 마지막 role=user)로 200 실답변). 남은 것: **[사용자] console.anthropic.com → Settings → Limits 월 지출 한도** 설정(비용 폭주 최후 방어벽). 코드리뷰 처리 현황은 `claudedocs/코드리뷰-2026-07.md` 상단 참고 (P0·P1·P2 전부 수정 완료).
 3. **ASC 마무리 — 거의 완료** (2026-07-18 브라우저로 처리): 구독 그룹 현지화·연간 `seed.pro.yearly.v2`(₩22,000)·`seed.tutor.refill30`(₩2,900)·`seed.track.etf`(₩5,000) 등록, 개인정보 URL(`arcseed.kr/seed/privacy`)·지원 URL(`/seed`)·저작권(2026 Arcseed)·App Privacy 라벨(사용자 콘텐츠>기타/앱 기능/신원 연결 안 함/추적 안 함) 게시. **[사용자] 남은 클릭 2번**: ASC 앱 내 구입 → 튜터 리필 30문·트랙 2 ETF 각각 심사 정보 > 스크린샷에 바탕화면 `iap-screenshot-pro.png` 업로드. 최종 제출 시 버전 페이지에 구독·IAP 연결(배너로 안내됨). 입력값 전체는 `claudedocs/ASC-입력값-시트.md`.
    - 법률 문안: `/seed/privacy`·`/seed/terms`에 AI 튜터·구독 조항 포함본이 **이미 라이브** — 앱 링크도 여기로 수정 완료(SeedLinks). /ko/* 붙여넣기 불필요.

@@ -205,15 +205,7 @@ struct TrackDetailView: View {
                     .foregroundStyle(SeedTheme.textSecondary)
             }
             Spacer()
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(SeedTheme.textSecondary)
-                    .frame(width: 30, height: 30)
-                    .background(SeedTheme.card, in: Circle())
-            }
+            SheetCloseButton { dismiss() }
         }
         .padding(.top, 8)
     }
@@ -412,15 +404,7 @@ struct LibraryView: View {
                             .foregroundStyle(SeedTheme.textSecondary)
                     }
                     Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(SeedTheme.textSecondary)
-                            .frame(width: 30, height: 30)
-                            .background(SeedTheme.card, in: Circle())
-                    }
+                    SheetCloseButton { dismiss() }
                 }
                 .padding(.top, 8)
 

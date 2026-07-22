@@ -467,7 +467,10 @@ struct LessonFlowView: View {
                             .foregroundStyle(SeedTheme.textSecondary)
                             .frame(width: 30, height: 30)
                             .background(SeedTheme.card, in: Circle())
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("이전 페이지")
                 }
                 Text(lesson.order < 100 ? "레슨 \(lesson.order) · \(lesson.duration)" : lesson.duration)
                     .font(.system(size: 12, weight: .medium))
@@ -479,7 +482,10 @@ struct LessonFlowView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(SeedTheme.textSecondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel("닫기")
             }
             .padding(.horizontal, 20).padding(.top, 16)
 

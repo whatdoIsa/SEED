@@ -23,16 +23,11 @@ struct RootView: View {
         }
         .overlay {
             if showsSplash {
-                ZStack {
-                    Color("LaunchBackground").ignoresSafeArea()
-                    Image("LaunchIcon")
+                LaunchSplashView {
+                    withAnimation(.easeOut(duration: 0.35)) { showsSplash = false }
                 }
                 .transition(.opacity)
             }
-        }
-        .task {
-            try? await Task.sleep(for: .milliseconds(350))
-            withAnimation(.easeOut(duration: 0.3)) { showsSplash = false }
         }
         .onAppear {
             Analytics.log(.sessionStart)
@@ -88,6 +83,61 @@ struct RootView: View {
             // pending 플래그를 함께 남겨 탭의 onAppear가 소비하게 한다 (웜 상태는 post가 즉시 처리)
             DeepLinkRelay.pendingDailyMarket = true
             NotificationCenter.default.post(name: .seedOpenDailyMarket, object: nil)
+        }
+    }
+}
+
+/// 콜드 런치 브랜드 모션 — 시스템 런치 화면(정중앙 아이콘)과 첫 프레임이 동일해
+/// 이음새 없이 시작한 뒤: 글로우 블룸 → 아이콘 팝 → 워드마크 → 페이드.
+/// §11: 장식용 가짜 차트 곡선은 쓰지 않는다 (ShareCardKit과 같은 원칙).
+private struct LaunchSplashView: View {
+    let onDone: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var glows = false
+    @State private var iconScale: CGFloat = 1
+    @State private var showsWordmark = false
+
+    var body: some View {
+        ZStack {
+            Color("LaunchBackground").ignoresSafeArea()
+            // 씨앗이 틔는 순간의 빛 — 브랜드 바이올렛 블룸
+            Circle()
+                .fill(SeedTheme.violet.opacity(0.20))
+                .frame(width: 320, height: 320)
+                .blur(radius: 70)
+                .scaleEffect(glows ? 1.15 : 0.35)
+                .opacity(glows ? 1 : 0)
+            Image("LaunchIcon")
+                .scaleEffect(iconScale)
+            VStack(spacing: 7) {
+                Text("SEED")
+                    .font(.system(size: 25, weight: .heavy))
+                    .kerning(5)
+                    .foregroundStyle(SeedTheme.textPrimary)
+                Text("주식 습관 트레이닝")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(SeedTheme.textSecondary)
+            }
+            .offset(y: showsWordmark ? 100 : 110)
+            .opacity(showsWordmark ? 1 : 0)
+        }
+        .task {
+            if reduceMotion {
+                // 모션 최소화 — 정적 로고+워드마크를 잠깐 보여주고 페이드만
+                showsWordmark = true
+                try? await Task.sleep(for: .milliseconds(700))
+                onDone()
+                return
+            }
+            withAnimation(.easeOut(duration: 0.55)) { glows = true }
+            try? await Task.sleep(for: .milliseconds(60))
+            withAnimation(.easeOut(duration: 0.18)) { iconScale = 1.07 }
+            try? await Task.sleep(for: .milliseconds(180))
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.5)) { iconScale = 1 }
+            try? await Task.sleep(for: .milliseconds(120))
+            withAnimation(.easeOut(duration: 0.4)) { showsWordmark = true }
+            try? await Task.sleep(for: .milliseconds(750))
+            onDone()
         }
     }
 }

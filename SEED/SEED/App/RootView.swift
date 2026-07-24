@@ -8,9 +8,9 @@ struct RootView: View {
 
     @State private var selectedTab = 0
     @State private var purchases = PurchaseStore()
-    /// 콜드 런치 이음새 — 시스템 런치 화면(로고)과 똑같은 뷰를 첫 프레임에 겹쳐
-    /// '로고 → 툭 시장'의 단절 대신 짧은 페이드로 이어준다.
-    @State private var showsSplash = true
+
+    // 스플래시는 시스템 런치 화면(바이올렛 락업)이 전담한다 — 인앱 오버레이를 겹치면
+    // 런치 화면 캐시가 어긋난 기기에서 '흰 화면 → 바이올렛 반짝'이 생긴다 (실기기 확인).
 
     var body: some View {
         Group {
@@ -20,22 +20,6 @@ struct RootView: View {
                 OnboardingView(store: store)
                     .onAppear { Analytics.log(.onboardingStart) }
             }
-        }
-        .overlay {
-            if showsSplash {
-                // 시스템 런치 화면(바이올렛 + 새싹/SEED/투자 연습장 락업)과 픽셀 동일한
-                // 한 장 — 짧게 머물다 앱으로 녹는다. 애니메이션 시퀀스 없음 (진입 지연 최소화).
-                ZStack {
-                    Color("LaunchBackground")
-                    Image("LaunchLockup")
-                }
-                .ignoresSafeArea()
-                .transition(.opacity)
-            }
-        }
-        .task {
-            try? await Task.sleep(for: .milliseconds(250))
-            withAnimation(.easeOut(duration: 0.35)) { showsSplash = false }
         }
         .onAppear {
             Analytics.log(.sessionStart)

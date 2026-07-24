@@ -8,6 +8,9 @@ struct RootView: View {
 
     @State private var selectedTab = 0
     @State private var purchases = PurchaseStore()
+    /// 콜드 런치 이음새 — 시스템 런치 화면(로고)과 똑같은 뷰를 첫 프레임에 겹쳐
+    /// '로고 → 툭 시장'의 단절 대신 짧은 페이드로 이어준다.
+    @State private var showsSplash = true
 
     var body: some View {
         Group {
@@ -17,6 +20,19 @@ struct RootView: View {
                 OnboardingView(store: store)
                     .onAppear { Analytics.log(.onboardingStart) }
             }
+        }
+        .overlay {
+            if showsSplash {
+                ZStack {
+                    Color("LaunchBackground").ignoresSafeArea()
+                    Image("LaunchIcon")
+                }
+                .transition(.opacity)
+            }
+        }
+        .task {
+            try? await Task.sleep(for: .milliseconds(350))
+            withAnimation(.easeOut(duration: 0.3)) { showsSplash = false }
         }
         .onAppear {
             Analytics.log(.sessionStart)

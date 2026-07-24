@@ -10,61 +10,44 @@ struct TrackCompletionCard: View {
     let subtitle: String
     let date: Date
 
-    private let cardWidth: CGFloat = 340
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("SEED")
-                    .font(.system(size: 20, weight: .heavy))
-                    .foregroundStyle(Color(hex: 0x8B74FF))
-                    .kerning(1.5)
-                Spacer()
-                Text(date.formatted(.dateTime.year().month().day().locale(Locale(identifier: "ko_KR"))))
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.45))
+        ShareCardFrame(date: date) {
+            HStack(spacing: 5) {
+                Image(systemName: "checkmark.seal.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("수료")
+                    .font(.system(size: 12, weight: .bold))
             }
-
-            Text("수료")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(Color(hex: 0xC9BBFF))
-                .padding(.horizontal, 10).padding(.vertical, 4)
-                .background(Color(hex: 0x8B74FF).opacity(0.18), in: Capsule())
-                .padding(.top, 24)
+            .foregroundStyle(Color(hex: 0xC9BBFF))
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background(Color(hex: 0x8B74FF).opacity(0.18), in: Capsule())
+            .padding(.top, 24)
 
             Text("트랙 \(trackNumber) · \(trackTitle)")
                 .font(.system(size: 28, weight: .bold))
                 .foregroundStyle(.white)
                 .padding(.top, 10)
 
-            Text("\(lessonCount)편 완주")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(Color(hex: 0x8B74FF))
-                .padding(.top, 6)
+            // 완주 도트 — 편 수만큼 채워진 점이 '전부 밟았다'를 그림으로
+            HStack(spacing: 5) {
+                ForEach(0..<lessonCount, id: \.self) { _ in
+                    Circle()
+                        .fill(Color(hex: 0x8B74FF))
+                        .frame(width: 7, height: 7)
+                }
+                Text("\(lessonCount)편 완주")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Color(hex: 0xA893FF))
+                    .padding(.leading, 5)
+            }
+            .padding(.top, 12)
 
             Text(subtitle)
                 .font(.system(size: 14))
                 .foregroundStyle(.white.opacity(0.8))
                 .lineSpacing(5)
                 .padding(.top, 12)
-
-            Rectangle()
-                .fill(.white.opacity(0.1))
-                .frame(height: 1)
-                .padding(.top, 22)
-
-            Text("주린이를 위한 모의투자 학습 · 가상 시장 · 교육용")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.white.opacity(0.4))
-                .padding(.top, 12)
         }
-        .padding(26)
-        .frame(width: cardWidth, alignment: .leading)
-        .background(
-            LinearGradient(colors: [Color(hex: 0x17141F), Color(hex: 0x241E38)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 24))
     }
 
     @MainActor

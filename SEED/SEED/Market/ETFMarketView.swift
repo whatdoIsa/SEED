@@ -87,15 +87,7 @@ struct ETFDetailView: View {
                     .padding(.horizontal, 8).padding(.vertical, 2)
                     .overlay(Capsule().stroke(SeedTheme.violet, lineWidth: 1))
                 Spacer()
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(SeedTheme.textSecondary)
-                        .frame(width: 30, height: 30)
-                        .background(SeedTheme.card, in: Circle())
-                }
+                SheetCloseButton { dismiss() }
             }
             Text(spec.oneLiner)
                 .font(.system(size: 12))

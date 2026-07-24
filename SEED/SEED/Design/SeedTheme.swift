@@ -23,7 +23,9 @@ enum SeedTheme {
     static let card = adaptive(light: 0xF9FAFB, dark: 0x1D1D24)
     static let band = adaptive(light: 0xF2F4F6, dark: 0x26262E)
     static let textPrimary = adaptive(light: 0x191F28, dark: 0xF0F1F4)
-    static let textSecondary = Color(hex: 0x8B95A1)
+    /// 라이트는 흰 배경 대비 4.5:1을 넘겨야 한다 (0x8B95A1은 3.0:1로 HIG 미달) —
+    /// 다크는 기존 토스 그레이 유지 (6.2:1 합격)
+    static let textSecondary = adaptive(light: 0x6B7684, dark: 0x8B95A1)
     /// textPrimary를 배경으로 쓰는 컨트롤 위의 글자색 (칩·버튼)
     static let inverse = adaptive(light: 0xFFFFFF, dark: 0x15151A)
 
@@ -63,5 +65,26 @@ extension UIColor {
             blue: CGFloat(hex & 0xFF) / 255,
             alpha: 1
         )
+    }
+}
+
+// MARK: - 시트 닫기 버튼 (공용)
+
+/// 시트 우상단 X 닫기 — 화면마다 "닫기" 텍스트/X 아이콘이 갈리던 것을 아이콘으로 통일.
+struct SheetCloseButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(SeedTheme.textSecondary)
+                .frame(width: 30, height: 30)
+                .background(SeedTheme.card, in: Circle())
+                // 시각은 30pt 원 그대로, 히트 영역만 HIG 권장 44pt로
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("닫기")
     }
 }

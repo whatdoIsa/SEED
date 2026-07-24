@@ -53,15 +53,7 @@ struct DailyMarketView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(SeedTheme.violetDeep)
                     .monospacedDigit()
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(SeedTheme.textSecondary)
-                        .frame(width: 30, height: 30)
-                        .background(SeedTheme.card, in: Circle())
-                }
+                SheetCloseButton { dismiss() }
             }
             .padding(.horizontal, 16).padding(.top, 12)
 
@@ -105,7 +97,7 @@ struct DailyMarketView: View {
                         candlesPerDay: 0)
                 .frame(maxHeight: .infinity)
                 .padding(.horizontal, 14)
-                .padding(.top, 6)
+                .padding(.top, 16) // 최고 콜아웃·첫 캔들이 헤더 가격과 겹치지 않게
 
             if isFinished {
                 resultCard
@@ -215,7 +207,8 @@ struct DailyMarketView: View {
                 lessonLine: pattern.lessonLine,
                 pnl: pnl,
                 streak: DailyMarket.streak(
-                    completed: store.completedLessonIds.union([scenarioId]))
+                    completed: store.completedLessonIds.union([scenarioId])),
+                closes: engine.candles.map { Double($0.close) }
             ) {
                 ShareLink(item: card,
                           preview: SharePreview("오늘의 장 · \(pattern.revealName)", image: card)) {

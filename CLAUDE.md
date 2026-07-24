@@ -32,7 +32,7 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 - **배우기**: 본편 12편 완결(하루 1레슨, 첫 3개 자유) + 심화 6편(터틀3·퀀트3) + 용어사전 41 + 요약카드 + 아침퀴즈 + 오늘의실천. 3섹션(오늘/커리큘럼/라이브러리). 레벨=완료 레슨 수, 도구해금 Lv1캔들/2호가/4거래량/5전체
 - **오늘의 장**: 날짜시드 패턴 5종, 스트릭+7일 점, 공유카드. **아레나**: 무작위 장 나vs거장5+내전략, 라이브 순위, 전적. **거장 도장**: 5인 프로필(데니스·그레이엄·오닐·코스톨라니·템플턴)×장4종, 매매일지(이유 포함), 리매치. **전략 실험실**: 3템플릿+가치스크리너+장별성적표+아레나 출전 슬롯
 - **복기**: 태그·매매지도·보유습관(FIFO 페어링)·부검·시즌 아카이브(성장그래프, Pro게이트)
-- **인프라**: iCloud 백업(복원 병합 refreshAfterRemoteImport), 홈/잠금 위젯(App Group+딥링크 seed://daily), 로컬 알림 3종(아침 08시 루틴·저녁 20시 오늘의장 리마인더[7일 개별 예약, 완료 시 당일 취소]·일 19시 주간 복기 — 기본 전부 켬, 설정 토글), 설정 화면, 앱아이콘/런치, 접근성 요약, 하루1레슨 페이스
+- **인프라**: iCloud 백업(복원 병합 refreshAfterRemoteImport), 홈/잠금 위젯(App Group+딥링크 seed://daily), 로컬 알림 4종(아침 08시 루틴·저녁 20시 오늘의장 리마인더[7일 개별 예약, 완료 시 당일 취소]·일 19시 주간 복기·**체결 영수증**[시장 탭+ETF의 사용자 체결 즉시 "🧾 한빛전자 100주 매수 체결 · 주당/총액", 게임 모드는 제외, 포그라운드 배너는 SeedNotificationDelegate] — 기본 전부 켬, 설정 토글), 설정 화면, 앱아이콘/런치(런치 화면=바이올렛 #6B4EFF 풀스크린+새싹/SEED/투자 연습장 락업 이미지 LaunchLockup, 인앱 오버레이는 두지 않음 — 캐시 어긋난 기기에서 반짝임을 만들어 제거했음(실기기 확인). 주의: 런치 화면은 iOS가 캐시해 기존 설치 기기엔 옛것이 보일 수 있음 — 재부팅·신규 설치로 갱신), 접근성 요약, 하루1레슨 페이스
 - **배우기 탭 = 트랙 허브 구조 (develop)**: "오늘의 루틴" 카드 1장(아침 복습·다음 레슨·오늘의 장 체크리스트 — 오늘의 실천은 오늘의 장 행 서브텍스트로 흡수, PracticeCard/PracticeRecord 삭제) + 다음 레슨 계산 히어로 카드(`Learn/TrackHub.swift`의 NextLessonFinder — 트랙1 다음 편 → 페이스 소진 시 트랙2 → 완주 시 예고 카드) + 트랙 카드 4장(1 주식기본기·2 ETF·3 크립토 예정·4 금융기초 예정, 진행률 바·진행 중 보라 테두리·미소유 "1편 무료" 배지) + 라이브러리 카드 1장. 레슨 목차는 `TrackDetailView` 시트로, 심화·도장·실험실·튜터·용어사전은 `LibraryView` 시트로 이사. 트랙 추가 시 `TrackCatalog.all`에 TrackDef 1개만 추가하면 됨.
 - **트랙 2 — ETF·분산투자 (develop, Phase 3 완료)**: `JurinKit/ETFFund.swift`(고정 좌수 바스켓 NAV + 연보수/252 일할 차감, 테스트 13개 — 총 102개), ETF 2종(`Core/ETFCatalog.swift` — HIX 한빛300 지수 0.15% / HBA 균형 자산배분 0.35%, BTX 제외), NAV 즉시 체결(호가창 없음·매도 거래세 없음), MarketSession 통합(리플레이·스냅샷·totalEquity·분산 β 반영), `Market/ETFMarketView.swift`(NAV 라인차트·구성·보수 누적 카드·주문 시트), 레슨 8편 `Learn/ETFTrack.swift`(order 201+, 읽기형, 1편 무료→순서 잠금, 하루 페이스 없음) + 요약·퀴즈·실천·용어사전 8종("ETF·분산투자" 카테고리). 진입: 시장 탭 ETF 칩 + 배우기 트랙 2 섹션, 비소유 시 `Learn/TrackPaywallSheet.swift`
 
@@ -46,18 +46,19 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 ## 수익 모델 (확정)
 - 무료 영원히: 트랙1(12편)+시장+오늘의장+아레나+룰기반 복기
 - **트랙 단품** 각 ₩5,000 일회성(영구소장, AI 미포함) / **Pro** 월 ₩3,300·연 ₩22,000(전 트랙+AI코멘트+튜터 월40문) / **리필** 10문 ₩1,100·30문 ₩2,900(소모성)
-- 상품 ID: `seed.pro.monthly.v2` `seed.pro.yearly.v2`(초기 ID는 ASC 삭제로 영구 잠김) `seed.tutor.refill10` `seed.tutor.refill30` `seed.track.etf`(트랙2 단품 ₩5,000 비소모성 — **App Store Connect 미등록, 등록 필요**) — `Core/PurchaseStore.swift`(ownsETFTrack = Pro ∨ 단품), `Learn/RefillSheet.swift`·`Learn/TrackPaywallSheet.swift`(정직 페이월), 개발용 `SEED/Products.storekit`+스킴 연결
+- 상품 ID: `seed.pro.monthly.v2` `seed.pro.yearly.v2`(초기 ID는 ASC 삭제로 영구 잠김) `seed.tutor.refill10` `seed.tutor.refill30` `seed.track.etf`(트랙2 단품 ₩5,000 비소모성) — **5종 전부 ASC 등록 완료(2026-07-18, '제출 준비 중')** — `Core/PurchaseStore.swift`(ownsETFTrack = Pro ∨ 단품), `Learn/RefillSheet.swift`·`Learn/TrackPaywallSheet.swift`(정직 페이월), 개발용 `SEED/Products.storekit`+스킴 연결
 - 결제 트리거 (구현 완료): 졸업 완료 화면 CTA→트랙 2 목차→1편 무료→페이월 / 배우기 히어로·시장 ETF 칩·목차 잠금 행 / 튜터 소진 / 아카이브 잠금. 계측: paywall_shown(sheet·source별)·purchase_completed·track_promo_tapped — 전환율 = purchase/paywall_shown
 - 유저당 AI 하드캡 ~200원/월 설계. 손익분기 = 유료 5명.
 
 ## 진행 중 / 다음 할 일
-1. **스크린샷 6장 제작** (남은 유일한 개발 제출물) — 샷리스트는 `claudedocs/appstore-메타데이터.md`. 시뮬 캡처로 원본 제작 가능.
-2. **[사용자] 튜터 워커 보안 마무리** — 재배포는 완료됐으나 **`CLIENT_TOKEN` Secret이 미등록** (2026-07-18 curl 검증: 올바른 토큰도 401 → **현재 앱 튜터 전면 차단 상태, 출시 전 필수**). Cloudflare 대시보드 → 워커 → Settings → Variables and Secrets에 `CLIENT_TOKEN` = 로컬 `SEED/SEED/Learn/TutorSecrets.swift`의 clientToken 값(공백·줄바꿈 없이) 등록. 검증: 토큰 헤더 넣은 curl POST가 200으로 답하면 됨. + console.anthropic.com → Settings → Limits **월 지출 한도** 설정(비용 폭주 최후 방어벽). 코드리뷰 처리 현황은 `claudedocs/코드리뷰-2026-07.md` 상단 참고 (P0·P1·P2 전부 수정 완료).
-3. **[사용자] ASC 마무리**: ①구독 그룹(SEED Pro) 현지화 채우기(그룹 표시명 — 미채우면 상품이 메타데이터 누락으로 남음) ②연간 구독 `seed.pro.yearly.v2`로 등록(월간 v2는 제출 준비 완료됨) ③`seed.track.etf` 등록 ④개인정보 URL(`arcseed.kr/ko/privacy`)·지원 URL(`/seed`) 입력 ⑤App Privacy 라벨. 구독 심사 스크린샷 = 바탕화면 `iap-screenshot-pro.png`.
-3. **[사용자] 홈페이지 문안 2건 붙여넣기**: `legal-docs-요약.md`의 §1-A(AI 튜터 개인정보 조항→/ko/privacy)·§2-A(구독·환불 조항→/ko/terms). 붙여넣기 전 심사 제출 금지.
-4. **실기기 검증 대기**: 사용자 iPhone 17 Pro에서 **AI 체험 카드**(복기 탭, EmptyView task 앵커 버그 수정 후 재확인 요청한 상태 — 마지막 미확인), 구독 v2 샌드박스, 알림 3종, 위젯 딥링크, **재설치 iCloud 현금 복원**(삭제→재설치→수 초 내 매매기록과 함께 현금·보유 합류 — fix/icloud-cash-restore) + **아침 복습이 진행 트랙 문제를 내는지**(fix/morning-quiz-target). main Archive → TestFlight.
+1. **스크린샷 6장 — 완성** (2026-07-24 재규격): 프로젝트 루트 `appstore-screenshots/` **1284×2778** PNG 6장(ASC 6.5형 슬롯 규격 — 1290×2796에서 0.5% 축소+배경 크롭). **[사용자] ASC 버전 페이지 iPhone 슬롯에 01→06 순서로 드래그 업로드만 하면 됨.** 스크래치패드의 제작 파이프라인 원본(make_pages.py·raw)은 세션 정리로 소실 — 재생산 필요 시 `claudedocs/appstore-메타데이터.md` 스크린샷 절의 방법대로 재구축.
+2. **튜터 워커 — 완료·검증됨** (2026-07-18 종단 재검증: 인증 헤더는 **`x-seed-client`** — 토큰 없이 401, 올바른 토큰+정상 body(`deviceId` UUID + `messages` 배열, 마지막 role=user)로 200 실답변). 남은 것: **[사용자] console.anthropic.com → Settings → Limits 월 지출 한도** 설정(비용 폭주 최후 방어벽). 코드리뷰 처리 현황은 `claudedocs/코드리뷰-2026-07.md` 상단 참고 (P0·P1·P2 전부 수정 완료).
+3. **ASC 마무리 — 메타데이터 전부 입력·저장 완료** (2026-07-24): 상품 5종 등록('제출 준비 중') + 버전 페이지(프로모션·설명·키워드 89자·심사 메모·연락처(정송헌/+821025142426/gmlwns5504@naver.com)·로그인 불필요·**수동 출시**) + 앱 정보(부제 "잃어도 되는 돈으로 천 번 연습하기"·카테고리 교육+금융) + **연령 등급 4+ 설문 완료**(한국 "전체", 가상도박·시합·UGC·웹액세스 전부 아니요) + 개인정보/지원 URL·저작권·App Privacy 라벨 게시. **유료 앱 계약 활성 확인**(무료·유료 모두 활성, 세금 양식 3종 활성 — 은행 계좌 Toss-arcseed만 Apple '처리 중': 지급용이라 제출 블로커 아님). **[사용자] 남은 클릭**: ①버전 페이지에 스크린샷 6장 드래그 ②튜터 리필 30문·트랙 2 ETF 심사 스크린샷(`iap-screenshot-pro.png`) 업로드. 최종 제출 시 버전에 빌드·구독·IAP 연결. 입력값 전체는 `claudedocs/ASC-입력값-시트.md`.
+   - 법률 문안: `/seed/privacy`·`/seed/terms`에 AI 튜터·구독 조항 포함본이 **이미 라이브** — 앱 링크도 여기로 수정 완료(SeedLinks). /ko/* 붙여넣기 불필요.
+4. **실기기 검증 대기**: 사용자 iPhone 17 Pro에서 **AI 체험 카드**(복기 탭, EmptyView task 앵커 버그 수정 후 재확인 요청한 상태 — 마지막 미확인), 구독 v2 샌드박스, 알림 4종(**신규: 체결 영수증 — 시장가·지정가 대기 체결·ETF 각각 배너 확인**), 위젯 딥링크, **재설치 iCloud 현금 복원**(삭제→재설치→수 초 내 매매기록과 함께 현금·보유 합류 — fix/icloud-cash-restore) + **아침 복습이 진행 트랙 문제를 내는지**(fix/morning-quiz-target). main Archive → TestFlight.
 5. **출시 후 백로그** (우선순위): 친구 대결(결정론 시드 → 도전 링크, 서버 불요) > 차트게임 스낵 모드(§11 프레임 필수) > MetricKit 로컬 진단+문의 첨부 > 트랙3 크립토 > 시즌 누적 프로필. Pro 체험(주간복기 AI 1회 무료)은 구현 완료.
-6. 보류: CloudKit 프로덕션 스키마 배포(icloud.developer.apple.com — TestFlight iCloud 동기화에 필요). 베타 프로모 코드. KPI 게이트: D7 리텐션 20%+.
+6. **CloudKit 프로덕션 스키마 배포 완료** (2026-07-18 — 레코드 5종+인덱스 Production 반영). **단, `CD_SymbolState.openOrdersData`가 개발 스키마에 아직 미생성** (nil 아닌 값이 iCloud로 동기화돼야 필드가 잡히는데 지정가 미체결 상태로 동기화된 적이 없음) → **출시 전: 실기기에서 지정가 1건 걸어둔 채 동기화 → CloudKit Console에서 필드 생성 확인 → Deploy Schema Changes 재실행** (추가 배포는 언제든 안전). 그 전까지 프로덕션 환경에서 미체결 주문의 iCloud 내보내기만 지연되고 재시도됨(데이터 유실 없음).
+7. 보류: 베타 프로모 코드. KPI 게이트: D7 리텐션 20%+.
 
 ## 주의사항
 - **저장소가 public** (github.com/whatdoIsa/SEED) — 시크릿은 절대 커밋 금지. `SEED/SEED/Learn/TutorSecrets.swift`(워커 공유 토큰)는 gitignore 대상이라 **새 장비 체크아웃 시 수동 복원 필요**(없으면 빌드 실패). 값 변경 시 Cloudflare Secret `CLIENT_TOKEN`도 같이 교체.

@@ -341,6 +341,7 @@ final class MarketSession {
                       atTick: referenceEngine?.tick,
                       atCandleIndex: referenceEngine?.candles.count,
                       wasLimit: false)
+        notifyUserFill(symbolName: fund.name, fill: fill)
         persistState()
     }
 
@@ -474,12 +475,22 @@ final class MarketSession {
     func placeOrder(side: Side, qty: Int) -> Result<FillResult, OrderError> {
         do {
             let fill = try engine.placeMarketOrder(side: side, qty: qty)
+            notifyUserFill(symbolName: activeSpec.name, fill: fill)
             return .success(fill)
         } catch let error as OrderError {
             return .failure(error)
         } catch {
             return .failure(.noLiquidity)
         }
+    }
+
+    /// 체결 영수증 알림 — 시장 탭·ETF의 사용자 체결 공통 경로
+    private func notifyUserFill(symbolName: String, fill: FillResult) {
+        SeedNotifications.notifyFill(symbolName: symbolName,
+                                     isBuy: fill.side == .buy,
+                                     qty: fill.filledQty,
+                                     avgPrice: fill.avgFillPrice,
+                                     total: fill.notional)
     }
 
     // MARK: 지정가 (①)
@@ -497,6 +508,10 @@ final class MarketSession {
             let result = try engine.placeLimitOrder(side: side, price: price, qty: qty)
             if let resting = result.restingOrder {
                 limitTags["\(activeSymbolCode)#\(resting.id)"] = tag
+            }
+            // 접수 즉시 교차 체결된 부분도 영수증 대상 (잔여 대기분은 processUserFills가 알린다)
+            if let immediate = result.immediateFill {
+                notifyUserFill(symbolName: activeSpec.name, fill: immediate)
             }
             return .success(result)
         } catch let error as OrderError {
@@ -538,6 +553,7 @@ final class MarketSession {
                     limitTags[key] = nil
                 }
                 limitFillNotice = "\(spec.name) 지정가 체결 · \(event.side == .buy ? "매수" : "매도") \(event.qty)주 @ \(event.price.formatted())원"
+                notifyUserFill(symbolName: spec.name, fill: fill)
             }
             persistSymbol(spec.code)
         }

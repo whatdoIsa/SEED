@@ -66,15 +66,7 @@ struct ArenaView: View {
                     .foregroundStyle(SeedTheme.violetDeep)
                     .monospacedDigit()
             }
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(SeedTheme.textSecondary)
-                    .frame(width: 30, height: 30)
-                    .background(SeedTheme.card, in: Circle())
-            }
+            SheetCloseButton { dismiss() }
         }
         .padding(.horizontal, 16).padding(.vertical, 10)
     }
@@ -101,7 +93,7 @@ struct ArenaView: View {
                         unlockLevel: UnlockLevel.all)
                 .frame(maxHeight: .infinity)
                 .padding(.horizontal, 14)
-                .padding(.top, 4)
+                .padding(.top, 16) // 첫 캔들이 헤더에 붙지 않게
 
             liveStandings
                 .padding(.horizontal, 16)

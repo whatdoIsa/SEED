@@ -11,17 +11,19 @@ enum TradeReasonTag: String, Codable, CaseIterable {
     // 청산 (매도)
     case target, stopRule, fear, boredom, gutSell
 
+    // 라벨은 "왜 사시나요/파시나요?"의 대답이 되는 직설 문장형 — 용어(돌파·눌림목)는
+    // 레슨에서 가르치고, 주문 순간엔 이해에 0초가 걸리는 말을 쓴다 (베타 피드백 반영)
     var label: String {
         switch self {
-        case .breakout: return "돌파 기대"
-        case .dip: return "눌림목"
-        case .chase: return "급등 추격"
-        case .news: return "뉴스·테마"
-        case .gutBuy, .gutSell: return "그냥 감"
-        case .target: return "목표 도달"
-        case .stopRule: return "손절 원칙"
-        case .fear: return "무서워서"
-        case .boredom: return "지루해서"
+        case .breakout: return "차트가 좋아서"
+        case .dip: return "싸진 것 같아서"
+        case .chase: return "오르니까 나도"
+        case .news: return "뉴스 보고"
+        case .gutBuy, .gutSell: return "직감"
+        case .target: return "목표만큼 올라서"
+        case .stopRule: return "손절선에 닿아서"
+        case .fear: return "더 떨어질까 봐"
+        case .boredom: return "안 움직여서"
         }
     }
 

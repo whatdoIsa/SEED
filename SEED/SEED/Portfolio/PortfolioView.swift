@@ -35,7 +35,10 @@ struct PortfolioView: View {
                             .foregroundStyle(SeedTheme.textSecondary)
                             .frame(width: 30, height: 30)
                             .background(SeedTheme.card, in: Circle())
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("설정")
                 }
 
                 // 이번 시즌의 약속 — 매일 눈에 밟히게. 없으면 정하도록 초대한다.

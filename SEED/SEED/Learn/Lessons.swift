@@ -135,7 +135,7 @@ enum LessonCatalog {
         subtitle: "안전하게 한 번 더 데여보기",
         duration: "약 3분",
         unlocksLevel: UnlockLevel.all,
-        unlockLabel: "급락 생존 훈련 완료",
+        unlockLabel: "급락 생존 훈련",
         concept: [
             ConceptPage(
                 text: "급락이 오면 머릿속에 한 문장만 남아요 — **\"더 떨어지기 전에 팔아야 해.\"**\n\n그런데 모두가 그 생각을 하는 순간이 바닥 근처인 경우가 많아요. 공포에 판 사람이 바닥을 만들어주고, 그 값에 누군가는 줍죠.",

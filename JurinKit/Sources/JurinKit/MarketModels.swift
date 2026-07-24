@@ -349,10 +349,14 @@ public final class OrderBook {
 
     /// 주문자(side) 기준 다음 체결 가능 반대 호가 — 제외 대상만 있는 레벨은 지나친다.
     /// 정렬 소비라 결정론이 유지된다.
+    /// 주의: excluding이 nil인 경로(봇 주문 — 틱마다 수십 회)는 정렬 없이 min/max로.
+    /// 여기서 매번 sorted()를 부르면 리플레이·스텝이 수십 배 느려진다 (앱 시작 25초+ 사고).
     private func nextTouch(for side: Side, excluding excludedAgent: String?) -> Int? {
         let book = side == .buy ? asks : bids
+        guard let excludedAgent else {
+            return side == .buy ? book.keys.min() : book.keys.max()
+        }
         let prices = side == .buy ? book.keys.sorted() : book.keys.sorted(by: >)
-        guard let excludedAgent else { return prices.first }
         return prices.first { price in
             book[price]!.contains { $0.agentId != excludedAgent }
         }

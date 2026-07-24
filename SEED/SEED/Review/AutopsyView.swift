@@ -51,6 +51,7 @@ struct AutopsyView: View {
             }
         }
         .background(SeedTheme.background)
+        .scrollClipDisabled() // 잉크 헤더가 상태바 뒤까지 그려지도록 (위 -160pt 배경 확장과 한 쌍)
         .onAppear {
             if equitySnapshot == nil { equitySnapshot = session.totalEquity }
         }
@@ -95,7 +96,8 @@ struct AutopsyView: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(SeedTheme.ink)
+        // 잉크 배경을 위로 늘려 상태바 뒤까지 — 위에 뜨는 검은 띠 제거
+        .background(SeedTheme.ink.padding(.top, -160))
     }
 
     private var causeOfDeath: String {

@@ -99,7 +99,7 @@ private struct LaunchSplashView: View {
 
     var body: some View {
         ZStack {
-            Color("LaunchBackground").ignoresSafeArea()
+            Color("LaunchBackground")
             // 씨앗이 틔는 순간의 빛 — 브랜드 바이올렛 블룸
             Circle()
                 .fill(SeedTheme.violet.opacity(0.20))
@@ -114,13 +114,16 @@ private struct LaunchSplashView: View {
                     .font(.system(size: 25, weight: .heavy))
                     .kerning(5)
                     .foregroundStyle(SeedTheme.textPrimary)
-                Text("주식 습관 트레이닝")
+                Text("투자 연습장")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(SeedTheme.textSecondary)
             }
             .offset(y: showsWordmark ? 100 : 110)
             .opacity(showsWordmark ? 1 : 0)
         }
+        // 시스템 런치 화면은 아이콘을 '화면 전체' 정중앙에 놓는다 — 세이프 에어리어
+        // 기준으로 가운데를 잡으면 첫 프레임에서 아이콘이 수직으로 점프한다.
+        .ignoresSafeArea()
         .task {
             if reduceMotion {
                 // 모션 최소화 — 정적 로고+워드마크를 잠깐 보여주고 페이드만

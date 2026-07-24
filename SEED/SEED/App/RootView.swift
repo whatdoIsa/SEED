@@ -23,11 +23,11 @@ struct RootView: View {
         }
         .overlay {
             if showsSplash {
-                // 시스템 런치 화면과 픽셀 동일한 한 장 — 짧게 머물다 앱으로 녹는다.
-                // 별도 애니메이션 시퀀스는 두지 않는다 (진입 지연 최소화).
+                // 시스템 런치 화면(바이올렛 + 새싹/SEED/투자 연습장 락업)과 픽셀 동일한
+                // 한 장 — 짧게 머물다 앱으로 녹는다. 애니메이션 시퀀스 없음 (진입 지연 최소화).
                 ZStack {
                     Color("LaunchBackground")
-                    Image("LaunchIcon")
+                    Image("LaunchLockup")
                 }
                 .ignoresSafeArea()
                 .transition(.opacity)

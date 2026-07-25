@@ -40,7 +40,8 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 
 ## AI 스택 (Phase 1 완료 — 검증됨)
 - **온디바이스 (Foundation Models, iOS 26)**: `Core/AICoach.swift` — 주간복기·부검·오늘의장·아레나 해설. 캐시(키+지문, "같은 데이터에 두 번 안 묻기"), 미지원기기(iPhone 15 Pro 미만)→룰기반 폴백. **실기기 검증 아직 안 함** (시뮬은 미지원 정상).
-- **튜터 (Haiku)**: 3겹 — ①규칙필터(추천·예측 거절, 0토큰) ②용어사전 직답(0토큰) ③`claude-haiku-4-5-20251001` via Cloudflare Worker `https://seed-tutor.throbbing-sun-9e1e.workers.dev/` (배포·크레딧 충전·종단 테스트 완료, 가드레일 검증 완료). 서버측 기기별 일30문 KV 상한.
+- **튜터 (Haiku)**: 3겹 — ①규칙필터(추천·예측 거절, 0토큰) ②용어사전 직답(0토큰) ③`claude-haiku-4-5-20251001` via Cloudflare Worker `https://seed-tutor.throbbing-sun-9e1e.workers.dev/` (배포·크레딧 충전·종단 테스트 완료, 가드레일 검증 완료). 서버측 기기별 일**10**문 + 전역 일2000문 KV 상한.
+  - **비용 방어 3층 (2026-07-25 보안 검수 반영)**: ①클라이언트 크레딧(무료 5·Pro 40/월·리필) — 정상 유저의 진짜 상한 ②워커 KV 캡(기기 10/일·전역 2000/일) — **소프트 상한**. ⚠️ Cloudflare KV는 최종 일관성이라 버스트 시 언더카운트(11연속 호출로 429 재현 안 됨 — 실측 확인). 정밀 하드 캡이 필요할 만큼 트래픽 커지면 Cloudflare Rate Limiting 규칙/Durable Objects로 이전 ③**console.anthropic.com 월 $20 한도 — 진짜 하드 방어벽**(Anthropic이 계정 차원 강제, KV 무관 결정론적). 워커 auth·금칙어·502 비노출 실측 통과.
 - 무료 튜터 **총 5문**(일회성, 월리필 아님). 사용량: 설정 화면 표시.
 
 ## 수익 모델 (확정)

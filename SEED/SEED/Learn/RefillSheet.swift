@@ -31,6 +31,8 @@ struct RefillSheet: View {
                     SheetCloseButton { dismiss() }
                 }
 
+                ProductLoadRetryCard(purchases: purchases)
+
                 // 리필 (소모성 — 영구 크레딧)
                 VStack(alignment: .leading, spacing: 8) {
                     Text("질문 리필")

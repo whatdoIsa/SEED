@@ -31,6 +31,8 @@ struct TrackPaywallSheet: View {
                     SheetCloseButton { dismiss() }
                 }
 
+                ProductLoadRetryCard(purchases: purchases)
+
                 // 트랙에 담긴 것
                 VStack(alignment: .leading, spacing: 6) {
                     benefitRow("ETF가 뭔지부터 리밸런싱까지 — 레슨 8편")

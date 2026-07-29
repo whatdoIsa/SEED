@@ -49,16 +49,24 @@ final class PurchaseStore {
     private(set) var lastLoadError: String?
 
     func loadProducts() async {
+        guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
-        do {
-            products = try await Product.products(for: Self.allIDs)
-            lastLoadError = products.isEmpty
-                ? "상품 0개 로드 — StoreKit Configuration이 이 실행에 주입되지 않았을 가능성 (Xcode ▶︎ Run으로 실행했는지, Edit Scheme > Run > Options > StoreKit Configuration 확인)"
-                : nil
-        } catch {
-            products = []
-            lastLoadError = "\(error)"
+        // 일시적 네트워크·스토어 오류가 무한 스피너로 남지 않게 짧은 백오프로 재시도.
+        // 그래도 실패하면 페이월이 ProductLoadRetryCard로 상태를 말하고 수동 재시도를 받는다.
+        for attempt in 0..<3 {
+            do {
+                products = try await Product.products(for: Self.allIDs)
+                if !products.isEmpty {
+                    lastLoadError = nil
+                    return
+                }
+                lastLoadError = "상품 0개 로드 — StoreKit Configuration이 이 실행에 주입되지 않았을 가능성 (Xcode ▶︎ Run으로 실행했는지, Edit Scheme > Run > Options > StoreKit Configuration 확인)"
+            } catch {
+                products = []
+                lastLoadError = "\(error)"
+            }
+            if attempt < 2 { try? await Task.sleep(for: .seconds(2 * (attempt + 1))) }
         }
         #if DEBUG
         print("[StoreKit] products=\(products.count) error=\(lastLoadError ?? "none")")

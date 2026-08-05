@@ -16,6 +16,7 @@
 JurinKit/     시장 시뮬레이션 엔진 — 로컬 Swift Package (~2,500 LOC, 테스트 105개)
 SEED/         Xcode 프로젝트 — 앱 타깃 + WidgetKit 익스텐션 (~17,500 LOC)
 server/       AI 튜터용 Cloudflare Worker (API 키 비노출 프록시)
+docs/         기획서, 자체 코드 리뷰, App Store 제출 문서
 ```
 
 ## JurinKit — 주문장 기반 시장 엔진
@@ -61,5 +62,5 @@ open SEED/SEED.xcodeproj
 ## 개발 기록
 
 - 2026.07, 약 2.5주 / 342 커밋 — `develop` 기반 `feat/*`·`fix/*` 브랜치 흐름, `--no-ff` 머지
-- 출시 전 자체 코드 리뷰: [claudedocs/코드리뷰-2026-07.md](claudedocs/코드리뷰-2026-07.md) — 엔진/인프라/UI/보안 4개 영역 점검, 발견된 결함(iCloud 복원 경로, 틱마다 AI 재생성, 튜터 비용 상한 부재)의 수정 이력 포함
-- 기획: [기획서_v0.3.md](기획서_v0.3.md)
+- 출시 전 자체 코드 리뷰: [docs/코드리뷰-2026-07.md](docs/코드리뷰-2026-07.md) — 엔진/인프라/UI/보안 4개 영역 점검, 발견된 결함(iCloud 복원 경로, 틱마다 AI 재생성, 튜터 비용 상한 부재)의 수정 이력 포함
+- 기획: [docs/기획서_v0.3.md](docs/기획서_v0.3.md)

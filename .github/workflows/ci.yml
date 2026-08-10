@@ -1,0 +1,65 @@
+name: CI
+
+# PR과 보호 브랜치 push에서 엔진 테스트 + 앱 빌드를 검증한다.
+# TutorSecrets.swift는 gitignore 대상이라 CI에서는 자리표시자로 생성한다
+# (빌드 검증에는 심볼 존재만 필요 — 실값은 TestFlight 워크플로에서만 주입).
+
+on:
+  push:
+    branches: [develop, release, main]
+  pull_request:
+    branches: [develop, release, main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engine-tests:
+    name: JurinKit 테스트
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode 26 선택
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE"; fi
+          xcodebuild -version
+
+      - name: 엔진 테스트
+        working-directory: JurinKit
+        run: swift test
+
+  app-build:
+    name: SEED 앱 빌드 검증
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode 26 선택
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE"; fi
+          xcodebuild -version
+
+      - name: TutorSecrets 자리표시자 생성
+        run: |
+          cat > SEED/SEED/Learn/TutorSecrets.swift <<'EOF'
+          import Foundation
+
+          enum TutorSecrets {
+              static let clientToken = "ci-placeholder"
+          }
+          EOF
+
+      - name: 시뮬레이터 빌드
+        working-directory: SEED
+        run: |
+          set -o pipefail
+          xcodebuild -project SEED.xcodeproj -scheme SEED \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tail -30

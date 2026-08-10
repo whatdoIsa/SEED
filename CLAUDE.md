@@ -52,13 +52,17 @@ cd JurinKit && swift test   # 엔진 변경 시 필수
 - 유저당 AI 하드캡 ~200원/월 설계. 손익분기 = 유료 5명.
 
 ## 진행 중 / 다음 할 일
-1. **🚀 심사 제출 완료 (2026-07-25 오후 6:21)** — 제출물 7개: 앱 1.0(빌드 5) + IAP 3종(리필10·리필30·트랙2) + SEED Pro 구독 그룹 + 구독 2종(월간·연간). 심사 최대 48시간, 결과는 이메일. **수동 출시** 설정이라 승인 후 ASC에서 출시 버튼을 직접 눌러야 공개됨. 판매 지역 **대한민국만**(무료 앱, 언제든 확장 가능), 연령 등급 4+(한국 "전체"), 카테고리 교육+금융, 부제 "잃어도 되는 돈으로 천 번 연습하기".
-2. **[사용자] 출시 버튼 누르기 전 필수**: 실기기에서 지정가 1건 걸어둔 채 iCloud 동기화 → CloudKit Console에서 CD_SymbolState.openOrdersData 필드 생성 확인 → Deploy Schema Changes 재실행 (60번 항목 참고). + console.anthropic.com → Settings → Limits 월 지출 한도.
-3. **심사 리젝 대비**: 심사 노트에 가상 데이터·무가입·IAP 구성 고지됨. 리젝 시 Resolution Center 메시지를 보고 대응 — 금융 카테고리라 3.1.1(IAP)·2.3.1(메타데이터) 언저리가 단골.
-4. **Arcseed 법인 전환 (별도 트랙)**: 개인 계정으로 출시 확정. Arcseed 엔티티는 세금 양식이 같은 납세자 정보 중복으로 거부 — Apple 서포트 메일 회신 대기 중 (전화 콜백이 더 빠름: developer.apple.com/contact). 해결 후 개인→법인 전환 신청하면 판매자명이 Arcseed로 바뀜 (앱·리뷰·구독 유지).
-5. **출시 후 백로그** (우선순위): 친구 대결(결정론 시드 → 도전 링크, 서버 불요) > 차트게임 스낵 모드(§11 프레임 필수) > HIG 잔여(미션 VoiceOver 라벨·Dynamic Type 점진 도입·MA 범례 색약 대응) > MetricKit 로컬 진단+문의 첨부 > 트랙3 크립토 > 시즌 누적 프로필. Pro 체험(주간복기 AI 1회 무료)은 구현 완료.
-6. **CloudKit 프로덕션 스키마 배포 완료** (2026-07-18 — 레코드 5종+인덱스 Production 반영). **단, `CD_SymbolState.openOrdersData`가 개발 스키마에 아직 미생성** (nil 아닌 값이 iCloud로 동기화돼야 필드가 잡히는데 지정가 미체결 상태로 동기화된 적이 없음) → 2번 항목대로 출시 전 재배포. 그 전까지 프로덕션에서 미체결 주문의 iCloud 내보내기만 지연·재시도됨(데이터 유실 없음).
-7. 보류: 베타 프로모 코드. KPI 게이트: D7 리텐션 20%+.
+1. **🎉 출시 완료 (2026-08 — 1.0 빌드 6, 대한민국 App Store)** — 5번째 제출에서 승인, 사용자가 출시 버튼까지 누름. 판매자 **Arcseed 엔티티**(개인 엔티티 songheon jeong은 "사용 중지됨" — 법인 전환 완결, 유료 앱 계약·은행(Toss-arcseed)·세금 양식 전부 Arcseed로 활성). 홈페이지(arcseed-web repo, `app/seed/page.tsx`) 출시 반영·배포 완료 — App Store 링크 `apps.apple.com/kr/app/id6789554674`.
+2. **[확인 안 됨] CloudKit openOrdersData 스키마**: 출시 전 하기로 했던 "실기기 지정가 1건 → 동기화 → CD_SymbolState.openOrdersData 필드 생성 확인 → Deploy Schema Changes 재배포"를 실제로 했는지 미확인 — 다음 세션에서 사용자에게 확인. 안 했으면 프로덕션에서 미체결 주문 iCloud 내보내기만 지연·재시도됨(데이터 유실 없음). + console.anthropic.com 월 지출 한도($20) 설정 여부도 확인.
+3. **출시 후 백로그** (우선순위): 친구 대결(결정론 시드 → 도전 링크, 서버 불요) > 차트게임 스낵 모드(§11 프레임 필수) > HIG 잔여(미션 VoiceOver 라벨·Dynamic Type 점진 도입·MA 범례 색약 대응) > MetricKit 로컬 진단+문의 첨부 > 트랙3 크립토 > 시즌 누적 프로필. Pro 체험(주간복기 AI 1회 무료)은 구현 완료.
+4. 보류: 베타 프로모 코드. KPI 게이트: D7 리텐션 20%+.
+
+## 심사 기록 (1.0 — 제출 5회, 리젝 4회. 업데이트 심사 때 참고)
+1. **3.1.2 EULA 누락**: 자동 갱신 구독이 있으면 **앱 설명(Description) 안에 이용약관 URL 텍스트**가 필수 (인앱 페이월 링크만으론 부족). → 설명 맨 아래에 terms/privacy URL 추가로 해결. 지금 설명에 들어있으니 **지우지 말 것**.
+2. **2.3.7 스크린샷 가격 언급**: "무료"라는 단어 자체가 가격 언급으로 간주됨 — 스크린샷 캡션("12편 무료")·인앱 무료체험 버튼이 찍힌 캡처·프로모션 텍스트("1편은 무료") 전부 아웃. 가격 얘기는 설명(Description)에만 허용. → 스크린샷 6장 재제작(`appstore-screenshots-v2/`), 03번은 시뮬 시드 데이터로 재캡처(임시 코드 4곳 패턴은 git log fix/paywall-load-retry 직전 참고).
+3. **2.1(b) IAP 못 찾음/미로드**: 함정 — **2.1(b) Information Needed 메일이 오는 순간 IAP들이 전부 'Rejected' 상태로 되돌려지고, 회신만으로는 복구되지 않는다.** Rejected 상태 상품은 샌드박스가 반환하지 않음(TN3105) → 리뷰어·TestFlight 모두 가격 미표시. **복구 = 제출 페이지에서 각 IAP '편집 → 심사 업데이트' 클릭 후 재제출** (회신만 하고 심사 계속되게 두면 다음 테스트도 실패). IAP 진입 경로는 5개 상품 심사 노트에 영문으로 기입해둠 — 유지할 것.
+4. **2.1(b) 구매 실패 (시스템 결제 시트 무한 Loading)**: 근본 원인은 앱이 아니라 **은행·세금 정보가 Apple 재무팀 처리 대기로 잠겨 있던 것** (개인→법인 엔티티 이관 중). 상품 조회는 되는데 결제만 실패하면 비즈니스 페이지의 은행 "처리 중" 여부부터 볼 것. 대응하며 페이월에 로드 재시도(3회 백오프)+오류·다시 시도 카드 추가(빌드 6, `ProductLoadRetryCard`) — 무한 스피너 UX 제거.
+- 기타: 심사는 iPad에서 자주 진행됨(iPhone 전용 앱도 호환 모드로 검사— 막을 수 없음). 버전 페이지에서 빌드 교체 UI가 안 나타날 때는 ASC 내부 API로 가능: 페이지 콘솔에서 `PATCH /iris/v1/appStoreVersions/{id}` body `{data:{type:'appStoreVersions',id,relationships:{build:{data:{type:'builds',id}}}}}`.
 
 ## 주의사항
 - **저장소가 public** (github.com/whatdoIsa/SEED) — 시크릿은 절대 커밋 금지. `SEED/SEED/Learn/TutorSecrets.swift`(워커 공유 토큰)는 gitignore 대상이라 **새 장비 체크아웃 시 수동 복원 필요**(없으면 빌드 실패). 값 변경 시 Cloudflare Secret `CLIENT_TOKEN`도 같이 교체.

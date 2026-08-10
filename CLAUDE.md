@@ -13,10 +13,11 @@
   - `SEED/App|Core|Market|Learn|Review|Portfolio|Design|Onboarding/` + `SEEDWidget/`(위젯 익스텐션)
 - `server/tutor-worker.js` — 튜터 프록시 (Cloudflare Workers, 배포됨)
 
-## Git 규칙 (엄수)
-- develop에서 `feat/fix/*` 분기 → `--no-ff` 병합 → develop·브랜치 push. main은 사용자 지시 시만 승격. release는 미사용.
-- **커밋에 Claude 흔적 금지** — Co-Authored-By 트레일러 없이, 작성자 whahdoIsa만.
-- 커밋 메시지 한국어, 매 기능마다 빌드 검증 후 커밋.
+## Git 규칙 (엄수 — 상세는 CONTRIBUTING.md)
+- **이슈 → PR 기반 개발**: `feature/이슈번호-슬러그`를 develop에서 분기 → PR(base: develop) → CI(엔진 테스트+앱 빌드) 통과 후 merge commit 병합. 브랜치 3단: develop(통합) → release(버전 준비·QA) → main(배포, `v*` 태그가 TestFlight 워크플로 트리거). main·release는 PR로만 진입.
+- 커밋: `타입: 한국어 요약` (feat|fix|refactor|test|docs|ci|chore|release), 기능 단위, 커밋 전 빌드·테스트 검증.
+- **커밋에 Claude 흔적 금지** — Co-Authored-By 트레일러 없이, 작성자 whahdoIsa만. PR·이슈 본문도 동일.
+- **이모지·AI 어투 금지** — 코드, 주석, 커밋 메시지, PR, 로그 문자열 어디에도 이모지와 과장 수사를 쓰지 않는다. 주석은 코드가 설명 못 하는 제약·이유만.
 
 ## 빌드·검증 루프
 ```bash

@@ -49,16 +49,24 @@ final class PurchaseStore {
     private(set) var lastLoadError: String?
 
     func loadProducts() async {
+        guard !isLoading else { return }
         isLoading = true
         defer { isLoading = false }
-        do {
-            products = try await Product.products(for: Self.allIDs)
-            lastLoadError = products.isEmpty
-                ? "상품 0개 로드 — StoreKit Configuration이 이 실행에 주입되지 않았을 가능성 (Xcode ▶︎ Run으로 실행했는지, Edit Scheme > Run > Options > StoreKit Configuration 확인)"
-                : nil
-        } catch {
-            products = []
-            lastLoadError = "\(error)"
+        // 일시적 네트워크·스토어 오류가 무한 스피너로 남지 않게 짧은 백오프로 재시도.
+        // 그래도 실패하면 페이월이 ProductLoadRetryCard로 상태를 말하고 수동 재시도를 받는다.
+        for attempt in 0..<3 {
+            do {
+                products = try await Product.products(for: Self.allIDs)
+                if !products.isEmpty {
+                    lastLoadError = nil
+                    return
+                }
+                lastLoadError = "상품 0개 로드 — StoreKit Configuration이 이 실행에 주입되지 않았을 가능성 (Xcode ▶︎ Run으로 실행했는지, Edit Scheme > Run > Options > StoreKit Configuration 확인)"
+            } catch {
+                products = []
+                lastLoadError = "\(error)"
+            }
+            if attempt < 2 { try? await Task.sleep(for: .seconds(2 * (attempt + 1))) }
         }
         #if DEBUG
         print("[StoreKit] products=\(products.count) error=\(lastLoadError ?? "none")")
@@ -145,12 +153,15 @@ final class PurchaseStore {
         if pro { grantMonthlyProCreditsIfNeeded() }
     }
 
-    /// Pro: 매월 튜터 40문 지급 (달이 바뀌면 1회 — 기준월도 iCloud KV라 기기 간 중복 지급 없음)
+    /// Pro: 매월 튜터 40문 지급 (달이 바뀌면 1회 — 기준월도 iCloud KV라 기기 간 중복 지급 없음).
+    /// 비교는 반드시 단조 증가(>) — !=로 두면 기기 시계를 앞뒤로 굴려 같은 달을 반복 지급받는다.
+    /// 시계를 미래로 밀어 미리 받는 것은 막지 못하지만(그건 다른 앱 동작·구독 유효성도 깨뜨린다),
+    /// 뒤로 굴린 재지급이라는 실용적 악용 경로를 닫는다. (완전한 해법은 트랜잭션 갱신일 기준 지급)
     private func grantMonthlyProCreditsIfNeeded() {
         let key = "seed.pro.creditMonth"
         let parts = Calendar.current.dateComponents([.year, .month], from: .now)
         let month = (parts.year ?? 0) * 100 + (parts.month ?? 0)
-        guard TutorCloudStore.int(forKey: key) != month else { return }
+        guard month > TutorCloudStore.int(forKey: key) else { return }
         TutorCloudStore.set(month, forKey: key)
         TutorQuota.addCredits(40)
     }

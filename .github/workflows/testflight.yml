@@ -1,0 +1,81 @@
+name: TestFlight
+
+# 배포 워크플로 — main에 버전 태그(v*)를 push하거나 수동 실행하면
+# 아카이브를 만들어 App Store Connect(TestFlight)로 업로드한다.
+#
+# 필요한 저장소 Secrets (Settings > Secrets and variables > Actions):
+#   ASC_API_KEY_ID     App Store Connect API 키 ID
+#   ASC_API_ISSUER_ID  API 키 Issuer ID
+#   ASC_API_KEY_P8     .p8 키 파일 내용 전체
+#   TUTOR_CLIENT_TOKEN 튜터 워커 공유 토큰 (Cloudflare CLIENT_TOKEN과 동일 값)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  upload:
+    name: 아카이브 및 업로드
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Xcode 26 선택
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE" ]; then sudo xcode-select -s "$XCODE"; fi
+          xcodebuild -version
+
+      - name: TutorSecrets 복원
+        run: |
+          cat > SEED/SEED/Learn/TutorSecrets.swift <<EOF
+          import Foundation
+
+          enum TutorSecrets {
+              static let clientToken = "${{ secrets.TUTOR_CLIENT_TOKEN }}"
+          }
+          EOF
+
+      - name: App Store Connect API 키 준비
+        run: |
+          mkdir -p "$HOME/private_keys"
+          printf '%s' "${{ secrets.ASC_API_KEY_P8 }}" > "$HOME/private_keys/AuthKey_${{ secrets.ASC_API_KEY_ID }}.p8"
+
+      - name: 아카이브
+        working-directory: SEED
+        run: |
+          set -o pipefail
+          xcodebuild -project SEED.xcodeproj -scheme SEED \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/SEED.xcarchive \
+            archive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${{ secrets.ASC_API_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.ASC_API_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_API_ISSUER_ID }}" | tail -30
+
+      - name: App Store Connect 업로드
+        working-directory: SEED
+        run: |
+          cat > ExportOptions.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store-connect</string>
+              <key>destination</key>
+              <string>upload</string>
+          </dict>
+          </plist>
+          EOF
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath build/SEED.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$HOME/private_keys/AuthKey_${{ secrets.ASC_API_KEY_ID }}.p8" \
+            -authenticationKeyID "${{ secrets.ASC_API_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_API_ISSUER_ID }}" | tail -30

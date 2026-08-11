@@ -17,7 +17,10 @@
 
 const MODEL = "claude-haiku-4-5-20251001";
 const MAX_OUTPUT_TOKENS = 500;
-const DAILY_LIMIT_PER_DEVICE = 30; // 서버측 상한 — 클라이언트 상한(5/일)보다 넉넉히, 탈취 방어용
+// 서버측 기기별 상한 — 토큰이 앱 바이너리에서 추출돼 직접 호출당해도 한 기기가 축낼 수 있는 양을 제한.
+// 정상 유저는 클라이언트 크레딧(무료 5·Pro 40/월·리필)이 진짜 상한이고, 429는 크레딧을 소모하지 않으므로
+// (TutorView가 ask 성공 후에만 consume) 이 값을 낮춰도 정상 사용엔 지장이 없다. 탈취 시 비용 노출 최소화.
+const DAILY_LIMIT_PER_DEVICE = 10;
 const DAILY_LIMIT_GLOBAL = 2000; // 전 기기 합산 일일 캡 — deviceId 위조와 무관한 총 비용 상한
 const UUID_PATTERN = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i;
 
